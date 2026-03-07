@@ -1,0 +1,101 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <RuntimeIdentifiers>linux-x64;win-x64</RuntimeIdentifiers>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\.dockerignore">
+      <Link>.dockerignore</Link>
+    </Content>
+    <EmbeddedResource Include="Channels\Web\index.html"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EF Core providers (include raw ADO.NET drivers as transitive deps) -->
+    <PackageReference Include="JetBrains.Annotations" Version="2025.2.4"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.3"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.3"/>
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.3"/>
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.3.0"/>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0"/>
+    <!-- pgvector ANN search for PostgreSQL memory backend -->
+    <PackageReference Include="Pgvector" Version="0.3.2"/>
+    <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.3"/>
+    <!-- Email channel -->
+    <PackageReference Include="MailKit" Version="4.15.1"/>
+    <!-- Document text extraction (PDF support for DocumentReadTool) -->
+    <PackageReference Include="PdfPig" Version="0.1.13"/>
+    <!-- Discord via Remora.Discord -->
+    <PackageReference Include="Remora.Discord" Version="2025.2.0"/>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3"/>
+    <PackageReference Include="Spectre.Console" Version="0.54.0"/>
+    <PackageReference Include="Spectre.Console.Cli" Version="0.53.1"/>
+    <!-- Smart enum / value-object generator (string-backed enums with TryFromName, ==, .Value) -->
+    <PackageReference Include="Intellenum" Version="2.0.1">
+      <PrivateAssets>analyzers;build;buildtransitive</PrivateAssets>
+    </PackageReference>
+    <!-- sqlite-vec ANN search for SQLite memory backend (community NuGet, graceful fallback) -->
+    <PackageReference Include="sqlite-vec" Version="0.1.7-alpha.2.1"/>
+    <!-- Browser automation (CDP/Chromium) for BrowserTool -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.58.0"/>
+    <!-- Nostr protocol (NIP-01/04/17/44 relay client, secp256k1, Schnorr signatures) -->
+    <PackageReference Include="NNostr.Client" Version="0.0.54"/>
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.3"/>
+    <!-- Source-generated mediator pattern for VSA/CQRS handlers -->
+    <PackageReference Include="Immediate.Handlers" Version="3.3.0"/>
+  </ItemGroup>
+
+  <!-- ── Svelte Web UI build ─────────────────────────────────────────────────
+       Runs `npm install` + `npm run build:embed` in clawsharp-web/ before
+       Build and Publish. Skipped when the web source directory is absent
+       (e.g. Docker SDK stage where only the csproj is COPYed for restore).
+       The built index.html is embedded as a manifest resource (see above). -->
+  <PropertyGroup>
+    <WebUiDir>$(MSBuildProjectDirectory)/../clawsharp-web</WebUiDir>
+  </PropertyGroup>
+
+  <Target Name="BuildWebUI" BeforeTargets="Build;Publish"
+          Condition="Exists('$(WebUiDir)/package.json')">
+    <Exec Command="npm install --prefer-offline --no-audit --no-fund"
+          WorkingDirectory="$(WebUiDir)" StandardOutputImportance="Low"/>
+    <Exec Command="npm run build:embed"
+          WorkingDirectory="$(WebUiDir)"/>
+  </Target>
+
+  <Target Name="CleanWebUI" AfterTargets="Clean"
+          Condition="Exists('$(WebUiDir)/dist')">
+    <RemoveDir Directories="$(WebUiDir)/dist"/>
+  </Target>
+
+  <!-- ── Publish defaults ────────────────────────────────────────────────────
+       Strip debug symbols in Release publish (same as the old Makefile flag).
+       Usage: dotnet publish -c Release -r linux-x64
+              dotnet publish -c Release -r win-x64 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <StripSymbols>true</StripSymbols>
+    <PublishDir>$(MSBuildProjectDirectory)/../../dist/$(RuntimeIdentifier)</PublishDir>
+  </PropertyGroup>
+
+</Project>

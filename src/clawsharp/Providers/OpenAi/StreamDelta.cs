@@ -1,0 +1,19 @@
+using System.Text.Json.Serialization;
+
+namespace Clawsharp.Providers.OpenAi;
+
+/// <summary>Delta content within a streaming chat completion choice.</summary>
+internal sealed class StreamDelta
+{
+    /// <summary>Incremental text content.</summary>
+    [JsonPropertyName("content")]
+    public string? Content { get; init; }
+
+    /// <summary>Incremental tool call data.</summary>
+    [JsonPropertyName("tool_calls")]
+    public List<StreamToolCall>? ToolCalls { get; init; }
+
+    /// <summary>Reasoning content from models that support chain-of-thought (e.g. o1, DeepSeek-R1).</summary>
+    [JsonPropertyName("reasoning_content")]
+    public string? ReasoningContent { get; init; }
+}

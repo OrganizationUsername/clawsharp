@@ -1,0 +1,25 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+
+# Environment variable files — never commit secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+
+# dist output from AOT publish
+dist/
+
+# Code review artifacts
+.reviews/
+
+# Agent memory
+.claude/agent-memory/
+
+# Svelte/Node frontend
+clawsharp-web/node_modules/

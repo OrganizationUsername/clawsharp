@@ -1,0 +1,69 @@
+namespace Clawsharp.Core.Pipeline;
+
+/// <summary>Intercepts slash commands before they reach the LLM.</summary>
+public static class SlashCommandRouter
+{
+    /// <summary>
+    ///     Attempts to parse a slash command. Returns a <see cref="SlashCommandResult" />,
+    ///     or <c>null</c> if the text is not a slash command and should be forwarded to the LLM.
+    /// </summary>
+    public static SlashCommandResult? TryHandle(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var trimmed = text.Trim();
+        if (!trimmed.StartsWith('/'))
+        {
+            return null;
+        }
+
+        var parts = trimmed.Split(' ', 2, StringSplitOptions.TrimEntries);
+        var cmd = parts[0].ToLowerInvariant();
+        var arg = parts.Length > 1 ? parts[1] : null;
+
+        return cmd switch
+        {
+            "/new" or "/clear" => SlashCommandResult.ClearSession,
+            "/compact" => SlashCommandResult.TriggerCompaction,
+            "/status" => SlashCommandResult.SendStatus,
+            "/usage" or "/cost" => SlashCommandResult.ShowUsage,
+            "/think" or "/verbose" => arg?.ToLowerInvariant() switch
+            {
+                "on" => SlashCommandResult.ThinkOn,
+                "off" => SlashCommandResult.ThinkOff,
+                _ => SlashCommandResult.ThinkToggle,
+            },
+            "/goals" => arg?.ToLowerInvariant() switch
+            {
+                "clear" => SlashCommandResult.ClearGoals,
+                _ => SlashCommandResult.ShowGoals,
+            },
+            _ => null, // unknown slash command -- let the LLM handle it
+        };
+    }
+}
+
+/// <summary>Result of slash command interception.</summary>
+public enum SlashCommandResult
+{
+    ClearSession,
+
+    TriggerCompaction,
+
+    SendStatus,
+
+    ShowUsage,
+
+    ThinkOn,
+
+    ThinkOff,
+
+    ThinkToggle,
+
+    ShowGoals,
+
+    ClearGoals,
+}

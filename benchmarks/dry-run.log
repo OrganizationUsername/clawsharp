@@ -1,0 +1,1351 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 24 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/" /p:OutDir="/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0/" /p:OutputPath="/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0/" /p:PublishDir="/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/publish/" in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1
+// command took 0.81 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/" /p:OutDir="/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0/" /p:OutputPath="/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0/" /p:PublishDir="/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/publish/" --output "/home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0/" in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1
+// command took 4.21 sec and exited with 0
+// ***** Done, took 00:00:05 (5.08 sec)   *****
+// Found 6 benchmarks:
+//   ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=4]
+//   ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=4]
+//   ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=10]
+//   ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=10]
+//   ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=18]
+//   ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=18]
+
+// **************************
+// Benchmark: ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=4]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 150 151 --benchmarkName "PerfBenchmarks.ChannelLookupBenchmark.Before_FirstOrDefault(ChannelCount: 4)" --job Dry --benchmarkId 0 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 250842.00 ns, 250.8420 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 250842.00 ns, 250.8420 us/op
+// GC:  0 0 0 64 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860199 has exited with code 0.
+
+Mean = 250.842 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 250.842 us, Q1 = 250.842 us, Median = 250.842 us, Q3 = 250.842 us, Max = 250.842 us
+IQR = 0.000 us, LowerFence = 250.842 us, UpperFence = 250.842 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 23 (95.8 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=4]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 150 151 --benchmarkName "PerfBenchmarks.ChannelLookupBenchmark.After_FrozenDictionary(ChannelCount: 4)" --job Dry --benchmarkId 1 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 584450.00 ns, 584.4500 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 584450.00 ns, 584.4500 us/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860207 has exited with code 0.
+
+Mean = 584.450 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 584.450 us, Q1 = 584.450 us, Median = 584.450 us, Q3 = 584.450 us, Max = 584.450 us
+IQR = 0.000 us, LowerFence = 584.450 us, UpperFence = 584.450 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 22 (91.7 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 150 151 --benchmarkName "PerfBenchmarks.ChannelLookupBenchmark.Before_FirstOrDefault(ChannelCount: 10)" --job Dry --benchmarkId 2 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 237812.00 ns, 237.8120 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 237812.00 ns, 237.8120 us/op
+// GC:  0 0 0 64 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860214 has exited with code 0.
+
+Mean = 237.812 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 237.812 us, Q1 = 237.812 us, Median = 237.812 us, Q3 = 237.812 us, Max = 237.812 us
+IQR = 0.000 us, LowerFence = 237.812 us, UpperFence = 237.812 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 21 (87.5 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 150 151 --benchmarkName "PerfBenchmarks.ChannelLookupBenchmark.After_FrozenDictionary(ChannelCount: 10)" --job Dry --benchmarkId 3 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 595781.00 ns, 595.7810 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 595781.00 ns, 595.7810 us/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860221 has exited with code 0.
+
+Mean = 595.781 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 595.781 us, Q1 = 595.781 us, Median = 595.781 us, Q3 = 595.781 us, Max = 595.781 us
+IQR = 0.000 us, LowerFence = 595.781 us, UpperFence = 595.781 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 20 (83.3 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=18]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 150 151 --benchmarkName "PerfBenchmarks.ChannelLookupBenchmark.Before_FirstOrDefault(ChannelCount: 18)" --job Dry --benchmarkId 4 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 239472.00 ns, 239.4720 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 239472.00 ns, 239.4720 us/op
+// GC:  0 0 0 64 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860232 has exited with code 0.
+
+Mean = 239.472 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 239.472 us, Q1 = 239.472 us, Median = 239.472 us, Q3 = 239.472 us, Max = 239.472 us
+IQR = 0.000 us, LowerFence = 239.472 us, UpperFence = 239.472 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 19 (79.2 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=18]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 150 151 --benchmarkName "PerfBenchmarks.ChannelLookupBenchmark.After_FrozenDictionary(ChannelCount: 18)" --job Dry --benchmarkId 5 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 607020.00 ns, 607.0200 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 607020.00 ns, 607.0200 us/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860239 has exited with code 0.
+
+Mean = 607.020 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 607.020 us, Q1 = 607.020 us, Median = 607.020 us, Q3 = 607.020 us, Max = 607.020 us
+IQR = 0.000 us, LowerFence = 607.020 us, UpperFence = 607.020 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 18 (75.0 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ChannelLookupBenchmark-report.csv
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ChannelLookupBenchmark-report-github.md
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ChannelLookupBenchmark-report.html
+
+// * Detailed results *
+ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=4]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 250.842 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 250.842 us, Q1 = 250.842 us, Median = 250.842 us, Q3 = 250.842 us, Max = 250.842 us
+IQR = 0.000 us, LowerFence = 250.842 us, UpperFence = 250.842 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[250.841 us ; 250.843 us) | @
+---------------------------------------------------
+
+ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=4]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 584.450 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 584.450 us, Q1 = 584.450 us, Median = 584.450 us, Q3 = 584.450 us, Max = 584.450 us
+IQR = 0.000 us, LowerFence = 584.450 us, UpperFence = 584.450 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[584.449 us ; 584.451 us) | @
+---------------------------------------------------
+
+ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=10]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 237.812 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 237.812 us, Q1 = 237.812 us, Median = 237.812 us, Q3 = 237.812 us, Max = 237.812 us
+IQR = 0.000 us, LowerFence = 237.812 us, UpperFence = 237.812 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[237.811 us ; 237.812 us) | @
+---------------------------------------------------
+
+ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=10]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 595.781 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 595.781 us, Q1 = 595.781 us, Median = 595.781 us, Q3 = 595.781 us, Max = 595.781 us
+IQR = 0.000 us, LowerFence = 595.781 us, UpperFence = 595.781 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[595.780 us ; 595.782 us) | @
+---------------------------------------------------
+
+ChannelLookupBenchmark.Before_FirstOrDefault: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=18]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 239.472 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 239.472 us, Q1 = 239.472 us, Median = 239.472 us, Q3 = 239.472 us, Max = 239.472 us
+IQR = 0.000 us, LowerFence = 239.472 us, UpperFence = 239.472 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[239.471 us ; 239.472 us) | @
+---------------------------------------------------
+
+ChannelLookupBenchmark.After_FrozenDictionary: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ChannelCount=18]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 607.020 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 607.020 us, Q1 = 607.020 us, Median = 607.020 us, Q3 = 607.020 us, Max = 607.020 us
+IQR = 0.000 us, LowerFence = 607.020 us, UpperFence = 607.020 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[607.019 us ; 607.020 us) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux CachyOS
+AMD Ryzen 9 5900X 1.73GHz, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 10.0.102
+  [Host] : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                 | ChannelCount | Mean     | Error | Ratio | Allocated | Alloc Ratio |
+|----------------------- |------------- |---------:|------:|------:|----------:|------------:|
+| Before_FirstOrDefault  | 4            | 250.8 us |    NA |  1.00 |      64 B |        1.00 |
+| After_FrozenDictionary | 4            | 584.5 us |    NA |  2.33 |         - |        0.00 |
+|                        |              |          |       |       |           |             |
+| Before_FirstOrDefault  | 10           | 237.8 us |    NA |  1.00 |      64 B |        1.00 |
+| After_FrozenDictionary | 10           | 595.8 us |    NA |  2.51 |         - |        0.00 |
+|                        |              |          |       |       |           |             |
+| Before_FirstOrDefault  | 18           | 239.5 us |    NA |  1.00 |      64 B |        1.00 |
+| After_FrozenDictionary | 18           | 607.0 us |    NA |  2.53 |         - |        0.00 |
+
+// * Warnings *
+MinIterationTime
+  ChannelLookupBenchmark.Before_FirstOrDefault: Dry  -> The minimum observed iteration time is 250.842us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ChannelLookupBenchmark.After_FrozenDictionary: Dry -> The minimum observed iteration time is 584.45us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ChannelLookupBenchmark.Before_FirstOrDefault: Dry  -> The minimum observed iteration time is 237.812us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ChannelLookupBenchmark.After_FrozenDictionary: Dry -> The minimum observed iteration time is 595.781us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ChannelLookupBenchmark.Before_FirstOrDefault: Dry  -> The minimum observed iteration time is 239.472us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ChannelLookupBenchmark.After_FrozenDictionary: Dry -> The minimum observed iteration time is 607.02us which is very small. It's recommended to increase it to at least 100ms using more operations.
+
+// * Legends *
+  ChannelCount : Value of the 'ChannelCount' parameter
+  Mean         : Arithmetic mean of all measurements
+  Error        : Half of 99.9% confidence interval
+  Ratio        : Mean of the ratio distribution ([Current]/[Baseline])
+  Allocated    : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio  : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 us         : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.58 sec), executed benchmarks: 6
+
+// Found 6 benchmarks:
+//   EscapeDelimiterBenchmark.Before_NoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   EscapeDelimiterBenchmark.Before_WithSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   EscapeDelimiterBenchmark.Before_LongNoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   EscapeDelimiterBenchmark.After_NoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   EscapeDelimiterBenchmark.After_WithSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   EscapeDelimiterBenchmark.After_LongNoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// **************************
+// Benchmark: EscapeDelimiterBenchmark.Before_NoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 156 157 --benchmarkName PerfBenchmarks.EscapeDelimiterBenchmark.Before_NoSpecial --job Dry --benchmarkId 6 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 170454.00 ns, 170.4540 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 170454.00 ns, 170.4540 us/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860248 has exited with code 0.
+
+Mean = 170.454 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 170.454 us, Q1 = 170.454 us, Median = 170.454 us, Q3 = 170.454 us, Max = 170.454 us
+IQR = 0.000 us, LowerFence = 170.454 us, UpperFence = 170.454 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 17 (70.8 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: EscapeDelimiterBenchmark.Before_WithSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 156 157 --benchmarkName PerfBenchmarks.EscapeDelimiterBenchmark.Before_WithSpecial --job Dry --benchmarkId 7 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 177025.00 ns, 177.0250 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 177025.00 ns, 177.0250 us/op
+// GC:  0 0 0 560 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860255 has exited with code 0.
+
+Mean = 177.025 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 177.025 us, Q1 = 177.025 us, Median = 177.025 us, Q3 = 177.025 us, Max = 177.025 us
+IQR = 0.000 us, LowerFence = 177.025 us, UpperFence = 177.025 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 16 (66.7 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: EscapeDelimiterBenchmark.Before_LongNoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 156 157 --benchmarkName PerfBenchmarks.EscapeDelimiterBenchmark.Before_LongNoSpecial --job Dry --benchmarkId 8 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 169344.00 ns, 169.3440 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 169344.00 ns, 169.3440 us/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860262 has exited with code 0.
+
+Mean = 169.344 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 169.344 us, Q1 = 169.344 us, Median = 169.344 us, Q3 = 169.344 us, Max = 169.344 us
+IQR = 0.000 us, LowerFence = 169.344 us, UpperFence = 169.344 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 15 (62.5 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: EscapeDelimiterBenchmark.After_NoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 156 157 --benchmarkName PerfBenchmarks.EscapeDelimiterBenchmark.After_NoSpecial --job Dry --benchmarkId 9 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 213913.00 ns, 213.9130 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 213913.00 ns, 213.9130 us/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860271 has exited with code 0.
+
+Mean = 213.913 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 213.913 us, Q1 = 213.913 us, Median = 213.913 us, Q3 = 213.913 us, Max = 213.913 us
+IQR = 0.000 us, LowerFence = 213.913 us, UpperFence = 213.913 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 14 (58.3 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: EscapeDelimiterBenchmark.After_WithSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 156 157 --benchmarkName PerfBenchmarks.EscapeDelimiterBenchmark.After_WithSpecial --job Dry --benchmarkId 10 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 225113.00 ns, 225.1130 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 225113.00 ns, 225.1130 us/op
+// GC:  0 0 0 560 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860280 has exited with code 0.
+
+Mean = 225.113 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 225.113 us, Q1 = 225.113 us, Median = 225.113 us, Q3 = 225.113 us, Max = 225.113 us
+IQR = 0.000 us, LowerFence = 225.113 us, UpperFence = 225.113 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 13 (54.2 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: EscapeDelimiterBenchmark.After_LongNoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 156 157 --benchmarkName PerfBenchmarks.EscapeDelimiterBenchmark.After_LongNoSpecial --job Dry --benchmarkId 11 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 225822.00 ns, 225.8220 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 225822.00 ns, 225.8220 us/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860287 has exited with code 0.
+
+Mean = 225.822 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 225.822 us, Q1 = 225.822 us, Median = 225.822 us, Q3 = 225.822 us, Max = 225.822 us
+IQR = 0.000 us, LowerFence = 225.822 us, UpperFence = 225.822 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 12 (50.0 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.EscapeDelimiterBenchmark-report.csv
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.EscapeDelimiterBenchmark-report-github.md
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.EscapeDelimiterBenchmark-report.html
+
+// * Detailed results *
+EscapeDelimiterBenchmark.Before_NoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 170.454 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 170.454 us, Q1 = 170.454 us, Median = 170.454 us, Q3 = 170.454 us, Max = 170.454 us
+IQR = 0.000 us, LowerFence = 170.454 us, UpperFence = 170.454 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[170.453 us ; 170.454 us) | @
+---------------------------------------------------
+
+EscapeDelimiterBenchmark.Before_WithSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 177.025 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 177.025 us, Q1 = 177.025 us, Median = 177.025 us, Q3 = 177.025 us, Max = 177.025 us
+IQR = 0.000 us, LowerFence = 177.025 us, UpperFence = 177.025 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[177.024 us ; 177.025 us) | @
+---------------------------------------------------
+
+EscapeDelimiterBenchmark.Before_LongNoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 169.344 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 169.344 us, Q1 = 169.344 us, Median = 169.344 us, Q3 = 169.344 us, Max = 169.344 us
+IQR = 0.000 us, LowerFence = 169.344 us, UpperFence = 169.344 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[169.344 us ; 169.345 us) | @
+---------------------------------------------------
+
+EscapeDelimiterBenchmark.After_NoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 213.913 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 213.913 us, Q1 = 213.913 us, Median = 213.913 us, Q3 = 213.913 us, Max = 213.913 us
+IQR = 0.000 us, LowerFence = 213.913 us, UpperFence = 213.913 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[213.912 us ; 213.913 us) | @
+---------------------------------------------------
+
+EscapeDelimiterBenchmark.After_WithSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 225.113 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 225.113 us, Q1 = 225.113 us, Median = 225.113 us, Q3 = 225.113 us, Max = 225.113 us
+IQR = 0.000 us, LowerFence = 225.113 us, UpperFence = 225.113 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[225.113 us ; 225.113 us) | @
+---------------------------------------------------
+
+EscapeDelimiterBenchmark.After_LongNoSpecial: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 225.822 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 225.822 us, Q1 = 225.822 us, Median = 225.822 us, Q3 = 225.822 us, Max = 225.822 us
+IQR = 0.000 us, LowerFence = 225.822 us, UpperFence = 225.822 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[225.821 us ; 225.822 us) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux CachyOS
+AMD Ryzen 9 5900X 1.73GHz, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 10.0.102
+  [Host] : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method               | Mean     | Error | Ratio | Allocated | Alloc Ratio |
+|--------------------- |---------:|------:|------:|----------:|------------:|
+| Before_NoSpecial     | 170.5 us |    NA |  1.00 |         - |          NA |
+| Before_WithSpecial   | 177.0 us |    NA |  1.04 |     560 B |          NA |
+| Before_LongNoSpecial | 169.3 us |    NA |  0.99 |         - |          NA |
+| After_NoSpecial      | 213.9 us |    NA |  1.25 |         - |          NA |
+| After_WithSpecial    | 225.1 us |    NA |  1.32 |     560 B |          NA |
+| After_LongNoSpecial  | 225.8 us |    NA |  1.32 |         - |          NA |
+
+// * Warnings *
+MinIterationTime
+  EscapeDelimiterBenchmark.Before_NoSpecial: Dry     -> The minimum observed iteration time is 170.454us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  EscapeDelimiterBenchmark.Before_WithSpecial: Dry   -> The minimum observed iteration time is 177.025us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  EscapeDelimiterBenchmark.Before_LongNoSpecial: Dry -> The minimum observed iteration time is 169.344us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  EscapeDelimiterBenchmark.After_NoSpecial: Dry      -> The minimum observed iteration time is 213.913us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  EscapeDelimiterBenchmark.After_WithSpecial: Dry    -> The minimum observed iteration time is 225.113us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  EscapeDelimiterBenchmark.After_LongNoSpecial: Dry  -> The minimum observed iteration time is 225.822us which is very small. It's recommended to increase it to at least 100ms using more operations.
+
+// * Legends *
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 us        : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.53 sec), executed benchmarks: 6
+
+// Found 6 benchmarks:
+//   ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=100]
+//   ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=100]
+//   ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=1000]
+//   ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=1000]
+//   ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=10000]
+//   ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=10000]
+
+// **************************
+// Benchmark: ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=100]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName "PerfBenchmarks.ListCopyBenchmark.Before_SpreadCopy(RecordCount: 100)" --job Dry --benchmarkId 12 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 361299.00 ns, 361.2990 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 361299.00 ns, 361.2990 us/op
+// GC:  0 0 0 848 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860294 has exited with code 0.
+
+Mean = 361.299 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 361.299 us, Q1 = 361.299 us, Median = 361.299 us, Q3 = 361.299 us, Max = 361.299 us
+IQR = 0.000 us, LowerFence = 361.299 us, UpperFence = 361.299 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 11 (45.8 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=100]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName "PerfBenchmarks.ListCopyBenchmark.After_AsReadOnly(RecordCount: 100)" --job Dry --benchmarkId 13 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 366478.00 ns, 366.4780 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 366478.00 ns, 366.4780 us/op
+// GC:  0 0 0 24 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860301 has exited with code 0.
+
+Mean = 366.478 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 366.478 us, Q1 = 366.478 us, Median = 366.478 us, Q3 = 366.478 us, Max = 366.478 us
+IQR = 0.000 us, LowerFence = 366.478 us, UpperFence = 366.478 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 10 (41.7 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=1000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName "PerfBenchmarks.ListCopyBenchmark.Before_SpreadCopy(RecordCount: 1000)" --job Dry --benchmarkId 14 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 404147.00 ns, 404.1470 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 404147.00 ns, 404.1470 us/op
+// GC:  0 0 0 8048 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860310 has exited with code 0.
+
+Mean = 404.147 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 404.147 us, Q1 = 404.147 us, Median = 404.147 us, Q3 = 404.147 us, Max = 404.147 us
+IQR = 0.000 us, LowerFence = 404.147 us, UpperFence = 404.147 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 9 (37.5 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=1000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName "PerfBenchmarks.ListCopyBenchmark.After_AsReadOnly(RecordCount: 1000)" --job Dry --benchmarkId 15 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 364518.00 ns, 364.5180 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 364518.00 ns, 364.5180 us/op
+// GC:  0 0 0 24 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860319 has exited with code 0.
+
+Mean = 364.518 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 364.518 us, Q1 = 364.518 us, Median = 364.518 us, Q3 = 364.518 us, Max = 364.518 us
+IQR = 0.000 us, LowerFence = 364.518 us, UpperFence = 364.518 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 8 (33.3 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=10000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName "PerfBenchmarks.ListCopyBenchmark.Before_SpreadCopy(RecordCount: 10000)" --job Dry --benchmarkId 16 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 396137.00 ns, 396.1370 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 396137.00 ns, 396.1370 us/op
+// GC:  0 0 0 80048 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860326 has exited with code 0.
+
+Mean = 396.137 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 396.137 us, Q1 = 396.137 us, Median = 396.137 us, Q3 = 396.137 us, Max = 396.137 us
+IQR = 0.000 us, LowerFence = 396.137 us, UpperFence = 396.137 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 7 (29.2 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=10000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName "PerfBenchmarks.ListCopyBenchmark.After_AsReadOnly(RecordCount: 10000)" --job Dry --benchmarkId 17 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 355219.00 ns, 355.2190 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 355219.00 ns, 355.2190 us/op
+// GC:  0 0 0 24 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860333 has exited with code 0.
+
+Mean = 355.219 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 355.219 us, Q1 = 355.219 us, Median = 355.219 us, Q3 = 355.219 us, Max = 355.219 us
+IQR = 0.000 us, LowerFence = 355.219 us, UpperFence = 355.219 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 6 (25.0 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ListCopyBenchmark-report.csv
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ListCopyBenchmark-report-github.md
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ListCopyBenchmark-report.html
+
+// * Detailed results *
+ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=100]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 361.299 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 361.299 us, Q1 = 361.299 us, Median = 361.299 us, Q3 = 361.299 us, Max = 361.299 us
+IQR = 0.000 us, LowerFence = 361.299 us, UpperFence = 361.299 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[361.298 us ; 361.300 us) | @
+---------------------------------------------------
+
+ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=100]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 366.478 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 366.478 us, Q1 = 366.478 us, Median = 366.478 us, Q3 = 366.478 us, Max = 366.478 us
+IQR = 0.000 us, LowerFence = 366.478 us, UpperFence = 366.478 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[366.478 us ; 366.478 us) | @
+---------------------------------------------------
+
+ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=1000]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 404.147 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 404.147 us, Q1 = 404.147 us, Median = 404.147 us, Q3 = 404.147 us, Max = 404.147 us
+IQR = 0.000 us, LowerFence = 404.147 us, UpperFence = 404.147 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[404.147 us ; 404.147 us) | @
+---------------------------------------------------
+
+ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=1000]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 364.518 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 364.518 us, Q1 = 364.518 us, Median = 364.518 us, Q3 = 364.518 us, Max = 364.518 us
+IQR = 0.000 us, LowerFence = 364.518 us, UpperFence = 364.518 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[364.517 us ; 364.519 us) | @
+---------------------------------------------------
+
+ListCopyBenchmark.Before_SpreadCopy: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=10000]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 396.137 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 396.137 us, Q1 = 396.137 us, Median = 396.137 us, Q3 = 396.137 us, Max = 396.137 us
+IQR = 0.000 us, LowerFence = 396.137 us, UpperFence = 396.137 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[396.137 us ; 396.137 us) | @
+---------------------------------------------------
+
+ListCopyBenchmark.After_AsReadOnly: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [RecordCount=10000]
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 355.219 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 355.219 us, Q1 = 355.219 us, Median = 355.219 us, Q3 = 355.219 us, Max = 355.219 us
+IQR = 0.000 us, LowerFence = 355.219 us, UpperFence = 355.219 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[355.219 us ; 355.219 us) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux CachyOS
+AMD Ryzen 9 5900X 1.73GHz, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 10.0.102
+  [Host] : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method            | RecordCount | Mean     | Error | Ratio | Allocated | Alloc Ratio |
+|------------------ |------------ |---------:|------:|------:|----------:|------------:|
+| Before_SpreadCopy | 100         | 361.3 us |    NA |  1.00 |     848 B |        1.00 |
+| After_AsReadOnly  | 100         | 366.5 us |    NA |  1.01 |      24 B |        0.03 |
+|                   |             |          |       |       |           |             |
+| Before_SpreadCopy | 1000        | 404.1 us |    NA |  1.00 |    8048 B |       1.000 |
+| After_AsReadOnly  | 1000        | 364.5 us |    NA |  0.90 |      24 B |       0.003 |
+|                   |             |          |       |       |           |             |
+| Before_SpreadCopy | 10000       | 396.1 us |    NA |  1.00 |   80048 B |       1.000 |
+| After_AsReadOnly  | 10000       | 355.2 us |    NA |  0.90 |      24 B |       0.000 |
+
+// * Warnings *
+MinIterationTime
+  ListCopyBenchmark.Before_SpreadCopy: Dry -> The minimum observed iteration time is 361.299us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ListCopyBenchmark.After_AsReadOnly: Dry  -> The minimum observed iteration time is 366.478us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ListCopyBenchmark.Before_SpreadCopy: Dry -> The minimum observed iteration time is 404.147us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ListCopyBenchmark.After_AsReadOnly: Dry  -> The minimum observed iteration time is 364.518us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ListCopyBenchmark.Before_SpreadCopy: Dry -> The minimum observed iteration time is 396.137us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ListCopyBenchmark.After_AsReadOnly: Dry  -> The minimum observed iteration time is 355.219us which is very small. It's recommended to increase it to at least 100ms using more operations.
+
+// * Legends *
+  RecordCount : Value of the 'RecordCount' parameter
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 us        : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.53 sec), executed benchmarks: 6
+
+// Found 2 benchmarks:
+//   SerializationBenchmark.Before_SerializeThenGetBytes: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   SerializationBenchmark.After_SerializeToUtf8Bytes: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// **************************
+// Benchmark: SerializationBenchmark.Before_SerializeThenGetBytes: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName PerfBenchmarks.SerializationBenchmark.Before_SerializeThenGetBytes --job Dry --benchmarkId 18 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 12012287.00 ns, 12.0123 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 12012287.00 ns, 12.0123 ms/op
+// GC:  0 0 0 992 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860340 has exited with code 0.
+
+Mean = 12.012 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 12.012 ms, Q1 = 12.012 ms, Median = 12.012 ms, Q3 = 12.012 ms, Max = 12.012 ms
+IQR = 0.000 ms, LowerFence = 12.012 ms, UpperFence = 12.012 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 5 (20.8 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: SerializationBenchmark.After_SerializeToUtf8Bytes: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName PerfBenchmarks.SerializationBenchmark.After_SerializeToUtf8Bytes --job Dry --benchmarkId 19 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 11833083.00 ns, 11.8331 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 11833083.00 ns, 11.8331 ms/op
+// GC:  0 0 0 208 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860347 has exited with code 0.
+
+Mean = 11.833 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.833 ms, Q1 = 11.833 ms, Median = 11.833 ms, Q3 = 11.833 ms, Max = 11.833 ms
+IQR = 0.000 ms, LowerFence = 11.833 ms, UpperFence = 11.833 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 4 (16.7 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.SerializationBenchmark-report.csv
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.SerializationBenchmark-report-github.md
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.SerializationBenchmark-report.html
+
+// * Detailed results *
+SerializationBenchmark.Before_SerializeThenGetBytes: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 12.012 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 12.012 ms, Q1 = 12.012 ms, Median = 12.012 ms, Q3 = 12.012 ms, Max = 12.012 ms
+IQR = 0.000 ms, LowerFence = 12.012 ms, UpperFence = 12.012 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[12.012 ms ; 12.012 ms) | @
+---------------------------------------------------
+
+SerializationBenchmark.After_SerializeToUtf8Bytes: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 11.833 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.833 ms, Q1 = 11.833 ms, Median = 11.833 ms, Q3 = 11.833 ms, Max = 11.833 ms
+IQR = 0.000 ms, LowerFence = 11.833 ms, UpperFence = 11.833 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[11.833 ms ; 11.833 ms) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux CachyOS
+AMD Ryzen 9 5900X 1.73GHz, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 10.0.102
+  [Host] : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                       | Mean     | Error | Ratio | Allocated | Alloc Ratio |
+|----------------------------- |---------:|------:|------:|----------:|------------:|
+| Before_SerializeThenGetBytes | 12.01 ms |    NA |  1.00 |     992 B |        1.00 |
+| After_SerializeToUtf8Bytes   | 11.83 ms |    NA |  0.99 |     208 B |        0.21 |
+
+// * Warnings *
+MinIterationTime
+  SerializationBenchmark.Before_SerializeThenGetBytes: Dry -> The minimum observed iteration time is 12.012ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  SerializationBenchmark.After_SerializeToUtf8Bytes: Dry   -> The minimum observed iteration time is 11.833ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+
+// * Legends *
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 ms        : 1 Millisecond (0.001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.2 sec), executed benchmarks: 2
+
+// Found 4 benchmarks:
+//   ShellGuardBenchmark.Before_LowerThenMatch_Safe: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   ShellGuardBenchmark.After_IgnoreCase_Safe: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   ShellGuardBenchmark.Before_LowerThenMatch_Long: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+//   ShellGuardBenchmark.After_IgnoreCase_Long: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// **************************
+// Benchmark: ShellGuardBenchmark.Before_LowerThenMatch_Safe: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName PerfBenchmarks.ShellGuardBenchmark.Before_LowerThenMatch_Safe --job Dry --benchmarkId 20 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 10841885.00 ns, 10.8419 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 10841885.00 ns, 10.8419 ms/op
+// GC:  0 0 0 248 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860356 has exited with code 0.
+
+Mean = 10.842 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.842 ms, Q1 = 10.842 ms, Median = 10.842 ms, Q3 = 10.842 ms, Max = 10.842 ms
+IQR = 0.000 ms, LowerFence = 10.842 ms, UpperFence = 10.842 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 3 (12.5 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ShellGuardBenchmark.After_IgnoreCase_Safe: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName PerfBenchmarks.ShellGuardBenchmark.After_IgnoreCase_Safe --job Dry --benchmarkId 21 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 10962032.00 ns, 10.9620 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 10962032.00 ns, 10.9620 ms/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860363 has exited with code 0.
+
+Mean = 10.962 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.962 ms, Q1 = 10.962 ms, Median = 10.962 ms, Q3 = 10.962 ms, Max = 10.962 ms
+IQR = 0.000 ms, LowerFence = 10.962 ms, UpperFence = 10.962 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 2 (8.3 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ShellGuardBenchmark.Before_LowerThenMatch_Long: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 109 110 --benchmarkName PerfBenchmarks.ShellGuardBenchmark.Before_LowerThenMatch_Long --job Dry --benchmarkId 22 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 11329470.00 ns, 11.3295 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 11329470.00 ns, 11.3295 ms/op
+// GC:  0 0 0 208 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860370 has exited with code 0.
+
+Mean = 11.329 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.329 ms, Q1 = 11.329 ms, Median = 11.329 ms, Q3 = 11.329 ms, Max = 11.329 ms
+IQR = 0.000 ms, LowerFence = 11.329 ms, UpperFence = 11.329 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 1 (4.2 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// **************************
+// Benchmark: ShellGuardBenchmark.After_IgnoreCase_Long: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet PerfBenchmarks-Dry-1.dll --anonymousPipes 111 112 --benchmarkName PerfBenchmarks.ShellGuardBenchmark.After_IgnoreCase_Long --job Dry --benchmarkId 23 in /home/chase/Coding/CSharp/Personal/Agents/clawsharp/benchmarks/bin/Release/net10.0/PerfBenchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 11591521.00 ns, 11.5915 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 11591521.00 ns, 11.5915 ms/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 1860377 has exited with code 0.
+
+Mean = 11.592 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.592 ms, Q1 = 11.592 ms, Median = 11.592 ms, Q3 = 11.592 ms, Max = 11.592 ms
+IQR = 0.000 ms, LowerFence = 11.592 ms, UpperFence = 11.592 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 0 (0.0 %) benchmark(s) to run. Estimated finish 2026-03-09 15:44 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ShellGuardBenchmark-report.csv
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ShellGuardBenchmark-report-github.md
+  BenchmarkDotNet.Artifacts/20260309-154353/PerfBenchmarks.ShellGuardBenchmark-report.html
+
+// * Detailed results *
+ShellGuardBenchmark.Before_LowerThenMatch_Safe: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 10.842 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.842 ms, Q1 = 10.842 ms, Median = 10.842 ms, Q3 = 10.842 ms, Max = 10.842 ms
+IQR = 0.000 ms, LowerFence = 10.842 ms, UpperFence = 10.842 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[10.842 ms ; 10.842 ms) | @
+---------------------------------------------------
+
+ShellGuardBenchmark.After_IgnoreCase_Safe: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 10.962 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.962 ms, Q1 = 10.962 ms, Median = 10.962 ms, Q3 = 10.962 ms, Max = 10.962 ms
+IQR = 0.000 ms, LowerFence = 10.962 ms, UpperFence = 10.962 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[10.962 ms ; 10.962 ms) | @
+---------------------------------------------------
+
+ShellGuardBenchmark.Before_LowerThenMatch_Long: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 11.329 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.329 ms, Q1 = 11.329 ms, Median = 11.329 ms, Q3 = 11.329 ms, Max = 11.329 ms
+IQR = 0.000 ms, LowerFence = 11.329 ms, UpperFence = 11.329 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[11.329 ms ; 11.329 ms) | @
+---------------------------------------------------
+
+ShellGuardBenchmark.After_IgnoreCase_Long: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 11.592 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.592 ms, Q1 = 11.592 ms, Median = 11.592 ms, Q3 = 11.592 ms, Max = 11.592 ms
+IQR = 0.000 ms, LowerFence = 11.592 ms, UpperFence = 11.592 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[11.592 ms ; 11.592 ms) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux CachyOS
+AMD Ryzen 9 5900X 1.73GHz, 1 CPU, 24 logical and 12 physical cores
+.NET SDK 10.0.102
+  [Host] : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                     | Mean     | Error | Ratio | Allocated | Alloc Ratio |
+|--------------------------- |---------:|------:|------:|----------:|------------:|
+| Before_LowerThenMatch_Safe | 10.84 ms |    NA |  1.00 |     248 B |        1.00 |
+| After_IgnoreCase_Safe      | 10.96 ms |    NA |  1.01 |         - |        0.00 |
+| Before_LowerThenMatch_Long | 11.33 ms |    NA |  1.04 |     208 B |        0.84 |
+| After_IgnoreCase_Long      | 11.59 ms |    NA |  1.07 |         - |        0.00 |
+
+// * Warnings *
+MinIterationTime
+  ShellGuardBenchmark.Before_LowerThenMatch_Safe: Dry -> The minimum observed iteration time is 10.842ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShellGuardBenchmark.After_IgnoreCase_Safe: Dry      -> The minimum observed iteration time is 10.962ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShellGuardBenchmark.Before_LowerThenMatch_Long: Dry -> The minimum observed iteration time is 11.329ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShellGuardBenchmark.After_IgnoreCase_Long: Dry      -> The minimum observed iteration time is 11.592ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+
+// * Legends *
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 ms        : 1 Millisecond (0.001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.39 sec), executed benchmarks: 4
+
+Global total time: 00:00:07 (7.42 sec), executed benchmarks: 24
+// * Artifacts cleanup *
+Artifacts cleanup is finished

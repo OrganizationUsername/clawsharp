@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="CLAUDE.md"/>
+    <File Path="LICENSE"/>
+    <File Path="THIRD-PARTY-NOTICES"/>
+    <File Path="README.md"/>
+    <File Path="compose.yaml"/>
+    <File Path=".dockerignore"/>
+    <File Path=".editorconfig"/>
+  </Folder>
+  <Project Path="src/clawsharp/clawsharp.csproj"/>
+  <Project Path="tests/clawsharp.Tests/clawsharp.Tests.csproj"/>
+</Solution>
