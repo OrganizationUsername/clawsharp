@@ -411,10 +411,15 @@ When the assistant calls a tool (web fetch, file read, shell, etc.), the result 
 
 #### Configuration
 
-All prompt injection defenses are enabled by default. You can tune them in `security` and `tools` sections of your config:
+All prompt injection defenses are enabled by default. You can tune them in `agents.defaults` and `security` sections of your config:
 
 ```json
 {
+  "agents": {
+    "defaults": {
+      "promptInjectionGuard": true
+    }
+  },
   "security": {
     "promptGuard": {
       "mode": "warn",
@@ -428,10 +433,13 @@ All prompt injection defenses are enabled by default. You can tune them in `secu
 
 | Setting | Default | Description |
 |---------|---------|-------------|
+| `agents.defaults.promptInjectionGuard` | `true` | Master toggle for tool result injection scanning and suspicion scoring. Set to `false` to disable pattern scanning, XML wrapping, and suspicion tracking entirely |
 | `security.promptGuard.mode` | `"warn"` | Action on injection detection: `"warn"` (log and allow), `"block"` (reject tool result), or `"sanitize"` (replace matched text with `[FILTERED]`) |
 | `security.promptGuard.customPatterns` | `null` | Additional regex patterns to scan for (appended to built-in patterns) |
 | `security.maxNonCliToolSensitivity` | `"high"` | Maximum tool sensitivity on non-CLI channels. `"low"`, `"medium"`, `"high"`, or `"critical"`/`"unrestricted"`. Default blocks only Critical tools on external channels |
 | `security.allowedExternalDomains` | `null` | Domain allowlist for network tools. `null` = allow all (default), `[]` = block all, `["example.com"]` = allow only listed domains and their subdomains |
+
+Note that `maxNonCliToolSensitivity` and `allowedExternalDomains` are independent of the `promptInjectionGuard` toggle — they enforce access control regardless of whether injection scanning is enabled.
 
 **Examples:**
 

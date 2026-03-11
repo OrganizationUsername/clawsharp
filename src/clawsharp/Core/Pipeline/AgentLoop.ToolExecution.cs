@@ -56,7 +56,9 @@ public sealed partial class AgentLoop
 
         // Cumulative suspicion check: inject security context if multiple tool results
         // triggered injection detection within this request cycle.
-        if (_suspicionTracker.IsBlocked)
+        // Skipped when promptInjectionGuard is disabled — no points will have been
+        // recorded, but guarding explicitly avoids unnecessary message checks.
+        if (_defaults.PromptInjectionGuard && _suspicionTracker.IsBlocked)
         {
             messages.Add(new ChatMessage(MessageRole.System,
                 "[SECURITY WARNING] Multiple tool results contained suspicious instruction-like content. " +
