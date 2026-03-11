@@ -95,7 +95,7 @@ internal sealed class AgentLoopTestHarness : IDisposable
         var costTracker = new CostTracker(costStorage, Options.Create(costConfig), NullLogger<CostTracker>.Instance);
 
         // CompactionService
-        var compactionService = new CompactionService(costTracker, NullLogger<CompactionService>.Instance);
+        var compactionService = new CompactionService(costTracker, null, NullLogger<CompactionService>.Instance);
 
         // RateLimiter
         var rateLimiter = new RateLimiter(defaultsOptions);

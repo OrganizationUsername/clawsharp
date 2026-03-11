@@ -76,6 +76,8 @@ public sealed partial class SpawnTool : Tool
 
     public override string Name => "spawn_agent";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Critical;
+
     public override string Description =>
         "Spawn an isolated sub-agent to handle a specific task. The sub-agent runs independently and returns its result. Max 2 levels of nesting.";
 

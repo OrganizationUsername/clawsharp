@@ -48,6 +48,8 @@ public sealed class ToolRegistry : IToolRegistry
 
     private readonly Dictionary<string, ToolFilterGroup>? _filterGroups;
 
+    private readonly ToolSensitivity _maxNonCliSensitivity;
+
     public ToolRegistry(
         IOptions<AppConfig> configOptions,
         IOptions<AgentDefaults> defaultsOptions,
@@ -67,6 +69,7 @@ public sealed class ToolRegistry : IToolRegistry
         var defaults = defaultsOptions.Value;
         _maxToolOutputChars = Math.Max(1024, config.Tools.MaxToolOutputChars);
         _filterGroups = config.Tools.FilterGroups;
+        _maxNonCliSensitivity = ParseSensitivity(config.Security?.MaxNonCliToolSensitivity ?? "high");
         var workspace = ConfigLoader.ExpandHome(config.Tools.Workspace);
         var list = new List<Tool>
         {
@@ -78,7 +81,7 @@ public sealed class ToolRegistry : IToolRegistry
             new FileEditTool(workspace, auditLogger),
             new FileListTool(workspace),
             new FileSearchTool(workspace),
-            new WebFetchTool(httpFactory, auditLogger),
+            new WebFetchTool(httpFactory, auditLogger, config.Security?.AllowedExternalDomains),
             new WebSearchTool(httpFactory, config.Tools, auditLogger),
             new MemoryReadTool(memory),
             new MemoryWriteTool(memory),
@@ -212,11 +215,31 @@ public sealed class ToolRegistry : IToolRegistry
         return false;
     }
 
+    private static ToolSensitivity ParseSensitivity(string value) => value.ToLowerInvariant() switch
+    {
+        "low" => ToolSensitivity.Low,
+        "medium" => ToolSensitivity.Medium,
+        "high" => ToolSensitivity.High,
+        "critical" or "unrestricted" => ToolSensitivity.Critical,
+        _ => ToolSensitivity.High,
+    };
+
     public async Task<string> ExecuteAsync(string name, string argumentsJson, CancellationToken ct = default)
     {
         if (!_tools.TryGetValue(name, out var tool))
         {
             return $"Error: unknown tool '{name}'.";
+        }
+
+        // Channel-based sensitivity enforcement: block tools above the configured
+        // threshold on non-CLI channels to prevent prompt injection from triggering
+        // high-impact operations via external messaging channels.
+        var channel = CurrentChannelName;
+        if (channel is not (null or "cli") && tool.Sensitivity > _maxNonCliSensitivity)
+        {
+            return $"[security] Tool '{name}' (sensitivity: {tool.Sensitivity}) is not available on " +
+                   $"the {channel} channel. Maximum allowed: {_maxNonCliSensitivity}. " +
+                   "Use the CLI channel for this operation, or adjust security.maxNonCliToolSensitivity in config.";
         }
 
         try

@@ -239,4 +239,40 @@ public static class SsrfGuard
 
         return false;
     }
+
+    /// <summary>
+    ///     Checks if a host is in the allowed external domains list.
+    ///     Returns an error message if the domain is not allowed, null if it is.
+    ///     When <paramref name="allowedDomains"/> is null, all domains are allowed.
+    ///     When it's empty, all domains are blocked.
+    ///     Exact matches and subdomain matches are supported (e.g. "example.com" allows "sub.example.com").
+    /// </summary>
+    public static string? CheckDomainAllowlist(Uri uri, IReadOnlyList<string>? allowedDomains)
+    {
+        // null = allow all (no restriction)
+        if (allowedDomains is null) return null;
+
+        // empty list = deny all
+        if (allowedDomains.Count == 0)
+            return $"[Domain] Blocked: no external domains are allowed. Host '{uri.Host}' is not permitted.";
+
+        // Wildcard
+        if (allowedDomains.Count == 1 && allowedDomains[0] == "*")
+            return null;
+
+        var host = uri.Host;
+        foreach (var domain in allowedDomains)
+        {
+            // Exact match
+            if (host.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            // Subdomain match (host ends with ".domain")
+            if (host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase))
+                return null;
+        }
+
+        return $"[Domain] Blocked: host '{host}' is not in the allowed domains list. " +
+               "Add it to security.allowedExternalDomains in config or set to null to allow all.";
+    }
 }

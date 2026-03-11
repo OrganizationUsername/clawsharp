@@ -18,6 +18,8 @@ public sealed class FileSearchTool : Tool
 
     public override string Name => "file_search";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
+
     public override string Description => "Search for text in files within the workspace using grep-like matching.";
 
     public override string ParametersSchemaJson => """

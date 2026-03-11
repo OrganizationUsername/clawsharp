@@ -640,6 +640,84 @@ public static partial class ShellGuard
     [GeneratedRegex(@"(?:^|[;&|])\s*\.\s+[/~.\w]")]
     private static partial Regex DenyDotSourcing();
 
+    // ── Network egress deny patterns (53–59) ─────────────────────────────────
+    // These detect standalone network tools that could be used for data exfiltration.
+    // They are NOT included in the standard DenyPatterns array — they are only
+    // applied on non-CLI channels via CheckCommandWithEgress().
+
+    /// <summary>
+    ///     Network egress commands that could be used for data exfiltration.
+    ///     These are blocked on non-CLI channels but allowed on CLI where the user
+    ///     is trusted. The patterns detect standalone network tools, not piped
+    ///     versions (those are already blocked by the general pipe-to-shell patterns).
+    /// </summary>
+    private static readonly Regex[] EgressDenyPatterns =
+    [
+        EgressCurl(),        // 53: standalone curl
+        EgressWget(),        // 54: standalone wget
+        EgressNetcat(),      // 55: nc / netcat / ncat
+        EgressTelnet(),      // 56: telnet
+        EgressDnsExfil(),    // 57: nslookup / dig / host with suspicious args
+        EgressScp(),         // 58: scp (remote copy)
+        EgressRsync(),       // 59: rsync to remote
+    ];
+
+    private static readonly string[] EgressDenyCategories =
+    [
+        "network egress: curl",
+        "network egress: wget",
+        "network egress: netcat",
+        "network egress: telnet",
+        "network egress: DNS tool",
+        "network egress: scp",
+        "network egress: rsync remote",
+    ];
+
+    /// <summary>
+    ///     Extended command check that includes network egress detection.
+    ///     Call this for non-CLI channels where data exfiltration is a concern.
+    ///     Returns an error message if blocked, null if safe.
+    /// </summary>
+    public static string? CheckCommandWithEgress(string command, IReadOnlyList<string>? customDenyPatterns = null)
+    {
+        // Run all standard deny patterns first
+        var standardResult = CheckCommand(command, customDenyPatterns);
+        if (standardResult is not null) return standardResult;
+
+        // Run egress-specific patterns
+        for (var i = 0; i < EgressDenyPatterns.Length; i++)
+        {
+            if (EgressDenyPatterns[i].IsMatch(command))
+            {
+                return $"Command blocked on non-CLI channel: {EgressDenyCategories[i]}. " +
+                       "Network egress commands are restricted to the CLI channel for security.";
+            }
+        }
+
+        return null;
+    }
+
+    [GeneratedRegex(@"\bcurl\s+", RegexOptions.IgnoreCase)]
+    private static partial Regex EgressCurl();
+
+    [GeneratedRegex(@"\bwget\s+", RegexOptions.IgnoreCase)]
+    private static partial Regex EgressWget();
+
+    [GeneratedRegex(@"\b(?:nc|netcat|ncat)\s+", RegexOptions.IgnoreCase)]
+    private static partial Regex EgressNetcat();
+
+    [GeneratedRegex(@"\btelnet\s+", RegexOptions.IgnoreCase)]
+    private static partial Regex EgressTelnet();
+
+    [GeneratedRegex(@"\b(?:nslookup|dig|host)\s+", RegexOptions.IgnoreCase)]
+    private static partial Regex EgressDnsExfil();
+
+    [GeneratedRegex(@"\bscp\s+", RegexOptions.IgnoreCase)]
+    private static partial Regex EgressScp();
+
+    [GeneratedRegex(@"\brsync\s+\S*:", RegexOptions.IgnoreCase)]
+    private static partial Regex EgressRsync();
+
     private static void LogInvalidCustomPattern(ILogger? logger, string pattern, Exception ex)
     {
         if (logger is not null)

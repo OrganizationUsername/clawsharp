@@ -15,6 +15,8 @@ public sealed class MemorySearchTool : Tool
 
     public override string Name => "memory_search";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
+
     public override string Description => "Search persistent memory for relevant facts.";
 
     public override string ParametersSchemaJson => """

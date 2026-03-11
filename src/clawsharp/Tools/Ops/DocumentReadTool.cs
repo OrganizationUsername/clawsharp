@@ -30,6 +30,8 @@ public sealed class DocumentReadTool : Tool
 
     public override string Name => "document_read";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
+
     public override string Description =>
         "Extract text from a document file (.pdf, .docx, .xlsx, .pptx). " +
         "Returns plain text content suitable for LLM processing.";

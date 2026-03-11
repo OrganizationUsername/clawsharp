@@ -21,6 +21,8 @@ public sealed class ScreenshotTool : Tool
 
     public override string Name => "screenshot";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
+
     public override string Description =>
         "Capture a screenshot of the current display and save it to the workspace. " +
         "Returns the path to the saved PNG file. Requires scrot (Linux) or built-in screencapture (macOS).";

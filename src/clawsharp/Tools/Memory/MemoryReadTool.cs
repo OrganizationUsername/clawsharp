@@ -15,6 +15,8 @@ public sealed class MemoryReadTool : Tool
 
     public override string Name => "memory_read";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
+
     public override string Description => "Read all facts from memory.";
 
     public override string ParametersSchemaJson => """{"type":"object","properties":{}}""";

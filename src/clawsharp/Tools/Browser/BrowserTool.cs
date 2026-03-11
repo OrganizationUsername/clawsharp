@@ -99,6 +99,8 @@ public sealed partial class BrowserTool : Tool
 
     public override string Name => "browser";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.High;
+
     public override string Description =>
         "Automate a web browser: navigate pages, take accessibility snapshots, click elements, " +
         "type text, select options, take screenshots, evaluate JavaScript, and close sessions. " +

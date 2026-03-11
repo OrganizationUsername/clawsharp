@@ -13,15 +13,21 @@ public sealed partial class WebFetchTool : Tool
 
     private readonly AuditLogger? _auditLogger;
 
-    public WebFetchTool(IHttpClientFactory httpFactory, AuditLogger? auditLogger = null)
+    private readonly IReadOnlyList<string>? _allowedDomains;
+
+    public WebFetchTool(IHttpClientFactory httpFactory, AuditLogger? auditLogger = null,
+                        IReadOnlyList<string>? allowedDomains = null)
     {
         _httpFactory = httpFactory;
         _auditLogger = auditLogger;
+        _allowedDomains = allowedDomains;
     }
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
     public override string Name => "web_fetch";
+
+    public override ToolSensitivity Sensitivity => ToolSensitivity.High;
 
     public override string Description => "Fetch the content of a URL. Returns HTML stripped to plain text. Supports GET and POST.";
 
@@ -61,6 +67,19 @@ public sealed partial class WebFetchTool : Tool
             }
 
             return ssrfError;
+        }
+
+        // Domain allowlist check (when configured)
+        var domainError = SsrfGuard.CheckDomainAllowlist(uri, _allowedDomains);
+        if (domainError is not null)
+        {
+            if (_auditLogger is not null)
+            {
+                _ = _auditLogger.LogPolicyViolationAsync(
+                    $"Domain blocked: {url}", ChannelName, ct: ct);
+            }
+
+            return domainError;
         }
 
         try

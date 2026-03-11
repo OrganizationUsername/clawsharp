@@ -1,6 +1,7 @@
 using System.Text;
 using Clawsharp.Cost;
 using Clawsharp.Providers;
+using Clawsharp.Security;
 using Microsoft.Extensions.Logging;
 using Clawsharp.Core;
 using Clawsharp.Core.Pipeline;
@@ -20,12 +21,14 @@ public sealed partial class CompactionService
         "Summarize the key points, decisions, and context from this conversation. Be concise.";
 
     private readonly CostTracker _costTracker;
+    private readonly AuditLogger? _auditLogger;
 
     private readonly ILogger<CompactionService> _logger;
 
-    public CompactionService(CostTracker costTracker, ILogger<CompactionService> logger)
+    public CompactionService(CostTracker costTracker, AuditLogger? auditLogger, ILogger<CompactionService> logger)
     {
         _costTracker = costTracker;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -83,6 +86,19 @@ public sealed partial class CompactionService
         {
             var summary = await SummarizeMessagesAsync(
                 olderMessages, provider, model, maxSummaryChars, maxSourceChars, ct).ConfigureAwait(false);
+
+            // Security: scan the LLM-generated summary for prompt injection patterns
+            // before reinserting into conversation history. An attacker could inject
+            // content that survives compaction and influences future LLM behavior.
+            var injAction = PromptGuard.ScanAndApply(
+                ref summary, "compaction summary", PromptGuardModes.Sanitize, _auditLogger, ct: ct);
+            if (injAction != InjectionAction.None)
+            {
+                LogCompactionInjectionDetected();
+            }
+
+            // Strip metadata sentinels that could confuse role assignment
+            summary = PromptGuard.StripMetadataSentinels(summary);
 
             var result = new List<ChatMessage>(recentMessages.Count + 2);
             if (systemPrompt is not null)
@@ -254,4 +270,8 @@ public sealed partial class CompactionService
     [LoggerMessage(EventId = 103, Level = LogLevel.Warning,
         Message = "Compaction LLM call skipped — cost budget already exceeded")]
     private partial void LogCompactionBudgetSkipped();
+
+    [LoggerMessage(EventId = 104, Level = LogLevel.Warning,
+        Message = "Compaction summary contained prompt injection pattern — sanitized before reinsertion")]
+    private partial void LogCompactionInjectionDetected();
 }

@@ -217,6 +217,70 @@ internal static partial class PromptGuard
         return InjectionAction.Warn;
     }
 
+    // ── Indirect injection detection (tool results, fetched content) ──────
+    // These detect instruction-like language in external content that could
+    // be attempting to hijack the LLM's behavior. Only applied to tool results
+    // via ScanToolResult().
+
+    [GeneratedRegex(
+        @"IMPORTANT:\s*(?:you must|please|the user|execute|run|ignore)" + "|" +
+        @"(?:^|\n)\s*(?:instruction|directive|command)s?\s*(?:for|to)\s*(?:the\s+)?(?:ai|assistant|model|bot|llm|claude|gpt)" + "|" +
+        @"(?:continue|proceed|next)\s+by\s+(?:running|executing|calling|using)" + "|" +
+        @"(?:^|\n)\s*(?:you\s+(?:must|should|need\s+to|are\s+(?:required|instructed)\s+to))\s+(?:execute|run|call|use|output|return|send|fetch|download|install)" + "|" +
+        @"(?:please\s+)?(?:execute|run)\s+(?:the\s+following|this)\s+(?:command|tool|function|code|script)" + "|" +
+        @"(?:^|\n)\s*\[?system\s*(?:message|note|instruction|override)\]?" + "|" +
+        @"(?:as\s+(?:an?\s+)?(?:ai|assistant|model)),?\s+(?:you\s+(?:must|should|need)|please)" + "|" +
+        @"(?:when\s+(?:you|the\s+(?:ai|assistant)))\s+(?:see|read|encounter)\s+this" + "|" +
+        @"(?:hidden|secret|embedded)\s+(?:instruction|directive|command|message)" + "|" +
+        @"(?:do\s+not\s+(?:mention|reveal|disclose|tell))\s+(?:this|these)\s+(?:instruction|directive)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Multiline)]
+    private static partial Regex IndirectInjectionRegex();
+
+    /// <summary>
+    /// Comprehensive scan for tool results: runs both standard injection patterns
+    /// and indirect injection patterns. Returns the action taken.
+    /// In "warn" mode, indirect matches are logged but allowed.
+    /// In "block" or "sanitize" mode, indirect matches are treated like standard matches.
+    /// </summary>
+    public static InjectionAction ScanToolResult(
+        ref string content,
+        string toolName,
+        string mode,
+        AuditLogger? auditLogger,
+        string? channel = null,
+        string? userId = null,
+        CancellationToken ct = default)
+    {
+        // First: standard injection patterns
+        var standardAction = ScanAndApply(ref content, toolName, mode, auditLogger, channel, userId, ct);
+        if (standardAction == InjectionAction.Block)
+            return standardAction;
+
+        // Second: indirect injection patterns (additional heuristics for tool results)
+        var normalized = NormalizeForScanning(content);
+        var indirectMatch = IndirectInjectionRegex().Match(normalized);
+        if (!indirectMatch.Success)
+            return standardAction; // no indirect match, return standard result
+
+        if (auditLogger is not null)
+        {
+            _ = auditLogger.LogSecurityEventAsync(
+                $"Indirect prompt injection detected in tool result ({toolName}): matched '{indirectMatch.Value}'",
+                channel, userId, ct);
+        }
+
+        if (string.Equals(mode, PromptGuardModes.Block, StringComparison.OrdinalIgnoreCase))
+            return InjectionAction.Block;
+
+        if (string.Equals(mode, PromptGuardModes.Sanitize, StringComparison.OrdinalIgnoreCase))
+        {
+            content = NormalizeForScanning(content);
+            content = IndirectInjectionRegex().Replace(content, "[FILTERED]");
+        }
+
+        return InjectionAction.Warn;
+    }
+
     // ── Metadata sentinel stripping ────────────────────────────────────
 
     /// <summary>

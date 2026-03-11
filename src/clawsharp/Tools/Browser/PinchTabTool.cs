@@ -59,6 +59,8 @@ public sealed partial class PinchTabTool : Tool
 
     public override string Name => "pinchtab_browser";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.High;
+
     public override string Description =>
         "Browser automation via a running PinchTab server (CDP-based Chrome controller). " +
         "Navigate pages, take accessibility snapshots with element refs, click/fill/type/press elements, " +

@@ -45,6 +45,8 @@ public sealed class ShellTool : Tool
 
     public override string Name => "shell";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.High;
+
     public override string Description =>
         "Execute a shell command in the workspace directory. Use for running scripts, build commands, and system operations.";
 
@@ -71,10 +73,13 @@ public sealed class ShellTool : Tool
             return "Error: no command provided.";
         }
 
-        // Safety guard: check command against deny-list patterns
+        // Safety guard: check command against deny-list patterns.
+        // Non-CLI channels also get network egress detection to prevent data exfiltration.
         if (_enableDenyPatterns)
         {
-            var blocked = ShellGuard.CheckCommand(command, _customDenyPatterns);
+            var blocked = ChannelName is not (null or "cli")
+                ? ShellGuard.CheckCommandWithEgress(command, _customDenyPatterns)
+                : ShellGuard.CheckCommand(command, _customDenyPatterns);
             if (blocked is not null)
             {
                 if (_auditLogger is not null)

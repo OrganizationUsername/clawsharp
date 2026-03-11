@@ -27,6 +27,8 @@ public sealed class GitTool : Tool
 
     public override string Name => "git";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.High;
+
     public override string Description =>
         "Run git operations (status, log, diff, add, commit, branch, checkout, show, stash). " +
         "Works in the workspace or a specified repository path.";

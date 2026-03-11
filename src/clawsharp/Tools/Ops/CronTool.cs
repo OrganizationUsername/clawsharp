@@ -23,6 +23,8 @@ public sealed class CronTool : Tool
 
     public override string Name => "cron";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Critical;
+
     public override string Description =>
         "Manage scheduled tasks. Actions: add, list, remove, run (fire immediately), update. " +
         "Schedule formats: '0 9 * * 1-5' (cron, 5-field), 'every:5m' / 'every:2h' / 'every:30s' (interval), " +

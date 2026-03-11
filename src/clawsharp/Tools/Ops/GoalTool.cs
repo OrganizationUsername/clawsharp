@@ -20,6 +20,8 @@ public sealed partial class GoalTool : Tool
 
     public override string Name => "goal";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
+
     public override string Description =>
         "Track goals and multi-step tasks. Actions: create, list, update_step, complete, pause, resume, delete.";
 

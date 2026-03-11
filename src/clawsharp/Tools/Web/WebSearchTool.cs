@@ -101,6 +101,8 @@ public sealed partial class WebSearchTool : Tool
 
     public override string Name => "web_search";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.High;
+
     public override string Description =>
         $"Search the web using {_activeProvider} (priority: Brave > Exa > Tavily > SearXNG > Jina > Firecrawl > Perplexity > GLM > DuckDuckGo). Returns top results with titles and snippets.";
 

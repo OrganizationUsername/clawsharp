@@ -20,6 +20,8 @@ public sealed class FileReadTool : Tool
 
     public override string Name => "file_read";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
+
     public override string Description => "Read the contents of a file. Path is relative to the workspace.";
 
     public override string ParametersSchemaJson => """

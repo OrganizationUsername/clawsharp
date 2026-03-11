@@ -33,6 +33,23 @@ public sealed class SecurityConfig
     ///     commands that would otherwise require approval.
     /// </summary>
     public List<string>? AutoApprovePatterns { get; init; }
+
+    /// <summary>
+    ///     Maximum tool sensitivity allowed on non-CLI channels.
+    ///     Tools above this level are blocked with an explanation.
+    ///     Default: "high" — blocks only Critical tools on non-CLI channels.
+    ///     Options: "low", "medium", "high", "critical" (or "unrestricted").
+    /// </summary>
+    public string MaxNonCliToolSensitivity { get; init; } = "high";
+
+    /// <summary>
+    ///     Allowed external domains for network tools (web_fetch, browser).
+    ///     If null, all domains are allowed (default — open access).
+    ///     If set to an empty list, ALL external domains are blocked.
+    ///     If set to a non-empty list, only those domains (and their subdomains) are allowed.
+    ///     Follows AllowFrom semantics: null=allow-all, []=deny-all, entries=allowlist.
+    /// </summary>
+    public List<string>? AllowedExternalDomains { get; init; }
 }
 
 /// <summary>Canary token exfiltration guard configuration.</summary>

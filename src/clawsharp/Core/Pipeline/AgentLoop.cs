@@ -75,6 +75,8 @@ public sealed partial class AgentLoop
 
     private readonly string _workspacePath;
 
+    private readonly SuspicionTracker _suspicionTracker = new();
+
     /// <summary>Lazily-built candidate list for provider fallback. Built once on first use.</summary>
     private IReadOnlyList<(string Name, IProvider Provider)>? _fallbackCandidates;
 
@@ -194,6 +196,9 @@ public sealed partial class AgentLoop
         var sessionId = $"{inbound.Channel.Value}:{inbound.SenderId}";
         var lag = DateTimeOffset.UtcNow - (inbound.ArrivedAt ?? DateTimeOffset.UtcNow);
         LogProcessingMessage(_logger, sessionId, lag.TotalMilliseconds);
+
+        // Reset per-request suspicion tracker for cumulative tool result analysis.
+        _suspicionTracker.Reset();
 
         // Track cron execution context so tools (e.g. CronTool) can detect self-scheduling loops.
         var isCron = string.Equals(inbound.SenderName, "cron", StringComparison.Ordinal);

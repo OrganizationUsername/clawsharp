@@ -16,6 +16,8 @@ public sealed class FileListTool : Tool
 
     public override string Name => "file_list";
 
+    public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
+
     public override string Description => "List files in a directory. Path is relative to the workspace.";
 
     public override string ParametersSchemaJson => """
