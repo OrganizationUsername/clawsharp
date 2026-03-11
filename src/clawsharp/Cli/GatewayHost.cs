@@ -131,6 +131,13 @@ public static partial class GatewayHost
                               })
                               .ConfigureServices((_, services) =>
                               {
+                                  // Limit how long the host waits for services to stop before
+                                  // abandoning them. Prevents indefinite hangs from blocking
+                                  // calls (Console.ReadLine, WebSocket close, in-flight LLM).
+                                  services.Configure<HostOptions>(hostOpts =>
+                                  {
+                                      hostOpts.ShutdownTimeout = TimeSpan.FromSeconds(10);
+                                  });
                                   // SSRF-safe ConnectCallback: re-validates resolved IPs at TCP connect
                                   // time, eliminating DNS rebinding (TOCTOU) attacks. Applied to all
                                   // named HTTP clients that may reach user-controlled or external URLs.

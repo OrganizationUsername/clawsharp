@@ -22,13 +22,24 @@ using Spectre.Console.Cli;
     UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "Spectre.Console.Cli requires dynamic code. All command types are statically registered.")]
 
-// Set up cancellation for Ctrl+C
+// Set up cancellation for Ctrl+C.
+// First press triggers graceful shutdown; second press force-exits the process
+// to guarantee termination even if a blocking call (e.g. Console.ReadLine) hangs.
 using var cts = new CancellationTokenSource();
+var shutdownRequested = 0;
 Console.CancelKeyPress += (_, e) =>
 {
-    e.Cancel = true;
-    cts.Cancel();
-    Console.WriteLine("\nShutdown requested...");
+    if (Interlocked.Increment(ref shutdownRequested) == 1)
+    {
+        e.Cancel = true;
+        cts.Cancel();
+        Console.WriteLine("\nShutdown requested... (press Ctrl+C again to force)");
+    }
+    else
+    {
+        Console.WriteLine("\nForcing exit.");
+        Environment.Exit(1);
+    }
 };
 
 var app = new CommandApp<AgentCommand>();

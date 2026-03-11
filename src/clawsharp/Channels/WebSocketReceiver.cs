@@ -62,8 +62,9 @@ internal static class WebSocketReceiver
     }
 
     /// <summary>
-    /// Sends a graceful close frame to the server. Swallows exceptions if the
-    /// connection is already broken.
+    /// Sends a graceful close frame to the server with a 3-second timeout.
+    /// Swallows exceptions if the connection is already broken or the server
+    /// doesn't respond to the close handshake in time.
     /// </summary>
     public static async Task CloseGracefullyAsync(ClientWebSocket ws)
     {
@@ -71,11 +72,12 @@ internal static class WebSocketReceiver
         {
             try
             {
-                await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, default).ConfigureAwait(false);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cts.Token).ConfigureAwait(false);
             }
             catch
             {
-                // Connection may already be broken
+                // Connection may already be broken or close timed out
             }
         }
     }

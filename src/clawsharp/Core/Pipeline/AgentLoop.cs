@@ -143,11 +143,19 @@ public sealed partial class AgentLoop
         }
 
         // Await all drain tasks so exceptions are observed on shutdown.
+        // Use a 5-second timeout so in-flight LLM calls don't block exit.
         foreach (var kvp in _sessionPipelines)
         {
             if (kvp.Value.IsValueCreated)
             {
-                await kvp.Value.Value.DrainTask;
+                try
+                {
+                    await kvp.Value.Value.DrainTask.WaitAsync(TimeSpan.FromSeconds(5), ct);
+                }
+                catch (TimeoutException)
+                {
+                    // In-flight work didn't finish in time — abandon it.
+                }
             }
         }
     }

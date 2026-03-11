@@ -32,27 +32,24 @@ public sealed partial class CliChannel(
             return;
         }
 
-        // Console.ReadLine() is blocking, so Task.Run is still needed to avoid
-        // blocking the host startup pipeline.
-        // Force EOF on the blocking read when shutdown is requested.
-        stoppingToken.Register(() => Console.In.Close());
-
-        await Task.Run(async () =>
-        {
-            AnsiConsole.MarkupLine("[cyan]clawsharp[/] — type your message, Ctrl+C to exit\n");
-            AnsiConsole.Markup("[green]> [/]");
-            await RunMessageLoopAsync(stoppingToken);
-        }, stoppingToken);
+        AnsiConsole.MarkupLine("[cyan]clawsharp[/] — type your message, Ctrl+C to exit\n");
+        AnsiConsole.Markup("[green]> [/]");
+        await RunMessageLoopAsync(stoppingToken);
     }
 
     private async Task RunMessageLoopAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            var line = Console.ReadLine();
-            if (line is null)
+            // Console.ReadLine() is blocking and cannot be interrupted by a
+            // CancellationToken. We bridge it with a background thread +
+            // TaskCompletionSource so that cancellation returns immediately
+            // even if Console.ReadLine() stays blocked (the background thread
+            // is IsBackground=true so it won't prevent process exit).
+            var line = await ReadLineAsync(stoppingToken);
+            if (line is null || stoppingToken.IsCancellationRequested)
             {
-                break; // EOF (or Console.In.Close() from shutdown)
+                break;
             }
 
             if (string.IsNullOrWhiteSpace(line))
@@ -81,6 +78,25 @@ public sealed partial class CliChannel(
                 AnsiConsole.Markup("[green]> [/]");
             }
         }
+    }
+
+    /// <summary>
+    ///     Reads a line from Console.In on a dedicated background thread.
+    ///     Returns null immediately when <paramref name="ct"/> is cancelled,
+    ///     without waiting for Console.ReadLine() to unblock. The abandoned
+    ///     background thread (IsBackground=true) won't prevent process exit.
+    /// </summary>
+    private static async Task<string?> ReadLineAsync(CancellationToken ct)
+    {
+        var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var _ = ct.Register(static s => ((TaskCompletionSource<string?>)s!).TrySetResult(null), tcs);
+        var thread = new Thread(static state => ((TaskCompletionSource<string?>)state!).TrySetResult(Console.ReadLine()))
+        {
+            IsBackground = true,
+            Name = "CLI-ReadLine"
+        };
+        thread.Start(tcs);
+        return await tcs.Task;
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Error processing CLI input")]
