@@ -363,17 +363,94 @@ All SQL backends support hybrid search: full-text pre-filter (capped at 500 cand
 | Component | Purpose |
 |-----------|---------|
 | **PathGuard** | Restricts file operations to the workspace directory |
-| **SsrfGuard** | Blocks requests to private IPs, link-local, and cloud metadata endpoints |
-| **ShellGuard** | Quote-aware pattern matching blocks dangerous shell commands |
-| **PromptGuard** | XML-wraps untrusted content and scans for injection directives |
+| **SsrfGuard** | Blocks requests to private IPs, link-local, cloud metadata endpoints, and unapproved domains |
+| **ShellGuard** | Quote-aware pattern matching blocks dangerous shell commands and network egress on non-CLI channels |
+| **PromptGuard** | XML-wraps untrusted content and scans for direct and indirect injection directives |
 | **LeakDetector** | Regex-scans all outbound messages for secrets and PII |
 | **CanaryGuard** | Per-turn CSSEC tokens detect system prompt exfiltration |
+| **SuspicionTracker** | Cumulative per-request scoring when tool results trigger injection detection |
 | **AuditLogger** | JSONL audit trail of all tool executions and auth events |
 | **SecretStore** | ChaCha20-Poly1305 AEAD encryption for API keys at rest in config.json |
 | **LandlockSandbox** | Linux Landlock LSM filesystem restriction (kernel 5.13+) |
 | **SandboxProbe** | Auto-detects and wraps shell commands in Bubblewrap, Firejail, or Docker sandbox |
 | **WebPairingGuard** | TOTP-style 6-digit codes for web channel authentication |
 | **SkillVetter** | Built-in skill that vets third-party skills for red flags before installation |
+
+### Prompt injection defense
+
+AI agents that interact with external content (web pages, API responses, files, messages from other users) are vulnerable to **indirect prompt injection** — where an attacker embeds instruction-like language in content the agent reads, attempting to hijack its behavior. clawsharp implements six layers of defense against this attack vector.
+
+#### How it works
+
+When the assistant calls a tool (web fetch, file read, shell, etc.), the result passes through a multi-stage pipeline before the LLM sees it:
+
+1. **XML content wrapping** — All tool results are wrapped in `<tool_result name="tool_name">...</tool_result>` tags, establishing a clear boundary between trusted instructions and untrusted content.
+
+2. **Two-layer injection scanning** — Each tool result is scanned by PromptGuard against two pattern sets:
+   - **Standard patterns** — directives that attempt to override system behavior (role impersonation, instruction overrides)
+   - **Indirect injection patterns** — 10 additional patterns targeting instruction-like language that should never appear in external content (e.g., "IMPORTANT: you must execute", "instructions for the AI", "hidden instruction", "do not mention this directive")
+
+3. **Cumulative suspicion scoring** — Each detected pattern adds points to a per-request `SuspicionTracker`. A single suspicious tool result might be a false positive, but when multiple results in the same request contain injection-like content, it's likely an attack. At **3 points**, a security notice is injected into the conversation. At **6 points**, a strong security warning is injected telling the LLM to disregard all instructions found in tool results.
+
+4. **Compaction sanitization** — When conversation history is summarized by the LLM (compaction), the generated summary is scanned for injection patterns and metadata sentinels before being reinserted. This prevents "compaction-surviving" injection where an attacker plants content that persists through summarization.
+
+5. **Tool sensitivity classification** — Every tool is classified by sensitivity level. Non-CLI channels (Telegram, Discord, Slack, etc.) enforce a maximum sensitivity threshold, blocking high-impact tools that could be exploited through injection:
+
+   | Level | Tools | Description |
+   |-------|-------|-------------|
+   | **Low** | file_read, file_list, file_search, memory_read, memory_search, screenshot, document_read, goal | Read-only, workspace-local |
+   | **Medium** | file_write, file_edit, memory_write, history_append, send_file | Write operations within workspace |
+   | **High** | shell, web_fetch, web_search, browser, pinch_tab, git | Network access, shell execution |
+   | **Critical** | spawn, cron | Sub-agent spawning, persistent scheduled tasks |
+
+   By default, non-CLI channels block Critical tools. An injected prompt arriving via Telegram cannot spawn a sub-agent or schedule a cron job.
+
+6. **Network egress firewall** — On non-CLI channels, ShellGuard blocks shell commands that perform network egress (curl, wget, netcat, telnet, DNS lookups, scp, rsync). This prevents an injected prompt from exfiltrating data via shell commands even if the shell tool is allowed.
+
+7. **Domain allowlist** — Network tools (web_fetch, browser) can be restricted to an explicit list of allowed domains. When configured, any URL not matching the allowlist is blocked before the request is made.
+
+#### Configuration
+
+All prompt injection defenses are enabled by default. You can tune them in `security` and `tools` sections of your config:
+
+```json
+{
+  "security": {
+    "promptGuard": {
+      "mode": "warn",
+      "customPatterns": ["my-custom-pattern"]
+    },
+    "maxNonCliToolSensitivity": "high",
+    "allowedExternalDomains": ["github.com", "stackoverflow.com", "docs.microsoft.com"]
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `security.promptGuard.mode` | `"warn"` | Action on injection detection: `"warn"` (log and allow), `"block"` (reject tool result), or `"sanitize"` (replace matched text with `[FILTERED]`) |
+| `security.promptGuard.customPatterns` | `null` | Additional regex patterns to scan for (appended to built-in patterns) |
+| `security.maxNonCliToolSensitivity` | `"high"` | Maximum tool sensitivity on non-CLI channels. `"low"`, `"medium"`, `"high"`, or `"critical"`/`"unrestricted"`. Default blocks only Critical tools on external channels |
+| `security.allowedExternalDomains` | `null` | Domain allowlist for network tools. `null` = allow all (default), `[]` = block all, `["example.com"]` = allow only listed domains and their subdomains |
+
+**Examples:**
+
+Lock down a production deployment that only needs to access your internal docs:
+
+```json
+{
+  "security": {
+    "promptGuard": { "mode": "sanitize" },
+    "maxNonCliToolSensitivity": "medium",
+    "allowedExternalDomains": ["internal-docs.example.com", "api.example.com"]
+  }
+}
+```
+
+This configuration:
+- Replaces any detected injection with `[FILTERED]` instead of just logging
+- Blocks shell, web, browser, and git tools on all non-CLI channels (only file and memory write tools allowed)
+- Restricts web_fetch and browser to your internal domains only
 
 ### Shell sandboxing
 
@@ -577,6 +654,7 @@ These features are unique to clawsharp or significantly more developed than in s
 - **CQRS architecture** — Vertical slice architecture with source-generated mediator (Immediate.Handlers), zero reflection overhead
 - **Landlock sandboxing** — Optional Linux Landlock filesystem restriction for defense in depth
 - **Canary guard** — Per-turn cryptographic tokens detect prompt exfiltration attacks in real time
+- **Prompt injection defense** — Six-layer defense against indirect prompt injection: XML content wrapping, two-layer pattern scanning, cumulative suspicion scoring, compaction sanitization, tool sensitivity classification, and network egress firewall
 - **Session compaction** — LLM-powered summarization of old messages when history grows, preserving context while managing token budgets
 
 ### Parity status
