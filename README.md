@@ -626,72 +626,72 @@ clawsharp is the .NET implementation in a family of AI assistant gateways, each 
 
 ### Capability comparison
 
-| Capability | openclaw (TS) | nanobot (Py) | picoclaw (Go) | zeroclaw (Rust) | nullclaw (Zig) | clawsharp (.NET) |
+| Capability | clawsharp (.NET) | openclaw (TS) | nanobot (Py) | picoclaw (Go) | zeroclaw (Rust) | nullclaw (Zig) |
 |------------|:---:|:---:|:---:|:---:|:---:|:---:|
-| Channels | 24+ | 8 | 12 | 20+ | 19 | **18** |
-| LLM Providers | 30+ | 12+ | 15+ | 20+ | 50+ | **33** |
-| Tools | 7+ | ~8 | ~10 | 12+ | 10+ | **22** |
-| Search Backends | 6+ | 6+ | 6+ | 6+ | 6+ | **9** |
-| Memory Backends | 3 | 4 | 4 | 5 | 4 | **4** |
-| MCP Support | stdio | stdio | stdio | stdio | stdio | **stdio, SSE, StreamableHTTP** |
+| Channels | **18** | 24+ | 8 | 12 | 20+ | 19 |
+| LLM Providers | **33** | 30+ | 12+ | 15+ | 20+ | 50+ |
+| Tools | **22** | 7+ | ~8 | ~10 | 12+ | 10+ |
+| Search Backends | **9** | 6+ | 6+ | 6+ | 6+ | 6+ |
+| Memory Backends | **4** | 3 | 4 | 4 | 5 | 4 |
+| MCP Support | **stdio, SSE, StreamableHTTP** | stdio | stdio | stdio | stdio | stdio |
 
 ### Cross-project feature matrix
 
-| Feature | openclaw | picoclaw | zeroclaw | nullclaw | nanobot | **clawsharp** |
-|---------|----------|----------|----------|----------|---------|--------------|
-| **Channels** | 24+ | 12 | 20+ | 19 | 8 | **18** |
-| **LLM providers** | 30+ | 15+ | 20+ | 50+ | 12+ (incl. 6 CN) | **33** (7 native + 26 OpenAI-compat) |
-| **Streaming** | ✅ | Partial | ✅ | ✅ | ✅ | ✅ (B1 fixed) |
+| Feature | **clawsharp** | openclaw | picoclaw | zeroclaw | nullclaw | nanobot |
+|---------|--------------|----------|----------|----------|----------|---------|
+| **Channels** | **18** | 24+ | 12 | 20+ | 19 | 8 |
+| **LLM providers** | **33** (7 native + 26 OpenAI-compat) | 30+ | 15+ | 20+ | 50+ | 12+ (incl. 6 CN) |
+| **Streaming** | ✅ (B1 fixed) | ✅ | Partial | ✅ | ✅ | ✅ |
 | **Tool calling** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Vision** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (all providers incl. Bedrock) |
-| **Memory: vector** | ✅ | ❌ | ✅ | ✅ | Partial | ✅ |
-| **Memory: decay/TTL** | ❌ | ❌ | ✅ Lucid | ✅ | ❌ | ✅ (age-decay + usage-weighted) |
-| **Context window guard** | Partial | ❌ | ❌ | ✅ 58 models | ❌ | ✅ (90+ models; pattern inference) |
-| **Context compaction** | ✅ | ❌ | Partial | ✅ | ❌ | ✅ |
-| **Pre-compaction memory flush** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ (awaited; race fixed) |
-| **Model fallback chain** | ✅ | ✅ | ✅ | Partial | ❌ | ✅ (streaming + non-streaming) |
-| **Cost tracking** | ✅ | ❌ | ✅ full | Partial | ❌ | ✅ |
-| **Budget enforcement** | ✅ | ❌ | ✅ W/E states | ❌ | ❌ | ✅ (pre-request estimated cost) |
-| **Prompt caching** | ⚠️ Partial | ⚠️ Partial | ❌ Broken | ❌ | ⚠️ Partial | ✅ Full (Anthropic `cache_control` + tool caching; OpenAI `cached_tokens` tracking; explicit `BuildSplit()` static/dynamic; ~89% input cost reduction) |
-| **Error classification** | Partial | ✅ 40 patterns | ✅ | ✅ | Partial | ✅ (41 patterns) |
-| **In-channel slash cmds** | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ (/clear /compact /status /think /usage) |
-| **DM pairing flow** | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ (all channels; default "pairing") |
-| **Secrets encryption** | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ (ChaCha20-Poly1305; decrypt wired) |
-| **Sandbox execution** | ✅ Docker | ❌ | ✅ multi | ✅ multi | ❌ | ✅ (Bubblewrap/Firejail/Docker auto) |
-| **Audit logging** | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ (all tool types + auth events) |
-| **SSRF protection** | Partial | ❌ | ✅ | ✅ | ❌ | ✅ (exceeds siblings; cloud metadata + DNS resolution) |
-| **Injection guard** | ✅ | ❌ | ✅ Aho-Corasick | ✅ | ❌ | ✅ (6-layer: XML wrapping, direct+indirect pattern scan, suspicion scoring, compaction sanitization, tool sensitivity gating, egress firewall) |
-| **Leak detection** | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ (entropy + 15-pattern LLM output scan) |
-| **Path traversal guard** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (all file/git/document tools) |
-| **Document parsing** | ❌ | ❌ | ✅ 4 formats | ❌ | ❌ | ✅ (PDF/DOCX/XLSX/PPTX via PdfPig + BCL) |
-| **Screenshot tool** | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ (scrot/screencapture/PowerShell) |
-| **Git tool** | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ (9 ops; workspace-confined) |
-| **Browser tool** | ✅ CDP | ❌ | ✅ | ✅ | ❌ | ✅ Playwright + PinchTab |
-| **Voice transcription** | ✅ Groq/Whisper | ✅ Groq/Whisper | ✅ Groq/Whisper | ❌ | ✅ Groq | ✅ Groq/OpenAI/Azure/GCP; all 4 channels |
-| **Voice diarization** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **clawsharp-exclusive** (Azure + GCP; "Speaker N: text" format; up to 35 speakers) |
-| **Hardware tools** | ❌ | ✅ I2C/SPI | ✅ GPIO | ✅ | ❌ | ❌ |
-| **Search providers** | Brave | Brave+Tavily+DDG | Brave+DDG | 8 providers | DDG+Perplexity | **9 providers** (Brave/Exa/Tavily/SearXNG/Jina/Firecrawl/Perplexity/GLM/MCP) |
-| **Chinese LLM providers** | ❌ | ❌ | ❌ | ❌ | ✅ 6 | ✅ 7 (DashScope/Zhipu/Moonshot/Volcengine/Minimax/SiliconFlow/GLM search) |
-| **Skills / plugins** | ✅ ClawHub | ✅ ClawHub | ✅ | ✅ | ❌ | ✅ |
-| **Subagent spawning** | ✅ depth-2 | ✅ depth-2 | ✅ depth-2 | ✅ depth-2 | ❌ | ✅ depth-2 |
-| **Cron scheduler** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **Service install** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **Shell completion** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **Migration from siblings** | N/A | ✅ | ✅ | ✅ | ❌ | ✅ (openclaw + picoclaw + zeroclaw) |
-| **Web UI** | ✅ WebChat + Canvas | ❌ | ✅ WebChat | ✅ Relay UI | ❌ | ✅ Svelte 5 |
-| **AOT compilation** | ❌ | ✅ | ✅ | ✅ | N/A | ✅ (SelfContained JIT; EnableConfigurationBindingGenerator unblocks NativeAOT publish) |
-| **Source-gen JSON** | ❌ | N/A | ✅ | ✅ | ❌ | ✅ (25 JsonSerializerContext classes) |
-| **Atomic session writes** | ✅ | ❌ | N/A | ✅ | ❌ | ✅ (File.Move atomic rename) |
-| **Heartbeat / health probes** | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ (startup + periodic; per-provider + fallback chain) |
-| **Goals / SOP subsystem** | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ (GoalTool state machine; resume + progress tracking) |
+| **Vision** | ✅ (all providers incl. Bedrock) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Memory: vector** | ✅ | ✅ | ❌ | ✅ | ✅ | Partial |
+| **Memory: decay/TTL** | ✅ (age-decay + usage-weighted) | ❌ | ❌ | ✅ Lucid | ✅ | ❌ |
+| **Context window guard** | ✅ (90+ models; pattern inference) | Partial | ❌ | ❌ | ✅ 58 models | ❌ |
+| **Context compaction** | ✅ | ✅ | ❌ | Partial | ✅ | ❌ |
+| **Pre-compaction memory flush** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Model fallback chain** | ✅ (streaming + non-streaming) | ✅ | ✅ | ✅ | Partial | ❌ |
+| **Cost tracking** | ✅ | ✅ | ❌ | ✅ full | Partial | ❌ |
+| **Budget enforcement** | ✅ (pre-request estimated cost) | ✅ | ❌ | ✅ W/E states | ❌ | ❌ |
+| **Prompt caching** | ✅ Full (Anthropic `cache_control` + tool caching; OpenAI `cached_tokens` tracking; explicit `BuildSplit()` static/dynamic; ~89% input cost reduction) | ⚠️ Partial | ⚠️ Partial | ❌ Broken | ❌ | ⚠️ Partial |
+| **Error classification** | ✅ (41 patterns) | Partial | ✅ 40 patterns | ✅ | ✅ | Partial |
+| **In-channel slash cmds** | ✅ (/clear /compact /status /think /usage) | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **DM pairing flow** | ✅ (all channels; default "pairing") | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **Secrets encryption** | ✅ ChaCha20-Poly1305 | ❌ | ❌ | ✅ | ✅ | ❌ |
+| **Sandbox execution** | ✅ (Bubblewrap/Firejail/Docker auto) | ✅ Docker | ❌ | ✅ multi | ✅ multi | ❌ |
+| **Audit logging** | ✅ (all tool types + auth events) | ❌ | ❌ | ✅ | ✅ | ❌ |
+| **SSRF protection** | ✅ (exceeds siblings; cloud metadata + DNS resolution) | Partial | ❌ | ✅ | ✅ | ❌ |
+| **Injection guard** | ✅ (6-layer: XML wrapping, direct+indirect pattern scan, suspicion scoring, compaction sanitization, tool sensitivity gating, egress firewall) | ✅ | ❌ | ✅ Aho-Corasick | ✅ | ❌ |
+| **Leak detection** | ✅ (entropy + 15-pattern LLM output scan) | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Path traversal guard** | ✅ (all file/git/document tools) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Document parsing** | ✅ (PDF/DOCX/XLSX/PPTX via PdfPig + BCL) | ❌ | ❌ | ✅ 4 formats | ❌ | ❌ |
+| **Screenshot tool** | ✅ (scrot/screencapture/PowerShell) | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Git tool** | ✅ (9 ops; workspace-confined) | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Browser tool** | ✅ Playwright + PinchTab | ✅ CDP | ❌ | ✅ | ✅ | ❌ |
+| **Voice transcription** | ✅ Groq/OpenAI/Azure/GCP; all 4 channels | ✅ Groq/Whisper | ✅ Groq/Whisper | ✅ Groq/Whisper | ❌ | ✅ Groq |
+| **Voice diarization** | ✅ **clawsharp-exclusive** (Azure + GCP; "Speaker N: text" format; up to 35 speakers) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Hardware tools** | ❌ | ❌ | ✅ I2C/SPI | ✅ GPIO | ✅ | ❌ |
+| **Search providers** | **9 providers** (Brave/Exa/Tavily/SearXNG/Jina/Firecrawl/Perplexity/GLM/MCP) | Brave | Brave+Tavily+DDG | Brave+DDG | 8 providers | DDG+Perplexity |
+| **Chinese LLM providers** | ✅ 7 (DashScope/Zhipu/Moonshot/Volcengine/Minimax/SiliconFlow/GLM search) | ❌ | ❌ | ❌ | ❌ | ✅ 6 |
+| **Skills / plugins** | ✅ | ✅ ClawHub | ✅ ClawHub | ✅ | ✅ | ❌ |
+| **Subagent spawning** | ✅ depth-2 | ✅ depth-2 | ✅ depth-2 | ✅ depth-2 | ✅ depth-2 | ❌ |
+| **Cron scheduler** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Service install** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Shell completion** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Migration from siblings** | ✅ (openclaw + picoclaw + zeroclaw) | N/A | ✅ | ✅ | ✅ | ❌ |
+| **Web UI** | ✅ Svelte 5 | ✅ WebChat + Canvas | ❌ | ✅ WebChat | ✅ Relay UI | ❌ |
+| **AOT compilation** | ✅ | ❌ | ✅ | ✅ | ✅ | N/A |
+| **Source-gen JSON** | ✅ | ❌ | N/A | ✅ | ✅ | ❌ |
+| **Atomic session writes** | ✅ | ✅ | ❌ | N/A | ✅ | ❌ |
+| **Heartbeat / health probes** | ✅ (startup + periodic; per-provider + fallback chain) | ❌ | ✅ | ❌ | ❌ | ✅ |
+| **Goals / SOP subsystem** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 
 ### Runtime characteristics
 
-| | openclaw | nanobot | picoclaw | zeroclaw | nullclaw | clawsharp |
+| | clawsharp | openclaw | nanobot | picoclaw | zeroclaw | nullclaw |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| Language | TypeScript | Python | Go | Rust | Zig | C# / .NET 10 |
-| RAM | >1 GB | >100 MB | <10 MB | <5 MB | ~1 MB | TBD |
-| Binary size | ~28 MB | ~4K lines | ~8 MB | 3.4 MB | 678 KB | TBD |
+| Language | C# / .NET 10 | TypeScript | Python | Go | Rust | Zig |
+| RAM | TBD | >1 GB | >100 MB | <10 MB | <5 MB | ~1 MB |
+| Binary size | TBD | ~28 MB | ~4K lines | ~8 MB | 3.4 MB | 678 KB |
 
 ### clawsharp exclusives
 
