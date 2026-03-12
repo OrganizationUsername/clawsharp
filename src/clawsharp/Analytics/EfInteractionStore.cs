@@ -52,11 +52,19 @@ public sealed partial class EfInteractionStore<TContext> : IInteractionStore
 
     private async Task EnsureInitializedAsync(CancellationToken ct)
     {
-        if (_initialized) return;
+        if (_initialized)
+        {
+            return;
+        }
+
         await _initLock.WaitAsync(ct);
         try
         {
-            if (_initialized) return;
+            if (_initialized)
+            {
+                return;
+            }
+
             await using var db = await _contextFactory.CreateDbContextAsync(ct);
             await db.Database.MigrateAsync(ct);
             _initialized = true;

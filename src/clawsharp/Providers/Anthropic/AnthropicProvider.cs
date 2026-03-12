@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Clawsharp.Core;
+using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers.Anthropic;
 
@@ -224,7 +225,7 @@ public sealed class AnthropicProvider : IProvider, IStreamingProvider
             req.Headers.Add("x-api-key", _apiKey);
         }
 
-        req.Headers.Add("anthropic-version", "2023-06-01");
+        req.Headers.Add(ClawsharpConstants.HttpHeaders.AnthropicApiVersion, ClawsharpConstants.AnthropicVersion);
     }
 
     /// <summary>

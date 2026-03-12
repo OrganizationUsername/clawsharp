@@ -103,7 +103,9 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
         try
         {
             if (File.Exists(TokenPath))
+            {
                 File.Delete(TokenPath);
+            }
         }
         catch (Exception ex)
         {
@@ -177,7 +179,9 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
     private async Task DrainActiveConnectionsAsync()
     {
         if (Volatile.Read(ref _activeConnections) <= 0)
+        {
             return;
+        }
 
         LogDraining(_logger, Volatile.Read(ref _activeConnections));
 
@@ -210,7 +214,10 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
                     await using var writer = new StreamWriter(pipe, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
 
                     var line = await reader.ReadLineAsync(timeoutCts.Token);
-                    if (line is null) return;
+                    if (line is null)
+                    {
+                        return;
+                    }
 
                     IpcRequest? req;
                     try
@@ -268,7 +275,9 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
     private bool ValidateToken(string? clientToken)
     {
         if (string.IsNullOrEmpty(clientToken) || string.IsNullOrEmpty(_authToken))
+        {
             return false;
+        }
 
         var provided = Encoding.UTF8.GetBytes(clientToken);
         var expected = Encoding.UTF8.GetBytes(_authToken);
@@ -278,7 +287,9 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
     private IpcResponse PairWeb()
     {
         if (!_pairingService.IsEnabled)
+        {
             return new IpcResponse(null, "web_pairing_not_enabled", false);
+        }
 
         var code = _pairingService.Regenerate();
         return new IpcResponse(code, null, false);

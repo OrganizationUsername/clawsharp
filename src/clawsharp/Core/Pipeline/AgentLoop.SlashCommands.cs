@@ -139,9 +139,9 @@ public sealed partial class AgentLoop
                 await _goalStorage.SaveAsync(goals, ct);
                 return cleared > 0 ? $"Cleared {cleared} goal(s)." : "No active or paused goals to clear.";
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return $"Failed to clear goals: {ex.Message}";
+                return "Error: failed to clear goals.";
             }
         }
 
@@ -166,9 +166,9 @@ public sealed partial class AgentLoop
 
             return sb.ToString().TrimEnd();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return $"Failed to load goals: {ex.Message}";
+            return "Error: failed to load goals.";
         }
     }
 }

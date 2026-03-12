@@ -70,7 +70,7 @@ public sealed class DocumentReadTool : Tool
                 _ = _auditLogger.LogFileAccessAsync(inputPath, "document_read", ChannelName, success: false, error: ex.Message, ct: ct);
             }
 
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         if (!File.Exists(resolvedPath))
@@ -85,6 +85,12 @@ public sealed class DocumentReadTool : Tool
         }
 
         var ext = Path.GetExtension(resolvedPath).ToLowerInvariant();
+
+        if (!ValidateMagicBytes(resolvedPath, ext))
+        {
+            return "Error: file content does not match expected format.";
+        }
+
         string text;
         try
         {
@@ -97,9 +103,9 @@ public sealed class DocumentReadTool : Tool
                 _ => $"Error: unsupported file type '{ext}'. Supported: .pdf, .docx, .xlsx, .pptx"
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return $"Error reading document: {ex.Message}";
+            return "Error: failed to read document.";
         }
 
         if (text.StartsWith("Error:", StringComparison.Ordinal))
@@ -233,5 +239,29 @@ public sealed class DocumentReadTool : Tool
         }
 
         return sb.ToString().Trim();
+    }
+
+    private static bool ValidateMagicBytes(string path, string extension)
+    {
+        try
+        {
+            Span<byte> header = stackalloc byte[4];
+            using var fs = File.OpenRead(path);
+            if (fs.Read(header) < 4)
+            {
+                return false;
+            }
+
+            return extension switch
+            {
+                ".pdf" => header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
+                ".docx" or ".xlsx" or ".pptx" => header[0] == 0x50 && header[1] == 0x4B,
+                _ => true
+            };
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

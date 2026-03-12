@@ -53,4 +53,7 @@ public sealed class AppConfig
 
     /// <summary>Interaction analytics configuration (prompt/response/cost logging).</summary>
     public AnalyticsConfig? Analytics { get; set; }
+
+    /// <summary>Configurable size limits for media attachments (images, voice files).</summary>
+    public LimitsConfig Limits { get; set; } = new();
 }

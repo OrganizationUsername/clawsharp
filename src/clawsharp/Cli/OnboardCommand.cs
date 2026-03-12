@@ -3,6 +3,7 @@ using System.Text;
 using Clawsharp.Cli.Config;
 using Clawsharp.Cli.Skills;
 using Clawsharp.Config;
+using Clawsharp.Core.Utilities;
 using Clawsharp.Security;
 using JetBrains.Annotations;
 using Microsoft.Extensions.Options;
@@ -599,8 +600,8 @@ public sealed class OnboardCommand : AsyncCommand<OnboardCommand.Settings>
         else
         {
             var baseUrl = provider == LlmProviderType.LmStudio
-                ? "http://localhost:1234"
-                : "http://localhost:11434";
+                ? ClawsharpConstants.LmStudioDefaultBaseUrl
+                : ClawsharpConstants.OllamaDefaultBaseUrl;
             sb.AppendLine($"    \"{name}\": {{ \"type\": \"{name}\", \"baseUrl\": \"{baseUrl}\" }}");
         }
 

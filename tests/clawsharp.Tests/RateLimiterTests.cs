@@ -118,4 +118,96 @@ public sealed class RateLimiterTests
         limiter.TryAcquire("alice").ShouldBeTrue();
         limiter.TryAcquire("alice").ShouldBeFalse(); // blocked within 60s window
     }
+
+    // ── Per-IP rate limiting (M-06) ──
+
+    [Test]
+    public void TryAcquireByIp_NullIp_AlwaysReturnsTrue()
+    {
+        var limiter = CreateLimiter(maxRequests: 1);
+
+        // Null IP should always be allowed (e.g. CLI channel)
+        for (var i = 0; i < 100; i++)
+        {
+            limiter.TryAcquireByIp(null).ShouldBeTrue();
+        }
+    }
+
+    [Test]
+    public void TryAcquireByIp_WithinLimit_AllCallsReturnTrue()
+    {
+        var limiter = CreateLimiter(maxRequests: 2);
+        // IP limit = 2 * 5 = 10
+        var ip = "192.168.1.1";
+
+        for (var i = 0; i < 10; i++)
+        {
+            limiter.TryAcquireByIp(ip).ShouldBeTrue();
+        }
+    }
+
+    [Test]
+    public void TryAcquireByIp_ExceedsIpLimit_ReturnsFalse()
+    {
+        var limiter = CreateLimiter(maxRequests: 2);
+        // IP limit = 2 * 5 = 10
+        var ip = "192.168.1.1";
+
+        for (var i = 0; i < 10; i++)
+        {
+            limiter.TryAcquireByIp(ip).ShouldBeTrue();
+        }
+
+        limiter.TryAcquireByIp(ip).ShouldBeFalse(); // 11th call exceeds limit
+    }
+
+    [Test]
+    public void TryAcquireByIp_DifferentIps_AreIndependent()
+    {
+        var limiter = CreateLimiter(maxRequests: 1);
+        // IP limit = 1 * 5 = 5
+
+        for (var i = 0; i < 5; i++)
+        {
+            limiter.TryAcquireByIp("10.0.0.1").ShouldBeTrue();
+        }
+
+        limiter.TryAcquireByIp("10.0.0.1").ShouldBeFalse(); // first IP exhausted
+        limiter.TryAcquireByIp("10.0.0.2").ShouldBeTrue(); // second IP still has quota
+    }
+
+    [Test]
+    public void TryAcquireByIp_IndependentFromSessionBuckets()
+    {
+        var limiter = CreateLimiter(maxRequests: 1);
+
+        // Exhaust session limit
+        limiter.TryAcquire("session1").ShouldBeTrue();
+        limiter.TryAcquire("session1").ShouldBeFalse();
+
+        // IP limit should be unaffected (separate buckets)
+        limiter.TryAcquireByIp("192.168.1.1").ShouldBeTrue();
+    }
+
+    [Test]
+    public void TryAcquireByIp_MultiplierIs5x()
+    {
+        // Verify the constant is 5
+        RateLimiter.IpLimitMultiplier.ShouldBe(5);
+    }
+
+    [Test]
+    public void TryAcquireByIp_UsesCorrectMultipliedLimit()
+    {
+        var limiter = CreateLimiter(maxRequests: 4);
+        // IP limit = 4 * 5 = 20
+        var ip = "10.0.0.1";
+
+        for (var i = 0; i < 20; i++)
+        {
+            limiter.TryAcquireByIp(ip).ShouldBeTrue();
+        }
+
+        limiter.TryAcquireByIp(ip).ShouldBeFalse(); // 21st call exceeds 20
+    }
 }

@@ -25,5 +25,7 @@ public sealed record InboundMessage(
     /// <summary>Optional model override for this request (e.g. from a cron job). Overrides the default model.</summary>
     string? ModelOverride = null,
     /// <summary>Optional provider override for this request (e.g. from a cron job). Overrides the default provider.</summary>
-    string? ProviderOverride = null
+    string? ProviderOverride = null,
+    /// <summary>Remote IP address of the sender, when available. Used for per-IP rate limiting.</summary>
+    string? SenderIp = null
 );

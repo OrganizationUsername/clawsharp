@@ -97,9 +97,9 @@ public sealed partial class WebFetchTool : Tool
 
             return $"[{(int)resp.StatusCode}] {text}";
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return $"Error fetching {url}: {ex.Message}";
+            return "Error: network request failed.";
         }
     }
 

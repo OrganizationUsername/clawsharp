@@ -38,7 +38,9 @@ public sealed class FileEditTool : Tool
     {
         var workspaceError = WorkspaceGuard.CheckAvailability(_workspace);
         if (workspaceError is not null)
+        {
             return workspaceError;
+        }
 
         var rel = arguments.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
         var oldText = arguments.TryGetProperty("old_text", out var o) ? o.GetString() ?? "" : "";
@@ -62,7 +64,7 @@ public sealed class FileEditTool : Tool
                 _ = _auditLogger.LogFileAccessAsync(rel, "file_edit", ChannelName, success: false, error: ex.Message, ct: ct);
             }
 
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         if (!File.Exists(fullPath))
@@ -75,9 +77,9 @@ public sealed class FileEditTool : Tool
         {
             PathGuard.VerifyNotSymlinkEscape(fullPath, _workspace);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         var content = await File.ReadAllTextAsync(fullPath, ct);

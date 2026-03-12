@@ -19,12 +19,16 @@ internal static class WorkspaceGuard
     internal static string? CheckAvailability(string workspace)
     {
         if (!Directory.Exists(workspace))
+        {
             return null; // PathGuard will handle missing directory errors
+        }
 
         // A workspace with any file or subdirectory is considered available.
         // EnumerateFileSystemEntries is lazy — stops at first entry.
         if (Directory.EnumerateFileSystemEntries(workspace).Any())
+        {
             return null;
+        }
 
         return NoWorkspaceMessage;
     }

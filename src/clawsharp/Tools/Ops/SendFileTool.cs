@@ -68,7 +68,7 @@ internal sealed class SendFileTool : Tool
                     error: ex.Message, ct: ct);
             }
 
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         if (!File.Exists(fullPath))
@@ -108,7 +108,7 @@ internal sealed class SendFileTool : Tool
                     error: ex.Message, ct: ct);
             }
 
-            return $"Error reading file: {ex.Message}";
+            return "Error: file not found or inaccessible.";
         }
 
         var filename = Path.GetFileName(fullPath);

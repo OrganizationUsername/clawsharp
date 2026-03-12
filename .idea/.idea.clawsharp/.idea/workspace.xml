@@ -18,13 +18,48 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c6ae6c98-609d-4435-9296-388289a08aa2" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/.idea.clawsharp/.idea/indexLayout.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/.idea.clawsharp/.idea/projectSettingsUpdater.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/SECURITY-AUDIT-2026-03-09.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Slack/SlackChannel.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Slack/SlackChannel.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/clawsharp/Features/Behaviors/LoggingBehavior.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Features/Behaviors/LoggingBehavior.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/clawsharp/Providers/TagStripFilter.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Providers/TagStripFilter.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/ShellTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/ShellTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.clawsharp/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.clawsharp/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Analytics/EfInteractionStore.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Analytics/EfInteractionStore.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Matrix/MatrixChannel.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Matrix/MatrixChannel.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Mattermost/MattermostChannel.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Mattermost/MattermostChannel.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Telegram/TelegramChannel.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Telegram/TelegramChannel.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Web/ViteDevOrchestrator.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Web/ViteDevOrchestrator.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Web/WebChannel.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Web/WebChannel.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Web/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Web/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Cli/Channel/ChannelPairWebCommand.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Cli/Channel/ChannelPairWebCommand.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.Streaming.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.Streaming.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.ToolExecution.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.ToolExecution.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/ComplexityScorer.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/ComplexityScorer.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Services/LifecycleBackgroundService.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Services/LifecycleBackgroundService.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Services/RateLimiter.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Services/RateLimiter.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Features/Session/Commands/PruneSession.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Features/Session/Commands/PruneSession.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Ipc/GatewayIpcService.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Ipc/GatewayIpcService.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Memory/FactExtractor.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Memory/FactExtractor.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Memory/KeywordExpander.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Memory/KeywordExpander.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Memory/MsSql/MsSqlMemory.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Memory/MsSql/MsSqlMemory.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Memory/Postgres/PostgresMemory.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Memory/Postgres/PostgresMemory.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Memory/Sqlite/SqliteMemory.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Memory/Sqlite/SqliteMemory.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Memory/Sqlite/SqliteVecConnectionInterceptor.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Memory/Sqlite/SqliteVecConnectionInterceptor.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Providers/ProviderFactory.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Providers/ProviderFactory.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Providers/ProviderHttpHelper.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Providers/ProviderHttpHelper.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Security/CanaryGuard.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Security/CanaryGuard.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Security/LandlockSandbox.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Security/LandlockSandbox.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Security/PromptGuard.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Security/PromptGuard.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Security/ShellGuard.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Security/ShellGuard.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Security/SsrfGuard.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Security/SsrfGuard.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Security/WebPairingGuard.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Security/WebPairingGuard.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileEditTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileEditTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileListTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileListTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileReadTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileReadTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileSearchTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileSearchTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileWriteTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Files/FileWriteTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/CronTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/CronTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/DocumentReadTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/DocumentReadTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/InteractionsTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/InteractionsTool.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/PathGuard.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/PathGuard.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/WorkspaceGuard.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/WorkspaceGuard.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/clawsharp.Tests/Channels/WeComCryptoTests.cs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/clawsharp.Tests/Channels/WeComCryptoTests.cs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,6 +70,11 @@
     <option name="firstShow" value="false" />
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="ci/qodana-setup" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
@@ -62,39 +102,39 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;.NET Project.clawsharp agent.executor&quot;: &quot;Debug&quot;,
-    &quot;.NET Project.clawsharp gateway.executor&quot;: &quot;Debug&quot;,
-    &quot;.NET Project.clawsharp.executor&quot;: &quot;Run&quot;,
-    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;Git.Working.Tree.Tab.closed.by.user&quot;: &quot;closed&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Publish to IIS.clawsharp: linux-x64.executor&quot;: &quot;Run&quot;,
-    &quot;Publish to folder.clawsharp - Publish - Linux x64.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/chase/Coding/Scufpad&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    ".NET Project.clawsharp agent.executor": "Debug",
+    ".NET Project.clawsharp gateway.executor": "Debug",
+    ".NET Project.clawsharp.executor": "Run",
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "Git.Working.Tree.Tab.closed.by.user": "closed",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Publish to IIS.clawsharp: linux-x64.executor": "Run",
+    "Publish to folder.clawsharp - Publish - Linux x64.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "cidr.known.project.marker": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "security-fixes",
+    "last_opened_file_path": "/home/chase/Coding/Scufpad",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "preferences.lookFeel",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
-  <component name="RunManager" selected="Publish to folder.clawsharp - Publish - Linux x64">
+}]]></component>
+  <component name="RunManager" selected=".NET Project.clawsharp">
     <configuration name="clawsharp - Publish - Linux x64" type="DotNetFolderPublish" factoryName="Publish to folder">
-      <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" self_contained="true" target_folder="$PROJECT_DIR$/dist/linux-x64" target_framework="net10.0" uuid_high="944112524097940322" uuid_low="2596986589580013967">
+      <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" self_contained="true" target_folder="$PROJECT_DIR$/dist/linux-x64" target_framework="net10.0" uuid_high="-6493738158586881504" uuid_low="1373885070056178611">
         <runtimes>
           <item value="linux-x64" />
         </runtimes>
@@ -102,7 +142,7 @@
       <method v="2" />
     </configuration>
     <configuration name="clawsharp - Publish - Windows x64" type="DotNetFolderPublish" factoryName="Publish to folder">
-      <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" self_contained="true" target_folder="$PROJECT_DIR$/dist/win-x64" target_framework="net10.0" uuid_high="944112524097940322" uuid_low="2596986589580013967">
+      <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" self_contained="true" target_folder="$PROJECT_DIR$/dist/win-x64" target_framework="net10.0" uuid_high="-6493738158586881504" uuid_low="1373885070056178611">
         <runtimes>
           <item value="win-x64" />
         </runtimes>
@@ -276,8 +316,41 @@
       <workItem from="1772898804010" duration="27852000" />
       <workItem from="1773020555069" duration="26283000" />
       <workItem from="1773113693047" duration="3903000" />
-      <workItem from="1773156918236" duration="628000" />
+      <workItem from="1773156918236" duration="9729000" />
     </task>
+    <task id="LOCAL-00001" summary="Rider idea files">
+      <option name="closed" value="true" />
+      <created>1773157576210</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1773157576210</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Audit changes">
+      <option name="closed" value="true" />
+      <created>1773157633154</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1773157633154</updated>
+    </task>
+    <task id="LOCAL-00003" summary="chore: remove unused using statements across codebase&#10;&#10;IDE cleanup — 460+ redundant using directives removed from 159 files.&#10;&#10;Co-Authored-By: Claude Opus 4.6 &lt;noreply@anthropic.com&gt;">
+      <option name="closed" value="true" />
+      <created>1773274509992</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1773274509993</updated>
+    </task>
+    <task id="LOCAL-00004" summary="Update actions">
+      <option name="closed" value="true" />
+      <created>1773288953434</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1773288953434</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -296,7 +369,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="master" />
+                        <option value="main" />
                       </list>
                     </value>
                   </entry>
@@ -312,7 +385,11 @@
     <option name="CLEAR_INITIAL_COMMIT_MESSAGE" value="true" />
     <MESSAGE value="Initial Commit" />
     <MESSAGE value="Initial Commit" />
-    <option name="LAST_COMMIT_MESSAGE" value="Initial Commit" />
+    <MESSAGE value="Rider idea files" />
+    <MESSAGE value="Audit changes" />
+    <MESSAGE value="chore: remove unused using statements across codebase&#10;&#10;IDE cleanup — 460+ redundant using directives removed from 159 files.&#10;&#10;Co-Authored-By: Claude Opus 4.6 &lt;noreply@anthropic.com&gt;" />
+    <MESSAGE value="Update actions" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update actions" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

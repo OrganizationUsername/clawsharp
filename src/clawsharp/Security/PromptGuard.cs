@@ -199,10 +199,14 @@ internal static partial class PromptGuard
         }
 
         if (string.Equals(mode, PromptGuardModes.Block, StringComparison.OrdinalIgnoreCase))
+        {
             return InjectionAction.Block;
+        }
 
         if (string.Equals(mode, PromptGuardModes.Sanitize, StringComparison.OrdinalIgnoreCase))
+        {
             return SanitizeContent(ref content);
+        }
 
         return InjectionAction.Warn; // "warn" or any unknown value
     }
@@ -253,13 +257,17 @@ internal static partial class PromptGuard
         // First: standard injection patterns
         var standardAction = ScanAndApply(ref content, toolName, mode, auditLogger, channel, userId, ct);
         if (standardAction == InjectionAction.Block)
+        {
             return standardAction;
+        }
 
         // Second: indirect injection patterns (additional heuristics for tool results)
         var normalized = NormalizeForScanning(content);
         var indirectMatch = IndirectInjectionRegex().Match(normalized);
         if (!indirectMatch.Success)
+        {
             return standardAction; // no indirect match, return standard result
+        }
 
         if (auditLogger is not null)
         {
@@ -269,7 +277,9 @@ internal static partial class PromptGuard
         }
 
         if (string.Equals(mode, PromptGuardModes.Block, StringComparison.OrdinalIgnoreCase))
+        {
             return InjectionAction.Block;
+        }
 
         if (string.Equals(mode, PromptGuardModes.Sanitize, StringComparison.OrdinalIgnoreCase))
         {

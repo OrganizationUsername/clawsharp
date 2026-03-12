@@ -177,7 +177,7 @@ public sealed partial class SpawnTool : Tool
         catch (Exception ex)
         {
             LogSpawnError(_logger, ex, displayName);
-            return $"Error: sub-agent '{displayName}' failed: {ex.Message}";
+            return $"Error: sub-agent '{displayName}' failed.";
         }
     }
 
@@ -237,7 +237,8 @@ public sealed partial class SpawnTool : Tool
             }
             catch (Exception ex)
             {
-                return $"Sub-agent provider error: {ex.Message}";
+                _logger.LogWarning(ex, "Sub-agent provider request failed");
+                return "Error: sub-agent provider request failed.";
             }
 
             if (response.ToolCalls?.Count > 0)

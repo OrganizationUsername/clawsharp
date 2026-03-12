@@ -133,13 +133,18 @@ internal sealed partial class WebPairingGuard
     /// </summary>
     private void EvictExpiredEntries()
     {
-        if (_failures.Count <= 10_000) return;
+        if (_failures.Count <= 10_000)
+        {
+            return;
+        }
 
         var now = DateTimeOffset.UtcNow;
         foreach (var kvp in _failures)
         {
             if (kvp.Value.LockedUntil < now && kvp.Value.Count < MaxFailedAttempts)
+            {
                 _failures.TryRemove(kvp.Key, out _);
+            }
         }
     }
 

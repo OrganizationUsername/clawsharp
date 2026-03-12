@@ -178,7 +178,11 @@ public sealed class WeComCryptoTests
 
         // Non-standard PKCS7 padding with 32-byte block size
         var padLen = 32 - (plaintext.Length % 32);
-        if (padLen == 0) padLen = 32;
+        if (padLen == 0)
+        {
+            padLen = 32;
+        }
+
         var padded = new byte[plaintext.Length + padLen];
         plaintext.CopyTo(padded, 0);
         for (var i = 0; i < padLen; i++)

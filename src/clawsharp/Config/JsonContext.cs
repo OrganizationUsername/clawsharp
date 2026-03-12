@@ -56,6 +56,8 @@ namespace Clawsharp.Config;
  JsonSerializable(typeof(HttpRequestConfig)),
  // Analytics
  JsonSerializable(typeof(AnalyticsConfig)),
+ // Limits
+ JsonSerializable(typeof(LimitsConfig)),
  // Collections
  JsonSerializable(typeof(List<CronEntry>)), JsonSerializable(typeof(Dictionary<string, ProviderConfig>)),
  JsonSerializable(typeof(Dictionary<string, McpServerConfig>)),

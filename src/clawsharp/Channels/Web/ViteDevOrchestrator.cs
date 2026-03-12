@@ -29,7 +29,10 @@ public sealed partial class ViteDevOrchestrator : IHostedLifecycleService
 
     public async Task StartingAsync(CancellationToken cancellationToken)
     {
-        if (!_env.IsDevelopment()) return;
+        if (!_env.IsDevelopment())
+        {
+            return;
+        }
 
         if (await IsPortOpenAsync())
         {
@@ -66,12 +69,16 @@ public sealed partial class ViteDevOrchestrator : IHostedLifecycleService
         _viteProcess.OutputDataReceived += (_, e) =>
         {
             if (!string.IsNullOrWhiteSpace(e.Data))
+            {
                 LogViteOutput(_logger, e.Data);
+            }
         };
         _viteProcess.ErrorDataReceived += (_, e) =>
         {
             if (!string.IsNullOrWhiteSpace(e.Data))
+            {
                 LogViteError(_logger, e.Data);
+            }
         };
         _viteProcess.BeginOutputReadLine();
         _viteProcess.BeginErrorReadLine();

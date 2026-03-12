@@ -177,16 +177,16 @@ public sealed partial class BrowserTool : Tool
         catch (PlaywrightException ex)
         {
             LogPlaywrightError(_logger, ex, action);
-            return $"Error: Playwright error: {ex.Message}";
+            return "Error: browser operation failed.";
         }
-        catch (TimeoutException ex)
+        catch (TimeoutException)
         {
-            return $"Error: operation timed out: {ex.Message}";
+            return "Error: operation timed out.";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogUnexpectedBrowserError(_logger, ex, action);
-            return $"Error: {ex.Message}";
+            return "Error: operation failed.";
         }
     }
 

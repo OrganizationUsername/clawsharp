@@ -444,6 +444,8 @@ public sealed partial class SlackChannel : LifecycleBackgroundService, IChannel,
 
     private const int MaxWebSocketMessageBytes = 1 * 1024 * 1024; // 1 MB
 
+    private const long MaxSlackFileBytes = 100 * 1024 * 1024; // 100 MB
+
     /// <summary>
     /// Converts standard Markdown to Slack mrkdwn format.
     /// Slack uses different formatting: **bold** → *bold*, __italic__ → _italic_,
@@ -594,6 +596,12 @@ public sealed partial class SlackChannel : LifecycleBackgroundService, IChannel,
     internal async Task<bool> UploadFileAsync(string channelId, string filename, ReadOnlyMemory<byte> content, string? initialComment,
                                               CancellationToken ct)
     {
+        if (content.Length > MaxSlackFileBytes)
+        {
+            LogFileUploadStepFailed(_logger, 0, filename, $"File too large ({content.Length / (1024 * 1024)} MB). Maximum is 100 MB.");
+            return false;
+        }
+
         // Step 1: Get upload URL
         using var step1Req = new HttpRequestMessage(HttpMethod.Post,
             $"files.getUploadURLExternal?filename={Uri.EscapeDataString(filename)}&length={content.Length}");

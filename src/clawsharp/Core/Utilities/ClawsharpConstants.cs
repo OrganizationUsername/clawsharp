@@ -1,3 +1,6 @@
+using System.Collections.Frozen;
+using Clawsharp.Config.Agent;
+
 namespace Clawsharp.Core.Utilities;
 
 /// <summary>Project-wide shared constants replacing magic strings and numbers.</summary>
@@ -12,17 +15,11 @@ public static class ClawsharpConstants
     /// <summary>HTTP provider request timeout in seconds.</summary>
     public const int ProviderTimeoutSeconds = 120;
 
-    /// <summary>Maximum image attachment size in bytes (5 MB).</summary>
-    public const int MaxImageBytes = 5 * 1024 * 1024;
-
     /// <summary>Maximum Telegram message length in characters.</summary>
     public const int TelegramMaxMessageLength = 4096;
 
     /// <summary>Maximum Discord message length in characters.</summary>
     public const int DiscordMaxMessageLength = 2000;
-
-    /// <summary>Maximum voice/audio file size in bytes for transcription (25 MB — Whisper API limit).</summary>
-    public const long MaxVoiceFileBytes = 25 * 1024 * 1024;
 
     /// <summary>Default Ollama base URL.</summary>
     public const string OllamaDefaultBaseUrl = "http://localhost:11434";
@@ -48,11 +45,52 @@ public static class ClawsharpConstants
     /// <summary>Discord media host for image attachment whitelisting.</summary>
     public const string DiscordMediaHost = "https://media.discordapp.net/";
 
-    /// <summary>Telegram Bot API base URL template (append bot token + method).</summary>
-    public const string TelegramApiBaseUrl = "https://api.telegram.org/bot";
+    /// <summary>Telegram Bot API base URL (HTTP client base address).</summary>
+    public const string TelegramBaseUrl = "https://api.telegram.org";
 
-    /// <summary>Telegram file download URL template.</summary>
-    public const string TelegramFileBaseUrl = "https://api.telegram.org/file/bot";
+    // Channel API base URLs
+    public const string SlackBaseUrl = "https://slack.com/api/";
+    public const string LineBaseUrl = "https://api.line.me/";
+    public const string LarkBaseUrl = "https://open.larksuite.com/";
+    public const string FeishuBaseUrl = "https://open.feishu.cn/";
+
+    /// <summary>
+    /// Maps each <see cref="LlmProviderType"/> that has a sensible default base URL
+    /// to that URL. Providers like Bedrock, Copilot, and VertexAI are excluded
+    /// because they require project/account-specific configuration.
+    /// </summary>
+    public static readonly FrozenDictionary<LlmProviderType, string> DefaultProviderBaseUrls =
+        new Dictionary<LlmProviderType, string>
+        {
+            [LlmProviderType.OpenAi] = OpenAiDefaultBaseUrl,
+            [LlmProviderType.Anthropic] = AnthropicDefaultBaseUrl,
+            [LlmProviderType.Gemini] = GeminiDefaultBaseUrl,
+            [LlmProviderType.Ollama] = OllamaDefaultBaseUrl,
+            [LlmProviderType.LmStudio] = LmStudioDefaultBaseUrl,
+            [LlmProviderType.OpenRouter] = "https://openrouter.ai/api/v1",
+            [LlmProviderType.Groq] = "https://api.groq.com/openai/v1",
+            [LlmProviderType.DeepSeek] = "https://api.deepseek.com/v1",
+            [LlmProviderType.Mistral] = "https://api.mistral.ai/v1",
+            [LlmProviderType.Perplexity] = "https://api.perplexity.ai",
+            [LlmProviderType.XAi] = "https://api.x.ai/v1",
+            [LlmProviderType.VLlm] = "http://localhost:8000/v1",
+            [LlmProviderType.LlamaCpp] = "http://localhost:8080/v1",
+            [LlmProviderType.TogetherAi] = "https://api.together.xyz/v1",
+            [LlmProviderType.Fireworks] = "https://api.fireworks.ai/inference/v1",
+            [LlmProviderType.Cerebras] = "https://api.cerebras.ai/v1",
+            [LlmProviderType.Novita] = "https://api.novita.ai/v3/openai",
+            [LlmProviderType.HuggingFace] = "https://api-inference.huggingface.co/v1",
+            [LlmProviderType.DashScope] = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            [LlmProviderType.Zhipu] = "https://open.bigmodel.cn/api/paas/v4",
+            [LlmProviderType.Moonshot] = "https://api.moonshot.cn/v1",
+            [LlmProviderType.Volcengine] = "https://ark.cn-beijing.volces.com/api/v3",
+            [LlmProviderType.Minimax] = "https://api.minimax.chat/v1",
+            [LlmProviderType.SiliconFlow] = "https://api.siliconflow.cn/v1",
+            [LlmProviderType.Cohere] = "https://api.cohere.com/compatibility/v1",
+            [LlmProviderType.SambaNova] = "https://api.sambanova.ai/v1",
+            [LlmProviderType.Ai21] = "https://api.ai21.com/studio/v1",
+            [LlmProviderType.Replicate] = "https://api.replicate.com/v1",
+        }.ToFrozenDictionary();
 
     // Channel names → ChannelName (Intellenum in Core/ChannelName.cs)
     // Finish reasons → FinishReason (Intellenum in Core/FinishReason.cs)

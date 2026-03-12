@@ -57,7 +57,9 @@ internal static class PathGuard
         {
             var target = Path.GetFullPath(fileInfo.LinkTarget, Path.GetDirectoryName(resolvedPath)!);
             if (!IsWithinWorkspace(target, normalizedWorkspace))
+            {
                 throw new InvalidOperationException("Access denied: path is a symlink escaping workspace.");
+            }
         }
 
         // Check parent directories for symlink escapes
@@ -69,7 +71,9 @@ internal static class PathGuard
             {
                 var target = Path.GetFullPath(dirInfo.LinkTarget, Path.GetDirectoryName(dir)!);
                 if (!IsWithinWorkspace(target, normalizedWorkspace))
+                {
                     throw new InvalidOperationException("Access denied: parent directory is a symlink escaping workspace.");
+                }
             }
 
             dir = Path.GetDirectoryName(dir);

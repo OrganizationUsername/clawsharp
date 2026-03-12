@@ -29,7 +29,11 @@ public sealed class CanaryGuard
     /// </summary>
     public bool CheckOutput(string output)
     {
-        if (_currentCanary is null) return false;
+        if (_currentCanary is null)
+        {
+            return false;
+        }
+
         return output.Contains(_currentCanary, StringComparison.Ordinal);
     }
 
@@ -38,7 +42,11 @@ public sealed class CanaryGuard
     /// </summary>
     public string Redact(string text)
     {
-        if (_currentCanary is null) return text;
+        if (_currentCanary is null)
+        {
+            return text;
+        }
+
         return text.Replace(_currentCanary, "[CANARY-REDACTED]", StringComparison.Ordinal);
     }
 

@@ -119,7 +119,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
         // Security headers + CORS middleware (runs before all routes)
         _app.Use(async (context, next) =>
         {
-            ApplySecurityHeaders(context.Response);
+            ApplySecurityHeaders(context.Response, _tls);
             ApplyCorsHeaders(context);
 
             if (HttpMethods.IsOptions(context.Request.Method))
@@ -136,8 +136,22 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
         {
             if (context.Request.Path == "/ws" && context.WebSockets.IsWebSocketRequest)
             {
+                // H-04: Validate Origin header before accepting WebSocket upgrade.
+                // WebSocket connections bypass CORS, so we must check Origin explicitly.
+                if (_allowedOrigins is not null)
+                {
+                    var origin = context.Request.Headers.Origin.ToString();
+                    if (string.IsNullOrEmpty(origin) ||
+                        (_allowedOrigins != "*" && !IsOriginAllowed(origin)))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return;
+                    }
+                }
+
                 var ws = await context.WebSockets.AcceptWebSocketAsync();
-                await HandleWebSocketAsync(ws, context.RequestAborted);
+                var remoteIp = NormalizeIp(context.Connection.RemoteIpAddress);
+                await HandleWebSocketAsync(ws, remoteIp, context.RequestAborted);
                 return;
             }
 
@@ -255,9 +269,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             // WebSocket path: send each token as a {"delta":"..."} frame immediately.
             await foreach (var token in tokens.WithCancellation(ct))
             {
-                var bytes = JsonSerializer.SerializeToUtf8Bytes(
-                    new WebStreamDelta { Delta = token },
-                    WebJsonContext.Default.WebStreamDelta);
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(new WebStreamDelta { Delta = token }, WebJsonContext.Default.WebStreamDelta);
                 await ws.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
             }
 
@@ -279,12 +291,30 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
     }
 
     /// <summary>Apply security headers that are always set on every response.</summary>
-    private static void ApplySecurityHeaders(HttpResponse response)
+    private static void ApplySecurityHeaders(HttpResponse response, bool tls)
     {
-        response.Headers["X-Content-Type-Options"] = "nosniff";
+        response.Headers.XContentTypeOptions = "nosniff";
         response.Headers["Referrer-Policy"] = "no-referrer";
-        // MED-05: Fallback for older browsers that don't support CSP frame-ancestors
-        response.Headers["X-Frame-Options"] = "DENY";
+        response.Headers.XFrameOptions = "DENY";
+        
+        if (tls)
+        {
+            response.Headers.StrictTransportSecurity = "max-age=31536000; includeSubDomains";
+        }
+
+        response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), usb=(), payment=()";
+        response.Headers.XXSSProtection = "1; mode=block";
+    }
+
+    /// <summary>Normalize IPv4-mapped-IPv6 addresses to IPv4 so dual-stack clients get a single rate-limit bucket.</summary>
+    private static IPAddress? NormalizeIp(IPAddress? ip)
+    {
+        if (ip is null)
+        {
+            return null;
+        }
+
+        return ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip;
     }
 
     /// <summary>Apply CORS headers — fail-closed when AllowedOrigins is not configured.</summary>
@@ -305,10 +335,9 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
         // Check if origin is allowed
         if (_allowedOrigins == "*" || IsOriginAllowed(origin))
         {
-            context.Response.Headers["Access-Control-Allow-Origin"] = origin;
-            context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
-            context.Response.Headers["Access-Control-Allow-Headers"] =
-                "Content-Type, Authorization, X-Pairing-Code, X-Pairing-Token";
+            context.Response.Headers.AccessControlAllowOrigin = origin;
+            context.Response.Headers.AccessControlAllowMethods = "GET, POST, OPTIONS";
+            context.Response.Headers.AccessControlAllowHeaders = "Content-Type, Authorization, X-Pairing-Code, X-Pairing-Token";
         }
     }
 
@@ -326,15 +355,9 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             return true;
         }
 
-        foreach (var allowed in _allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            if (string.Equals(allowed, origin, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return _allowedOrigins
+               .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+               .Any(allowed => string.Equals(allowed, origin, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsLoopbackOrigin(string origin)
@@ -347,8 +370,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
         return false;
     }
 
-    private bool IsListeningOnLoopback() =>
-        _host is "localhost" or "127.0.0.1" or "::1";
+    private bool IsListeningOnLoopback() => _host is "localhost" or "127.0.0.1" or "::1";
 
     private async Task HandlePairAsync(HttpContext context, CancellationToken ct)
     {
@@ -358,6 +380,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             await WriteJsonAsync(context, StatusCodes.Status400BadRequest,
                 new WebPairResponse { Error = "pairing_not_enabled" },
                 WebJsonContext.Default.WebPairResponse, ct);
+            
             return;
         }
 
@@ -367,6 +390,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             await WriteJsonAsync(context, StatusCodes.Status400BadRequest,
                 new WebPairResponse { Error = "missing_pairing_code" },
                 WebJsonContext.Default.WebPairResponse, ct);
+            
             return;
         }
 
@@ -465,8 +489,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
         WebChatRequest? req;
         try
         {
-            req = await JsonSerializer.DeserializeAsync(
-                context.Request.Body, WebJsonContext.Default.WebChatRequest, ct);
+            req = await JsonSerializer.DeserializeAsync(context.Request.Body, WebJsonContext.Default.WebChatRequest, ct);
         }
         catch
         {
@@ -489,18 +512,19 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
 
         try
         {
+            var clientIp = NormalizeIp(context.Connection.RemoteIpAddress);
             await _bus.PublishAsync(new InboundMessage(
                 Channel: Name,
                 SenderId: sessionId,
                 SenderName: "WebUser",
-                Text: req.Message
+                Text: req.Message,
+                SenderIp: clientIp?.ToString()
             ), ct);
 
             var reply = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(120), ct);
             var response = new WebChatResponse { Reply = reply, SessionId = sessionId };
             context.Response.ContentType = "application/json";
-            await JsonSerializer.SerializeAsync(
-                context.Response.Body, response, WebJsonContext.Default.WebChatResponse, ct);
+            await JsonSerializer.SerializeAsync(context.Response.Body, response, WebJsonContext.Default.WebChatResponse, ct);
         }
         finally
         {
@@ -515,7 +539,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
     ///     3. Validate token; send auth_ok or auth_error
     ///     4. Only then process user messages
     /// </summary>
-    private async Task HandleWebSocketAsync(WebSocket ws, CancellationToken ct)
+    private async Task HandleWebSocketAsync(WebSocket ws, IPAddress? remoteIp, CancellationToken ct)
     {
         var (authenticated, sessionId) = await AuthenticateWebSocketAsync(ws, ct);
         if (!authenticated || sessionId is null)
@@ -523,7 +547,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             return;
         }
 
-        await RunWebSocketMessageLoopAsync(ws, sessionId, ct);
+        await RunWebSocketMessageLoopAsync(ws, sessionId, remoteIp, ct);
     }
 
     /// <summary>
@@ -595,7 +619,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
     /// Runs the Phase 2 authenticated message loop. Generates a session ID, tracks the
     /// WebSocket client, receives messages, and publishes them to the message bus.
     /// </summary>
-    private async Task RunWebSocketMessageLoopAsync(WebSocket ws, string sessionId, CancellationToken ct)
+    private async Task RunWebSocketMessageLoopAsync(WebSocket ws, string sessionId, IPAddress? remoteIp, CancellationToken ct)
     {
         _wsClients[sessionId] = ws;
         var buffer = new byte[16384];
@@ -630,7 +654,8 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
                     Channel: Name,
                     SenderId: sessionId,
                     SenderName: "WebUser",
-                    Text: text
+                    Text: text,
+                    SenderIp: remoteIp?.ToString()
                 ), ct);
             }
         }

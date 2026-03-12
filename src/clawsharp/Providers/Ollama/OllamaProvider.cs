@@ -1,4 +1,5 @@
 using Clawsharp.Core;
+using Clawsharp.Core.Utilities;
 using Clawsharp.Providers.OpenAi;
 
 namespace Clawsharp.Providers.Ollama;
@@ -11,7 +12,7 @@ public sealed class OllamaProvider : IProvider, IStreamingProvider
 {
     private readonly OpenAiProvider _inner;
 
-    public OllamaProvider(IHttpClientFactory httpClientFactory, string baseUrl = "http://localhost:11434")
+    public OllamaProvider(IHttpClientFactory httpClientFactory, string baseUrl = ClawsharpConstants.OllamaDefaultBaseUrl)
     {
         _inner = new OpenAiProvider(httpClientFactory, baseUrl.TrimEnd('/') + "/v1", "", "ollama");
     }

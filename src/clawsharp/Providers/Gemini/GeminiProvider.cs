@@ -2,12 +2,13 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Clawsharp.Core;
+using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers.Gemini;
 
 public sealed class GeminiProvider : IProvider, IStreamingProvider, IHealthCheckableProvider
 {
-    private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
+    private const string BaseUrl = ClawsharpConstants.GeminiDefaultBaseUrl + "/models";
 
     private readonly IHttpClientFactory _httpFactory;
 

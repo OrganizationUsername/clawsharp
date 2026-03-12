@@ -18,7 +18,9 @@ public static partial class PruneSession
         CancellationToken ct)
     {
         if (!command.Session.Prune(command.MaxMessages, command.MaxAgeDays))
+        {
             return false;
+        }
 
         await sessionManager.SaveAsync(command.Session, ct);
         return true;

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Clawsharp.Core;
+using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers.Anthropic;
 
@@ -56,7 +57,7 @@ internal sealed class MessagesRequest : IRequest<MessagesRequest, MessagesRespon
 
     /// <inheritdoc />
     [JsonIgnore]
-    public string Url { get; init; } = "https://api.anthropic.com/v1/messages";
+    public string Url { get; init; } = ClawsharpConstants.AnthropicDefaultBaseUrl + "/v1/messages";
 
     /// <inheritdoc />
     [JsonIgnore]

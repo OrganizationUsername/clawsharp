@@ -1,4 +1,5 @@
 using Clawsharp.Core;
+using Clawsharp.Core.Utilities;
 using Clawsharp.Providers.OpenAi;
 
 namespace Clawsharp.Providers.LmStudio;
@@ -11,7 +12,7 @@ public sealed class LmStudioProvider : IProvider, IStreamingProvider
 {
     private readonly OpenAiProvider _inner;
 
-    public LmStudioProvider(IHttpClientFactory httpClientFactory, string baseUrl = "http://localhost:1234")
+    public LmStudioProvider(IHttpClientFactory httpClientFactory, string baseUrl = ClawsharpConstants.LmStudioDefaultBaseUrl)
     {
         _inner = new OpenAiProvider(httpClientFactory, baseUrl.TrimEnd('/') + "/v1", "", "lmstudio");
     }

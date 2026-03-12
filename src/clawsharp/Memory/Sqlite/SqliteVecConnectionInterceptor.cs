@@ -50,7 +50,10 @@ internal sealed partial class SqliteVecConnectionInterceptor : DbConnectionInter
             if (!_logged)
             {
                 _logged = true;
-                if (_logger is not null) LogVecBinaryNotFound(_logger);
+                if (_logger is not null)
+                {
+                    LogVecBinaryNotFound(_logger);
+                }
             }
 
             return;
@@ -66,7 +69,10 @@ internal sealed partial class SqliteVecConnectionInterceptor : DbConnectionInter
             if (!_logged)
             {
                 _logged = true;
-                if (_logger is not null) LogVecLoadFailed(_logger, ex, ExtensionPath!);
+                if (_logger is not null)
+                {
+                    LogVecLoadFailed(_logger, ex, ExtensionPath!);
+                }
             }
         }
     }

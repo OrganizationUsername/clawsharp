@@ -159,7 +159,9 @@ internal static partial class ProviderHttpHelper
     {
         var contentType = resp.Content.Headers.ContentType?.MediaType;
         if (contentType is "text/html" or "application/xhtml+xml")
+        {
             return true;
+        }
 
         // Also check body prefix for cases where Content-Type is wrong/missing
         var trimmed = body.AsSpan().TrimStart();

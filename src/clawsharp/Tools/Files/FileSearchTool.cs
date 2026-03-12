@@ -37,7 +37,9 @@ public sealed class FileSearchTool : Tool
     {
         var workspaceError = WorkspaceGuard.CheckAvailability(_workspace);
         if (workspaceError is not null)
+        {
             return workspaceError;
+        }
 
         var pattern = arguments.TryGetProperty("pattern", out var pt) ? pt.GetString() ?? "" : "";
         var rel = arguments.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
@@ -48,9 +50,9 @@ public sealed class FileSearchTool : Tool
         {
             dir = PathGuard.SafeResolve(_workspace, rel);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         if (!Directory.Exists(dir))
@@ -63,9 +65,9 @@ public sealed class FileSearchTool : Tool
         {
             PathGuard.VerifyNotSymlinkEscape(dir, _workspace);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         var results = new List<string>();

@@ -5,8 +5,8 @@ using Clawsharp.Config;
 using Clawsharp.Core;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 using Clawsharp.Core.Transcription;
+using Clawsharp.Core.Utilities;
 using Clawsharp.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -41,6 +41,8 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
 
     private readonly VoiceTranscriptionService _voiceService;
 
+    private readonly long _maxVoiceFileBytes;
+
     private long _rpcIdCounter;
 
     private int _consecutiveFailures;
@@ -70,6 +72,7 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
         _http = httpClientFactory.CreateClient("signal");
         _voiceService = voiceService;
         _approvedSenders = approvedSenders;
+        _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
 
         var cfg = options.Value.Channels.GetValueOrDefault(ChannelName.Signal.Value);
         if (cfg is not { Enabled: true } || cfg.BridgeUrl is null || cfg.PhoneNumber is null)
@@ -382,6 +385,14 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
             return null;
         }
 
+        // H-03: Check estimated decoded size before Base64 decode to prevent OOM
+        var estimatedSize = (long)base64.Length * 3 / 4;
+        if (estimatedSize > _maxVoiceFileBytes)
+        {
+            LogVoiceFileTooLarge(_logger, estimatedSize);
+            return null;
+        }
+
         var bytes = Convert.FromBase64String(base64);
         var mime = attachment.ContentType?.Split(';')[0].Trim() ?? "audio/ogg";
         return (bytes, mime);
@@ -509,4 +520,8 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
     [LoggerMessage(EventId = 14, Level = LogLevel.Error,
         Message = "Signal: {Count} consecutive failures -- bridge appears down, backoff active")]
     private static partial void LogBridgeHealthError(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 15, Level = LogLevel.Warning,
+        Message = "Signal voice attachment exceeds size limit ({EstimatedSize} bytes estimated)")]
+    private static partial void LogVoiceFileTooLarge(ILogger logger, long estimatedSize);
 }

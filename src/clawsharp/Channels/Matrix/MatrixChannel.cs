@@ -405,13 +405,21 @@ public sealed partial class MatrixChannel : LifecycleBackgroundService, IChannel
     {
         var url = BuildSyncUrl();
         var sync = await FetchSyncResponseAsync(url, ct);
-        if (sync is null) return;
+        if (sync is null)
+        {
+            return;
+        }
 
         _nextBatch = sync.NextBatch;
-        if (_nextBatch is not null) SaveSyncToken(_nextBatch);
+        if (_nextBatch is not null)
+        {
+            SaveSyncToken(_nextBatch);
+        }
 
         if (!skipMessages && sync.Rooms?.Join is not null)
+        {
             await ProcessSyncRoomsAsync(sync, ct);
+        }
     }
 
     /// <summary>

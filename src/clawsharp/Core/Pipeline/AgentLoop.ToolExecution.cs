@@ -72,7 +72,10 @@ public sealed partial class AgentLoop
     /// </summary>
     private string ApplyToolResultGuard(ToolCall tc, string result, CancellationToken ct)
     {
-        if (!_defaults.PromptInjectionGuard) return result;
+        if (!_defaults.PromptInjectionGuard)
+        {
+            return result;
+        }
 
         var injAction = PromptGuard.ScanToolResult(
             ref result, tc.Name, "warn", _auditLogger, null, null, ct);

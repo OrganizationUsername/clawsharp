@@ -256,7 +256,10 @@ public sealed partial class AgentLoop
     private static List<ToolCall>? ReconstructToolCalls(
         Dictionary<int, (string Id, string Name, StringBuilder Args)> toolBuilders)
     {
-        if (toolBuilders.Count == 0) return null;
+        if (toolBuilders.Count == 0)
+        {
+            return null;
+        }
 
         return toolBuilders
                .OrderBy(kv => kv.Key)

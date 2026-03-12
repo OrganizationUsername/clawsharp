@@ -81,7 +81,10 @@ public sealed class CronTool : Tool
     private async Task<string> AddAsync(JsonElement args, CancellationToken ct)
     {
         var selfScheduleError = CheckCronSelfScheduling();
-        if (selfScheduleError is not null) return selfScheduleError;
+        if (selfScheduleError is not null)
+        {
+            return selfScheduleError;
+        }
 
         var scheduleStr = args.TryGetProperty("schedule", out var se) ? se.GetString() : null;
         var message = args.TryGetProperty("message", out var me) ? me.GetString() : null;
@@ -155,8 +158,16 @@ public sealed class CronTool : Tool
             if (job.Provider is not null || job.Model is not null)
             {
                 var parts = new List<string>(2);
-                if (job.Provider is not null) parts.Add($"provider={job.Provider}");
-                if (job.Model is not null) parts.Add($"model={job.Model}");
+                if (job.Provider is not null)
+                {
+                    parts.Add($"provider={job.Provider}");
+                }
+
+                if (job.Model is not null)
+                {
+                    parts.Add($"model={job.Model}");
+                }
+
                 overrideLabel = $" ({string.Join(", ", parts)})";
             }
 

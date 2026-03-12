@@ -120,14 +120,14 @@ public sealed partial class PinchTabTool : Tool
             LogPinchTabConnectionError(_logger, ex, action);
             return $"Error: cannot connect to PinchTab server at {_config.BaseUrl}. Start it with: pinchtab";
         }
-        catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
-            return $"Error: PinchTab request timed out: {ex.Message}";
+            return "Error: operation timed out.";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogUnexpectedPinchTabError(_logger, ex, action);
-            return $"Error: {ex.Message}";
+            return "Error: operation failed.";
         }
     }
 

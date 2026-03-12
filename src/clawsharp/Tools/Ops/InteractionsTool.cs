@@ -36,7 +36,9 @@ public sealed class InteractionsTool : Tool
         var records = await _store.ReadAllAsync(ct);
 
         if (records.Count == 0)
+        {
             return "No interaction records found.";
+        }
 
         if (query.StartsWith("session:", StringComparison.OrdinalIgnoreCase))
         {
@@ -108,9 +110,15 @@ public sealed class InteractionsTool : Tool
             sb.AppendLine($"  Response: {response}");
             sb.AppendLine($"  Cost: ${r.CostUsd:F4} | Savings: ${r.CacheSavingsUsd:F4} | {r.DurationMs}ms");
             if (r.ToolCalls is { Count: > 0 })
+            {
                 sb.AppendLine($"  Tools: {string.Join(", ", r.ToolCalls.Select(t => t.Name))} ({r.ToolIterations} iterations)");
+            }
+
             if (r.Thinking is { Length: > 0 })
+            {
                 sb.AppendLine($"  Thinking: {r.Thinking.Length:N0} chars");
+            }
+
             sb.AppendLine();
         }
         return sb.ToString();
@@ -120,7 +128,9 @@ public sealed class InteractionsTool : Tool
     {
         var sessionRecords = records.Where(r => r.SessionId.Contains(sessionId, StringComparison.OrdinalIgnoreCase)).ToList();
         if (sessionRecords.Count == 0)
+        {
             return $"No interactions found for session matching '{sessionId}'.";
+        }
 
         var totalCost = sessionRecords.Sum(r => r.CostUsd);
         var totalSavings = sessionRecords.Sum(r => r.CacheSavingsUsd);
@@ -145,7 +155,9 @@ public sealed class InteractionsTool : Tool
     {
         var modelRecords = records.Where(r => r.Model.Contains(modelName, StringComparison.OrdinalIgnoreCase)).ToList();
         if (modelRecords.Count == 0)
+        {
             return $"No interactions found for model matching '{modelName}'.";
+        }
 
         var totalCost = modelRecords.Sum(r => r.CostUsd);
         var totalSavings = modelRecords.Sum(r => r.CacheSavingsUsd);

@@ -1,3 +1,4 @@
+using Clawsharp.Config;
 using Clawsharp.Core;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
@@ -5,6 +6,7 @@ using Clawsharp.Core.Utilities;
 using Clawsharp.Core.Transcription;
 using Clawsharp.Security;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Remora.Discord.API.Abstractions.Gateway.Events;
 using Remora.Discord.API.Abstractions.Objects;
 using Remora.Discord.API.Abstractions.Rest;
@@ -30,10 +32,11 @@ public sealed partial class DiscordMessageResponder(
     IDiscordRestChannelAPI restChannel,
     ILogger<DiscordMessageResponder> logger,
     IHttpClientFactory httpClientFactory,
-    VoiceTranscriptionService voiceService) : IResponder<IMessageCreate>
+    VoiceTranscriptionService voiceService,
+    IOptions<AppConfig> appConfigOptions) : IResponder<IMessageCreate>
 {
-    // MED-29: Use shared constant instead of local duplicate
-    private const int MaxImageBytes = ClawsharpConstants.MaxImageBytes;
+    private readonly long _maxImageBytes = appConfigOptions.Value.Limits.MaxImageBytes;
+    private readonly long _maxVoiceFileBytes = appConfigOptions.Value.Limits.MaxVoiceFileBytes;
 
     private readonly AllowListPolicy _allowPolicy = options.AllowPolicy;
 
@@ -238,7 +241,7 @@ public sealed partial class DiscordMessageResponder(
                 continue;
             }
 
-            if (attachment.Size > MaxImageBytes)
+            if (attachment.Size > _maxImageBytes)
             {
                 continue;
             }
@@ -262,7 +265,7 @@ public sealed partial class DiscordMessageResponder(
                 }
 
                 var bytes = await _http.GetByteArrayAsync(url, ct);
-                if (bytes.Length > MaxImageBytes)
+                if (bytes.Length > _maxImageBytes)
                 {
                     continue;
                 }
@@ -270,7 +273,7 @@ public sealed partial class DiscordMessageResponder(
                 // Use the content-type MIME type, stripping any parameters (e.g. "; charset=utf-8")
                 var mime = mimeType.Split(';')[0].Trim();
                 images ??= [];
-                images.Add(ImageAttachment.Create(Convert.ToBase64String(bytes), mime));
+                images.Add(ImageAttachment.Create(Convert.ToBase64String(bytes), mime, _maxImageBytes));
             }
             catch
             {
@@ -317,6 +320,13 @@ public sealed partial class DiscordMessageResponder(
                 continue;
             }
 
+            // M-05b: Check attachment size before downloading to prevent OOM
+            if (attachment.Size > _maxVoiceFileBytes)
+            {
+                LogVoiceFileTooLarge(attachment.Size);
+                continue;
+            }
+
             try
             {
                 // Defense-in-depth: SSRF guard on audio downloads too
@@ -355,4 +365,8 @@ public sealed partial class DiscordMessageResponder(
     [LoggerMessage(EventId = 3, Level = LogLevel.Warning,
         Message = "SSRF blocked Discord attachment download: {Url} — {Reason}")]
     private partial void LogSsrfBlocked(string url, string reason);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Warning,
+        Message = "Discord voice attachment exceeds size limit ({Size} bytes)")]
+    private partial void LogVoiceFileTooLarge(int size);
 }

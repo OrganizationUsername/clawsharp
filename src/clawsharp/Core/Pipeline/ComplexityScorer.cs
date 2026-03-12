@@ -60,38 +60,60 @@ internal static class ComplexityScorer
         // Token estimate (rough: 1 token ~ 4 chars for English, ~1.5 for CJK).
         var estimatedTokens = EstimateTokens(message);
         if (estimatedTokens > HighTokenThreshold)
+        {
             score += HighTokenScore;
+        }
         else if (estimatedTokens > MediumTokenThreshold)
+        {
             score += MediumTokenScore;
+        }
         else if (estimatedTokens > LowTokenThreshold)
+        {
             score += LowTokenScore;
+        }
 
         // Code blocks (``` pairs indicate pasted code or requests about code).
         var codeBlockCount = CountOccurrences(message, "```");
         if (codeBlockCount >= 2)
+        {
             score += FullCodeBlockScore; // at least one complete fenced block
+        }
         else if (codeBlockCount == 1)
+        {
             score += PartialCodeBlockScore; // partial block — still code-related
+        }
 
         // Inline code (backtick outside of fenced blocks).
         if (message.Contains('`'))
+        {
             score += InlineCodeScore;
+        }
 
         // CJK content — tokenizes at a higher rate, signals non-trivial content.
         if (HasCjkContent(message))
+        {
             score += CjkContentScore;
+        }
 
         // Recent tool calls indicate an ongoing complex workflow.
         if (recentToolCallCount > HighToolCallThreshold)
+        {
             score += HighToolCallScore;
+        }
         else if (recentToolCallCount > 0)
+        {
             score += LowToolCallScore;
+        }
 
         // Conversation depth — deep sessions tend to be complex.
         if (conversationDepth > DeepConversationThreshold)
+        {
             score += DeepConversationScore;
+        }
         else if (conversationDepth > MediumConversationThreshold)
+        {
             score += MediumConversationScore;
+        }
 
         return Math.Min(score, MaxScore);
     }
@@ -110,7 +132,9 @@ internal static class ComplexityScorer
         foreach (var c in text)
         {
             if (IsCjk(c))
+            {
                 cjkChars++;
+            }
         }
 
         var nonCjk = totalChars - cjkChars;
@@ -124,7 +148,9 @@ internal static class ComplexityScorer
         foreach (var c in text)
         {
             if (IsCjk(c))
+            {
                 return true;
+            }
         }
 
         return false;

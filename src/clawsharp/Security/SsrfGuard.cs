@@ -249,26 +249,37 @@ public static class SsrfGuard
     public static string? CheckDomainAllowlist(Uri uri, IReadOnlyList<string>? allowedDomains)
     {
         // null = allow all (no restriction)
-        if (allowedDomains is null) return null;
+        if (allowedDomains is null)
+        {
+            return null;
+        }
 
         // empty list = deny all
         if (allowedDomains.Count == 0)
+        {
             return $"[Domain] Blocked: no external domains are allowed. Host '{uri.Host}' is not permitted.";
+        }
 
         // Wildcard
         if (allowedDomains.Count == 1 && allowedDomains[0] == "*")
+        {
             return null;
+        }
 
         var host = uri.Host;
         foreach (var domain in allowedDomains)
         {
             // Exact match
             if (host.Equals(domain, StringComparison.OrdinalIgnoreCase))
+            {
                 return null;
+            }
 
             // Subdomain match (host ends with ".domain")
             if (host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase))
+            {
                 return null;
+            }
         }
 
         return $"[Domain] Blocked: host '{host}' is not in the allowed domains list. " +

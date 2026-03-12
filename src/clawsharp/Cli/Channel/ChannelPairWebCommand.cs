@@ -122,7 +122,9 @@ public sealed class ChannelPairWebCommand : AsyncCommand
         {
             var path = GatewayIpcService.TokenPath;
             if (!File.Exists(path))
+            {
                 return null;
+            }
 
             var token = File.ReadAllText(path).Trim();
             return token.Length > 0 ? token : null;

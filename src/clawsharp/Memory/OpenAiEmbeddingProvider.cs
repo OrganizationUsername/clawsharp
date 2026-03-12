@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Memory;
 
@@ -20,7 +21,7 @@ public sealed class OpenAiEmbeddingProvider : IEmbeddingProvider
         IHttpClientFactory httpClientFactory,
         string apiKey,
         string model = "text-embedding-3-small",
-        string baseUrl = "https://api.openai.com/v1")
+        string baseUrl = ClawsharpConstants.OpenAiDefaultBaseUrl)
     {
         _httpClientFactory = httpClientFactory;
         _apiKey = apiKey;

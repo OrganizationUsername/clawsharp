@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Clawsharp.Config;
+using Clawsharp.Core.Utilities;
 using JetBrains.Annotations;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -16,37 +17,15 @@ public sealed class ModelsListCommand : AsyncCommand
     private static readonly string[] AnthropicModels =
     [
         "claude-opus-4-6",
+        "claude-opus-4-5-20251101",
+        "claude-opus-4-1-20250805",
+        "claude-opus-4-20250514",
         "claude-sonnet-4-6",
+        "claude-sonnet-4-5-20250929",
+        "claude-sonnet-4-20250514",
         "claude-haiku-4-5-20251001",
-        "claude-3-7-sonnet-20250219",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
-        "claude-3-opus-20240229",
         "claude-3-haiku-20240307",
     ];
-
-    /// <summary>Default base URLs for OpenAI-compatible providers.</summary>
-    private static readonly Dictionary<LlmProviderType, string> DefaultBaseUrls = new()
-    {
-        [LlmProviderType.OpenAi] = "https://api.openai.com/v1",
-        [LlmProviderType.OpenRouter] = "https://openrouter.ai/api/v1",
-        [LlmProviderType.Groq] = "https://api.groq.com/openai/v1",
-        [LlmProviderType.DeepSeek] = "https://api.deepseek.com/v1",
-        [LlmProviderType.Mistral] = "https://api.mistral.ai/v1",
-        [LlmProviderType.Perplexity] = "https://api.perplexity.ai",
-        [LlmProviderType.XAi] = "https://api.x.ai/v1",
-        [LlmProviderType.Ollama] = "http://localhost:11434",
-        [LlmProviderType.LmStudio] = "http://localhost:1234",
-        [LlmProviderType.DashScope] = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        [LlmProviderType.Zhipu] = "https://open.bigmodel.cn/api/paas/v4",
-        [LlmProviderType.Moonshot] = "https://api.moonshot.cn/v1",
-        [LlmProviderType.Volcengine] = "https://ark.cn-beijing.volces.com/api/v3",
-        [LlmProviderType.Minimax] = "https://api.minimax.chat/v1",
-        [LlmProviderType.SiliconFlow] = "https://api.siliconflow.cn/v1",
-        [LlmProviderType.SambaNova] = "https://api.sambanova.ai/v1",
-        [LlmProviderType.Ai21] = "https://api.ai21.com/studio/v1",
-        [LlmProviderType.Replicate] = "https://api.replicate.com/v1",
-    };
 
     public override async Task<int> ExecuteAsync(CommandContext context, CancellationToken cancellationToken)
     {
@@ -120,7 +99,7 @@ public sealed class ModelsListCommand : AsyncCommand
             return;
         }
 
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models?key={providerCfg.ApiKey}";
+        var url = $"{ClawsharpConstants.GeminiDefaultBaseUrl}/models?key={providerCfg.ApiKey}";
 
         try
         {
@@ -170,7 +149,7 @@ public sealed class ModelsListCommand : AsyncCommand
         LlmProviderType providerType, CancellationToken ct)
     {
         var baseUrl = providerCfg.BaseUrl
-                      ?? (DefaultBaseUrls.TryGetValue(providerType, out var def) ? def : null);
+                      ?? (ClawsharpConstants.DefaultProviderBaseUrls.TryGetValue(providerType, out var def) ? def : null);
 
         if (baseUrl is null)
         {

@@ -33,7 +33,9 @@ public sealed class FileListTool : Tool
     {
         var workspaceError = WorkspaceGuard.CheckAvailability(_workspace);
         if (workspaceError is not null)
+        {
             return Task.FromResult(workspaceError);
+        }
 
         var rel = arguments.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
         var recursive = arguments.TryGetProperty("recursive", out var r) && r.GetBoolean();
@@ -43,9 +45,9 @@ public sealed class FileListTool : Tool
         {
             fullPath = PathGuard.SafeResolve(_workspace, rel);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return Task.FromResult($"Error: {ex.Message}");
+            return Task.FromResult("Error: path is outside the workspace.");
         }
 
         if (!Directory.Exists(fullPath))
@@ -58,9 +60,9 @@ public sealed class FileListTool : Tool
         {
             PathGuard.VerifyNotSymlinkEscape(fullPath, _workspace);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return Task.FromResult($"Error: {ex.Message}");
+            return Task.FromResult("Error: path is outside the workspace.");
         }
 
         var option = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;

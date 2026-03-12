@@ -145,9 +145,9 @@ public sealed partial class WebSearchTool : Tool
                 _ => await DdgSearchAsync(query, count, ct)
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return $"Search error ({_activeProvider}): {ex.Message}";
+            return "Error: search request failed.";
         }
     }
 

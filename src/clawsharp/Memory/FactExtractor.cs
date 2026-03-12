@@ -34,7 +34,11 @@ public sealed class FactExtractor
     /// </summary>
     public string? DrainBuffer(string sessionId)
     {
-        if (!_buffers.TryGetValue(sessionId, out var buffer)) return null;
+        if (!_buffers.TryGetValue(sessionId, out var buffer))
+        {
+            return null;
+        }
+
         var text = buffer.Drain();
         return string.IsNullOrWhiteSpace(text) ? null : text;
     }

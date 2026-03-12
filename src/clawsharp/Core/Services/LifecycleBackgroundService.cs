@@ -32,7 +32,10 @@ public abstract class LifecycleBackgroundService : IHostedLifecycleService, IDis
 
     public virtual async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_executeTask == null) return;
+        if (_executeTask == null)
+        {
+            return;
+        }
 
         try
         {

@@ -168,7 +168,8 @@ public sealed partial class McpClient : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            return $"MCP error: {ex.Message}";
+            _logger.LogWarning(ex, "MCP tool call failed");
+            return "Error: MCP tool call failed.";
         }
 
         if (response.Error is not null)

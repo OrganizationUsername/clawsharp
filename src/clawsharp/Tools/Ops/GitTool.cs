@@ -85,7 +85,7 @@ public sealed class GitTool : Tool
         {
             repoPath = PathGuard.SafeResolve(_workspace, repoPath);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
             if (_auditLogger is not null)
             {
@@ -93,7 +93,7 @@ public sealed class GitTool : Tool
                     $"GitTool path traversal blocked: {repoPath}", ChannelName, ct: ct);
             }
 
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         if (!Directory.Exists(repoPath))
@@ -190,9 +190,9 @@ public sealed class GitTool : Tool
         {
             return "Error: git command timed out after 30s.";
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return $"Error: {ex.Message}";
+            return "Error: operation failed.";
         }
     }
 }

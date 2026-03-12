@@ -35,6 +35,10 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
     private readonly VoiceTranscriptionService _voiceService;
 
+    private readonly long _maxImageBytes;
+
+    private readonly long _maxVoiceFileBytes;
+
     private long _botId;
 
     private string? _botUsername;
@@ -56,6 +60,8 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         _approvedSenders = approvedSenders;
         _http = httpClientFactory.CreateClient("telegram");
         _voiceService = voiceService;
+        _maxImageBytes = options.Value.Limits.MaxImageBytes;
+        _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
 
         var config = options.Value;
         var cfg = config.Channels.GetValueOrDefault(ChannelName.Telegram.Value);
@@ -301,7 +307,7 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
     {
         // Telegram provides multiple resolutions; the last entry is the largest.
         var largest = photos[^1];
-        if (largest.FileSize > ClawsharpConstants.MaxImageBytes && largest.FileSize != 0)
+        if (largest.FileSize > _maxImageBytes && largest.FileSize != 0)
         {
             return null;
         }
@@ -325,9 +331,9 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
             // MED-25: URL-encode the file path component
             var fileUrl = $"file/bot{_token}/{Uri.EscapeDataString(filePath)}";
             var bytes = await _http.GetByteArrayAsync(fileUrl, ct);
-            if (bytes.Length <= ClawsharpConstants.MaxImageBytes)
+            if (bytes.Length <= _maxImageBytes)
             {
-                return [ImageAttachment.Create(Convert.ToBase64String(bytes), DetectMime(filePath))];
+                return [ImageAttachment.Create(Convert.ToBase64String(bytes), DetectMime(filePath), _maxImageBytes)];
             }
 
             return null;
@@ -813,10 +819,10 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
         // CRIT-05: Check file size before downloading to prevent OOM
         var fileSize = msg.Voice?.FileSize ?? msg.Audio?.FileSize;
-        if (fileSize > ClawsharpConstants.MaxVoiceFileBytes)
+        if (fileSize > _maxVoiceFileBytes)
         {
             LogVoiceFileTooLarge(_logger, fileSize.Value);
-            await SendTranscriptionErrorAsync(msg.Chat.Id, msg.MessageThreadId, "Voice file too large to transcribe (max 25 MB).", ct);
+            await SendTranscriptionErrorAsync(msg.Chat.Id, msg.MessageThreadId, $"Voice file too large to transcribe (max {_maxVoiceFileBytes / (1024 * 1024)} MB).", ct);
             return null;
         }
 

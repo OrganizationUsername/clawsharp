@@ -46,7 +46,11 @@ public static partial class ShellGuard
 
     private static Regex[]? CompilePatterns(IReadOnlyList<string>? patterns, ILogger? logger = null)
     {
-        if (patterns is not { Count: > 0 }) return null;
+        if (patterns is not { Count: > 0 })
+        {
+            return null;
+        }
+
         var compiled = new List<Regex>(patterns.Count);
         foreach (var p in patterns)
         {
@@ -87,20 +91,32 @@ public static partial class ShellGuard
 
         // Phase 3: Run deny patterns against raw command
         var rawResult = RunDenyPatterns(command);
-        if (rawResult is not null) return rawResult;
+        if (rawResult is not null)
+        {
+            return rawResult;
+        }
 
         var rawCustomResult = RunCustomDenyPatterns(command, customDenyPatterns);
-        if (rawCustomResult is not null) return rawCustomResult;
+        if (rawCustomResult is not null)
+        {
+            return rawCustomResult;
+        }
 
         // Phase 4: Normalize and re-check if normalization changed anything
         var normalized = NormalizeCommand(command);
         if (!string.Equals(normalized, command, StringComparison.OrdinalIgnoreCase))
         {
             var normResult = RunDenyPatterns(normalized);
-            if (normResult is not null) return normResult;
+            if (normResult is not null)
+            {
+                return normResult;
+            }
 
             var normCustomResult = RunCustomDenyPatterns(normalized, customDenyPatterns);
-            if (normCustomResult is not null) return normCustomResult;
+            if (normCustomResult is not null)
+            {
+                return normCustomResult;
+            }
         }
 
         return null;
@@ -111,7 +127,9 @@ public static partial class ShellGuard
         foreach (var c in command)
         {
             if (c is '\n' or '\r' or '\v' or '\f' or '\x85' or '\u2028' or '\u2029')
+            {
                 return true;
+            }
         }
 
         return false;
@@ -231,7 +249,10 @@ public static partial class ShellGuard
             {
                 try
                 {
-                    if (regex.IsMatch(command)) return null;
+                    if (regex.IsMatch(command))
+                    {
+                        return null;
+                    }
                 }
                 catch
                 {
@@ -246,7 +267,9 @@ public static partial class ShellGuard
                 try
                 {
                     if (Regex.IsMatch(command, pattern, RegexOptions.IgnoreCase, CustomPatternTimeout))
+                    {
                         return null;
+                    }
                 }
                 catch
                 {
@@ -270,7 +293,10 @@ public static partial class ShellGuard
             {
                 try
                 {
-                    if (regex.IsMatch(command)) return regex.ToString();
+                    if (regex.IsMatch(command))
+                    {
+                        return regex.ToString();
+                    }
                 }
                 catch
                 {
@@ -285,7 +311,9 @@ public static partial class ShellGuard
                 try
                 {
                     if (Regex.IsMatch(command, pattern, RegexOptions.IgnoreCase, CustomPatternTimeout))
+                    {
                         return pattern;
+                    }
                 }
                 catch
                 {
@@ -682,7 +710,10 @@ public static partial class ShellGuard
     {
         // Run all standard deny patterns first
         var standardResult = CheckCommand(command, customDenyPatterns);
-        if (standardResult is not null) return standardResult;
+        if (standardResult is not null)
+        {
+            return standardResult;
+        }
 
         // Run egress-specific patterns
         for (var i = 0; i < EgressDenyPatterns.Length; i++)
@@ -721,7 +752,9 @@ public static partial class ShellGuard
     private static void LogInvalidCustomPattern(ILogger? logger, string pattern, Exception ex)
     {
         if (logger is not null)
+        {
             LogInvalidPattern(logger, pattern, ex);
+        }
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Invalid custom ShellGuard pattern '{Pattern}' — skipped")]

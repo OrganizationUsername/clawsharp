@@ -242,12 +242,12 @@ public static partial class GatewayHost
                                   // BaseAddress = https://api.telegram.org/ so the channel uses
                                   // relative paths: "bot{token}/sendMessage", "file/bot{token}/..." etc.
                                   AddSsrfSafeHttpClient("telegram", timeoutSeconds: 35, configure: client =>
-                                      client.BaseAddress = new Uri("https://api.telegram.org/"));
+                                      client.BaseAddress = new Uri(ClawsharpConstants.TelegramBaseUrl));
 
                                   // Slack — fixed Web API base; channel methods use relative paths
                                   // such as "chat.postMessage", "auth.test", "apps.connections.open".
                                   AddSsrfSafeHttpClient("slack", configure: client =>
-                                      client.BaseAddress = new Uri("https://slack.com/api/"));
+                                      client.BaseAddress = new Uri(ClawsharpConstants.SlackBaseUrl));
 
                                   // Matrix — 60 s (long-poll sync); BaseAddress from homeserver config.
                                   AddSsrfSafeHttpClient("matrix", timeoutSeconds: 60, configure: client =>
@@ -259,8 +259,9 @@ public static partial class GatewayHost
                                   });
 
                                   // Signal — SSE stream + JSON-RPC; BaseAddress from bridge URL config.
-                                  // Timeout only covers header receipt; SSE body reads are CancellationToken-bound.
-                                  AddSsrfSafeHttpClient("signal", configure: client =>
+                                  // Explicit 30 s timeout covers audio attachment downloads.
+                                  // For SSE, timeout only covers header receipt; body reads are CancellationToken-bound.
+                                  AddSsrfSafeHttpClient("signal", timeoutSeconds: 30, configure: client =>
                                   {
                                       if (ChannelBaseUri("signal", c => c.BridgeUrl) is { } uri)
                                       {
@@ -269,7 +270,8 @@ public static partial class GatewayHost
                                   });
 
                                   // WhatsApp — REST bridge polling + send; BaseAddress from bridge URL config.
-                                  AddSsrfSafeHttpClient("whatsapp", configure: client =>
+                                  // Explicit 30 s timeout covers voice note/audio media downloads.
+                                  AddSsrfSafeHttpClient("whatsapp", timeoutSeconds: 30, configure: client =>
                                   {
                                       if (ChannelBaseUri("whatsapp", c => c.BridgeUrl) is { } uri)
                                       {
@@ -278,7 +280,8 @@ public static partial class GatewayHost
                                   });
 
                                   // Discord — dynamic CDN/attachment URLs; no fixed BaseAddress.
-                                  AddSsrfSafeHttpClient("discord");
+                                  // Explicit 30 s timeout covers voice/audio file downloads from CDN.
+                                  AddSsrfSafeHttpClient("discord", timeoutSeconds: 30);
 
                                   // BlueBubbles — iMessage bridge; BaseAddress from bridge URL config.
                                   AddSsrfSafeHttpClient("bluebubbles", configure: client =>
@@ -291,7 +294,7 @@ public static partial class GatewayHost
 
                                   // LINE — fixed Messaging API base; channel methods use relative paths.
                                   AddSsrfSafeHttpClient("line", configure: client =>
-                                      client.BaseAddress = new Uri("https://api.line.me/"));
+                                      client.BaseAddress = new Uri(ClawsharpConstants.LineBaseUrl));
 
                                   // WeChat — bridge + WeCom webhook; BaseAddress for bridge path.
                                   // Absolute webhook calls (different host) override BaseAddress automatically.
@@ -316,14 +319,15 @@ public static partial class GatewayHost
 
                                       var larkHost = string.Equals(larkCfg.FeishuDomain, "lark",
                                           StringComparison.OrdinalIgnoreCase)
-                                          ? "https://open.larksuite.com/"
-                                          : "https://open.feishu.cn/";
+                                          ? ClawsharpConstants.LarkBaseUrl
+                                          : ClawsharpConstants.FeishuBaseUrl;
                                       client.BaseAddress = new Uri(larkHost);
                                   });
 
                                   // Mattermost — REST API; BaseAddress from server URL config.
+                                  // Explicit 30 s timeout covers audio file downloads via /api/v4/files/{id}.
                                   // WebSocket URL is derived separately (http→ws scheme swap) in the channel.
-                                  AddSsrfSafeHttpClient("mattermost", configure: client =>
+                                  AddSsrfSafeHttpClient("mattermost", timeoutSeconds: 30, configure: client =>
                                   {
                                       if (ChannelBaseUri("mattermost", c => c.MattermostUrl) is { } uri)
                                       {
@@ -394,7 +398,7 @@ public static partial class GatewayHost
                                                       sp.GetRequiredService<IHttpClientFactory>(),
                                                       embCfg.ApiKey ?? "",
                                                       embCfg.Model ?? "text-embedding-3-small",
-                                                      embCfg.BaseUrl ?? "https://api.openai.com/v1"));
+                                                      embCfg.BaseUrl ?? ClawsharpConstants.OpenAiDefaultBaseUrl));
                                           }
                                           else if (string.Equals(embCfg.Provider, "ollama", StringComparison.OrdinalIgnoreCase))
                                           {
@@ -402,7 +406,7 @@ public static partial class GatewayHost
                                                   new OllamaEmbeddingProvider(
                                                       sp.GetRequiredService<IHttpClientFactory>(),
                                                       embCfg.Model ?? "nomic-embed-text",
-                                                      embCfg.BaseUrl ?? "http://localhost:11434",
+                                                      embCfg.BaseUrl ?? ClawsharpConstants.OllamaDefaultBaseUrl,
                                                       appConfig.Memory.EmbeddingDimension));
                                           }
                                       }
@@ -481,7 +485,7 @@ public static partial class GatewayHost
                                       {
                                           LogProviderFallback(initLogger, ex);
                                           opts.Providers["ollama"] = new ProviderConfig
-                                              { Type = "ollama", BaseUrl = "http://localhost:11434" };
+                                              { Type = "ollama", BaseUrl = ClawsharpConstants.OllamaDefaultBaseUrl };
                                           return ProviderFactory.Create("ollama", opts.Providers, httpFactory);
                                       }
                                   });

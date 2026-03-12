@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Clawsharp.Config.Agent;
@@ -78,7 +79,7 @@ public static partial class ConfigLoader
             Agents = new AgentConfig { Defaults = new AgentDefaults() },
             Providers = new Dictionary<string, ProviderConfig>
             {
-                ["ollama"] = new ProviderConfig { Type = "ollama", BaseUrl = "http://localhost:11434" }
+                ["ollama"] = new ProviderConfig { Type = "ollama", BaseUrl = ClawsharpConstants.OllamaDefaultBaseUrl }
             },
             Channels = new Dictionary<string, ChannelConfig>
             {

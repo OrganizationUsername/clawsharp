@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Memory;
 
@@ -18,7 +19,7 @@ public sealed class OllamaEmbeddingProvider : IEmbeddingProvider
     public OllamaEmbeddingProvider(
         IHttpClientFactory httpClientFactory,
         string model = "nomic-embed-text",
-        string baseUrl = "http://localhost:11434",
+        string baseUrl = ClawsharpConstants.OllamaDefaultBaseUrl,
         int dimensions = 768)
     {
         _httpClientFactory = httpClientFactory;

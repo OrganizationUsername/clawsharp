@@ -4,8 +4,8 @@ using Clawsharp.Config;
 using Clawsharp.Core;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 using Clawsharp.Core.Transcription;
+using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -22,6 +22,8 @@ internal sealed partial class WhatsAppChannel : BridgePollingChannelBase<WhatsAp
     private readonly ILogger<WhatsAppChannel> _logger;
 
     private readonly VoiceTranscriptionService _voiceService;
+
+    private readonly long _maxVoiceFileBytes;
 
     public override ChannelName Name => ChannelName.WhatsApp;
 
@@ -40,6 +42,7 @@ internal sealed partial class WhatsAppChannel : BridgePollingChannelBase<WhatsAp
     {
         _logger = logger;
         _voiceService = voiceService;
+        _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
     }
 
     protected override string GetPollUrl() => "api/messages/unread";
@@ -140,6 +143,14 @@ internal sealed partial class WhatsAppChannel : BridgePollingChannelBase<WhatsAp
                 return null;
             }
 
+            // M-05a: Check estimated decoded size before Base64 decode to prevent OOM
+            var estimatedSize = (long)media.Data.Length * 3 / 4;
+            if (estimatedSize > _maxVoiceFileBytes)
+            {
+                LogVoiceFileTooLarge(_logger, estimatedSize);
+                return null;
+            }
+
             var bytes = Convert.FromBase64String(media.Data);
             var mime = media.Mimetype?.Split(';')[0].Trim() ?? "audio/ogg";
             var text = await _voiceService.TranscribeAsync(bytes, mime, ct).ConfigureAwait(false);
@@ -154,4 +165,8 @@ internal sealed partial class WhatsAppChannel : BridgePollingChannelBase<WhatsAp
             return null;
         }
     }
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning,
+        Message = "WhatsApp voice attachment exceeds size limit ({EstimatedSize} bytes estimated)")]
+    private static partial void LogVoiceFileTooLarge(ILogger logger, long estimatedSize);
 }

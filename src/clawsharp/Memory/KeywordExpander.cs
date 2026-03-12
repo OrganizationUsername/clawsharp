@@ -13,7 +13,10 @@ internal static class KeywordExpander
     /// </summary>
     public static IReadOnlyList<string> ExtractKeywords(string text)
     {
-        if (text.Length < 30) return [];
+        if (text.Length < 30)
+        {
+            return [];
+        }
 
         var words = text.Split(
             [
@@ -25,8 +28,16 @@ internal static class KeywordExpander
         var keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var word in words)
         {
-            if (word.Length < 4) continue;
-            if (IsStopWord(word)) continue;
+            if (word.Length < 4)
+            {
+                continue;
+            }
+
+            if (IsStopWord(word))
+            {
+                continue;
+            }
+
             keywords.Add(word.ToLowerInvariant());
         }
 

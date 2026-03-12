@@ -223,7 +223,21 @@ public sealed partial class AgentLoop
             ThreadId: inbound.ThreadId
         );
 
-        // Rate-limit check (heartbeat messages bypass rate limiting)
+        // M-06: Per-IP rate limit checked first — avoids consuming a session slot
+        // when the IP is already blocked. Skipped when SenderIp is null (CLI, IRC, etc.).
+        if (!inbound.IsHeartbeat && !_rateLimiter.TryAcquireByIp(inbound.SenderIp))
+        {
+            LogIpRateLimited(_logger, inbound.SenderIp!);
+            if (channel is not null)
+            {
+                var rateLimitMessage = outbound with { Text = "Too many requests from your network. Please wait a moment." };
+                await channel.SendAsync(rateLimitMessage, ct).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        // Per-session rate-limit check (heartbeat messages bypass rate limiting)
         if (!inbound.IsHeartbeat && !_rateLimiter.TryAcquire(sessionId))
         {
             LogRateLimited(_logger, sessionId);
@@ -271,7 +285,17 @@ public sealed partial class AgentLoop
             }
 
             // Slash command interception — handle before the LLM sees the message.
-            var slashResult = SlashCommandRouter.TryHandle(inbound.Text);
+            var slashResult = SlashCommandRouter.TryHandle(inbound.Text, out var slashError);
+            if (slashError is not null)
+            {
+                if (channel is not null)
+                {
+                    await channel.SendAsync(outbound with { Text = slashError }, ct).ConfigureAwait(false);
+                }
+
+                return;
+            }
+
             if (slashResult.HasValue)
             {
                 var reply = await HandleSlashCommandAsync(slashResult.Value, session, ct).ConfigureAwait(false);
@@ -537,7 +561,9 @@ public sealed partial class AgentLoop
     private IReadOnlyList<(string Name, IStreamingProvider Provider)> GetStreamingFallbackCandidates()
     {
         if (_streamingFallbackCandidates is not null)
+        {
             return _streamingFallbackCandidates;
+        }
 
         GetFallbackCandidates();
         return _streamingFallbackCandidates!;
@@ -567,7 +593,10 @@ public sealed partial class AgentLoop
     /// </summary>
     internal static List<ChatMessage> MergeConsecutiveRoles(List<ChatMessage> messages)
     {
-        if (messages.Count <= 1) return messages;
+        if (messages.Count <= 1)
+        {
+            return messages;
+        }
 
         var result = new List<ChatMessage>(messages.Count);
         result.Add(messages[0]);
@@ -605,6 +634,9 @@ public sealed partial class AgentLoop
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Rate-limited session {SessionId}")]
     private static partial void LogRateLimited(ILogger logger, string sessionId);
+
+    [LoggerMessage(EventId = 27, Level = LogLevel.Warning, Message = "IP rate-limited {IpAddress}")]
+    private static partial void LogIpRateLimited(ILogger logger, string ipAddress);
 
     [LoggerMessage(EventId = 3, Level = LogLevel.Error, Message = "Unhandled error for session {SessionId}")]
     private static partial void LogUnhandledError(ILogger logger, Exception exception, string sessionId);

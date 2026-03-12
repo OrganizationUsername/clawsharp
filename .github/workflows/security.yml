@@ -1,0 +1,46 @@
+name: Security & CI
+
+on:
+  push:
+    branches:
+      - main
+      - security-fixes
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 2 * * 0'
+
+jobs:
+  security-scan:
+    name: Vulnerability Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore .NET packages
+        run: dotnet restore src/clawsharp/clawsharp.csproj
+
+      - name: Scan .NET packages for vulnerabilities
+        run: |
+          OUTPUT=$(dotnet list src/clawsharp/clawsharp.csproj package --vulnerable --include-transitive 2>&1)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q "has the following vulnerable packages"; then
+            echo "::error::Vulnerable NuGet packages detected. Review the output above and update affected dependencies."
+            exit 1
+          fi
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install and audit npm packages
+        run: cd src/clawsharp-web && npm ci && npm audit --audit-level=high

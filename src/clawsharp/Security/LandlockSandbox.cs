@@ -146,13 +146,21 @@ public static partial class LandlockSandbox
     {
         if (!config.Enabled)
         {
-            if (logger is not null) LogSandboxDisabled(logger);
+            if (logger is not null)
+            {
+                LogSandboxDisabled(logger);
+            }
+
             return;
         }
 
         if (!OperatingSystem.IsLinux())
         {
-            if (logger is not null) LogSandboxSkippedNotLinux(logger);
+            if (logger is not null)
+            {
+                LogSandboxSkippedNotLinux(logger);
+            }
+
             return;
         }
 
@@ -163,7 +171,10 @@ public static partial class LandlockSandbox
         catch (Exception ex)
         {
             // Never crash startup due to Landlock failure
-            if (logger is not null) LogSandboxUnexpectedError(logger, ex);
+            if (logger is not null)
+            {
+                LogSandboxUnexpectedError(logger, ex);
+            }
         }
     }
 
@@ -183,12 +194,19 @@ public static partial class LandlockSandbox
                 38 => "kernel too old (requires Linux 5.13+)",
                 _ => $"errno {errno}",
             };
-            if (logger is not null) LogSandboxUnavailable(logger, reason);
+            if (logger is not null)
+            {
+                LogSandboxUnavailable(logger, reason);
+            }
+
             return;
         }
 
         int abi = (int)abiLong;
-        if (logger is not null) LogSandboxAbiDetected(logger, abi);
+        if (logger is not null)
+        {
+            LogSandboxAbiDetected(logger, abi);
+        }
 
         // Step 2: Build handled_access_fs for this ABI
         ulong handledFs = BuildHandledFs(abi);
@@ -197,7 +215,11 @@ public static partial class LandlockSandbox
         int rulesetFd = CreateRuleset(handledFs);
         if (rulesetFd < 0)
         {
-            if (logger is not null) LogCreateRulesetFailed(logger, Marshal.GetLastPInvokeError());
+            if (logger is not null)
+            {
+                LogCreateRulesetFailed(logger, Marshal.GetLastPInvokeError());
+            }
+
             return;
         }
 
@@ -270,7 +292,11 @@ public static partial class LandlockSandbox
             // Step 5: PR_SET_NO_NEW_PRIVS (required before restrict_self)
             if (Prctl(PrSetNoNewPrivs, 1, 0, 0, 0) != 0)
             {
-                if (logger is not null) LogPrctlFailed(logger, Marshal.GetLastPInvokeError());
+                if (logger is not null)
+                {
+                    LogPrctlFailed(logger, Marshal.GetLastPInvokeError());
+                }
+
                 return;
             }
 
@@ -278,11 +304,18 @@ public static partial class LandlockSandbox
             long ret = SyscallRestrictSelf(SysLandlockRestrictSelf, rulesetFd, 0L);
             if (ret != 0)
             {
-                if (logger is not null) LogRestrictSelfFailed(logger, Marshal.GetLastPInvokeError());
+                if (logger is not null)
+                {
+                    LogRestrictSelfFailed(logger, Marshal.GetLastPInvokeError());
+                }
+
                 return;
             }
 
-            if (logger is not null) LogSandboxActive(logger, rulesAdded, abi);
+            if (logger is not null)
+            {
+                LogSandboxActive(logger, rulesAdded, abi);
+            }
         }
         finally
         {
@@ -347,14 +380,22 @@ public static partial class LandlockSandbox
     {
         if (!Directory.Exists(path) && !File.Exists(path))
         {
-            if (logger is not null) LogPathNotExist(logger, path);
+            if (logger is not null)
+            {
+                LogPathNotExist(logger, path);
+            }
+
             return 0;
         }
 
         int fd = OpenPath(path, OPath | OCloexec);
         if (fd < 0)
         {
-            if (logger is not null) LogOpenFailed(logger, path, Marshal.GetLastPInvokeError());
+            if (logger is not null)
+            {
+                LogOpenFailed(logger, path, Marshal.GetLastPInvokeError());
+            }
+
             return 0;
         }
 
@@ -370,7 +411,11 @@ public static partial class LandlockSandbox
                 LandlockRulePathBeneath, rulePtr, 0L);
             if (ret != 0)
             {
-                if (logger is not null) LogAddRuleFailed(logger, path, Marshal.GetLastPInvokeError());
+                if (logger is not null)
+                {
+                    LogAddRuleFailed(logger, path, Marshal.GetLastPInvokeError());
+                }
+
                 return 0;
             }
 

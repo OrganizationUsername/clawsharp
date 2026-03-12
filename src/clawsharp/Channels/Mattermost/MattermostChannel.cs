@@ -6,8 +6,8 @@ using Clawsharp.Config;
 using Clawsharp.Core;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 using Clawsharp.Core.Transcription;
+using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -38,6 +38,8 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
 
     private readonly VoiceTranscriptionService _voiceService;
 
+    private readonly long _maxVoiceFileBytes;
+
     private volatile string? _selfId;
 
     public ChannelName Name => ChannelName.Mattermost;
@@ -55,6 +57,7 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
         _approvedSenders = approvedSenders;
         _http = httpClientFactory.CreateClient("mattermost");
         _voiceService = voiceService;
+        _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
 
         var cfg = options.Value.Channels.GetValueOrDefault(ChannelName.Mattermost.Value);
         if (cfg is not { Enabled: true } || cfg.MattermostUrl is null || cfg.BotToken is null)
@@ -156,7 +159,10 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
     private async Task HandlePostedEventAsync(MattermostWsEvent envelope, CancellationToken ct)
     {
         var parsed = ParsePostFromEvent(envelope);
-        if (parsed is null) return;
+        if (parsed is null)
+        {
+            return;
+        }
 
         var (userId, channelId, message, postDoc) = parsed.Value;
         using (postDoc)
@@ -356,7 +362,7 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
                 var fileSize = infoDoc.RootElement.TryGetProperty("size", out var sizeProp)
                     ? sizeProp.GetInt64()
                     : 0L;
-                if (fileSize > ClawsharpConstants.MaxVoiceFileBytes)
+                if (fileSize > _maxVoiceFileBytes)
                 {
                     LogVoiceFileTooLarge(fileId, fileSize);
                     continue;

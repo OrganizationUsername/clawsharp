@@ -538,11 +538,19 @@ public sealed partial class SqliteMemory : IMemory
 
     private async Task EnsureInitializedAsync(CancellationToken ct)
     {
-        if (_initTask is { IsCompletedSuccessfully: true }) return;
+        if (_initTask is { IsCompletedSuccessfully: true })
+        {
+            return;
+        }
+
         await _initLock.WaitAsync(ct);
         try
         {
-            if (_initTask is { IsCompletedSuccessfully: true }) return;
+            if (_initTask is { IsCompletedSuccessfully: true })
+            {
+                return;
+            }
+
             var task = InitSchemaAsync(ct);
             _initTask = task;
             await task;

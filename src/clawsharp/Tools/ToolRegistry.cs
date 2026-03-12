@@ -48,6 +48,8 @@ public sealed class ToolRegistry : IToolRegistry
 
     private readonly ToolSensitivity _maxNonCliSensitivity;
 
+    private readonly ILogger<ToolRegistry> _logger;
+
     public ToolRegistry(
         IOptions<AppConfig> configOptions,
         IOptions<AgentDefaults> defaultsOptions,
@@ -64,6 +66,7 @@ public sealed class ToolRegistry : IToolRegistry
         IInteractionStore interactionStore,
         ILoggerFactory loggerFactory)
     {
+        _logger = loggerFactory.CreateLogger<ToolRegistry>();
         var config = configOptions.Value;
         var defaults = defaultsOptions.Value;
         _maxToolOutputChars = Math.Max(1024, config.Tools.MaxToolOutputChars);
@@ -267,7 +270,8 @@ public sealed class ToolRegistry : IToolRegistry
         }
         catch (Exception ex)
         {
-            return $"Tool error: {ex.Message}";
+            _logger.LogWarning(ex, "Tool '{ToolName}' execution failed", name);
+            return "Error: operation failed.";
         }
     }
 

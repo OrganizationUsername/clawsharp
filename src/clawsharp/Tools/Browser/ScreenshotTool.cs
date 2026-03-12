@@ -110,9 +110,9 @@ public sealed class ScreenshotTool : Tool
         {
             return "Error: screenshot timed out after 15s.";
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return $"Error: {ex.Message}";
+            return "Error: operation failed.";
         }
     }
 

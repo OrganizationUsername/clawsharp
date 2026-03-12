@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Clawsharp.Security;
 
@@ -5,6 +6,8 @@ namespace Clawsharp.Tools.Files;
 
 public sealed class FileWriteTool : Tool
 {
+    private const int MaxWriteBytes = 10 * 1024 * 1024; // 10 MB
+
     private readonly string _workspace;
 
     private readonly AuditLogger? _auditLogger;
@@ -37,11 +40,19 @@ public sealed class FileWriteTool : Tool
     {
         var workspaceError = WorkspaceGuard.CheckAvailability(_workspace);
         if (workspaceError is not null)
+        {
             return workspaceError;
+        }
 
         var rel = arguments.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
         var content = arguments.TryGetProperty("content", out var c) ? c.GetString() ?? "" : "";
         var append = arguments.TryGetProperty("append", out var a) && a.GetBoolean();
+
+        var byteCount = Encoding.UTF8.GetByteCount(content);
+        if (byteCount > MaxWriteBytes)
+        {
+            return $"Error: content too large ({byteCount / (1024 * 1024)} MB). Maximum write size is 10 MB.";
+        }
 
         string fullPath;
         try
@@ -55,7 +66,7 @@ public sealed class FileWriteTool : Tool
                 _ = _auditLogger.LogFileAccessAsync(rel, "write", ChannelName, success: false, error: ex.Message, ct: ct);
             }
 
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
@@ -65,9 +76,9 @@ public sealed class FileWriteTool : Tool
         {
             PathGuard.VerifyNotSymlinkEscape(fullPath, _workspace);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return $"Error: {ex.Message}";
+            return "Error: path is outside the workspace.";
         }
 
         // CRIT-02: Open the file handle, then verify the actual path via /proc/self/fd/

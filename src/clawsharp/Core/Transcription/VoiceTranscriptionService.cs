@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Clawsharp.Config;
+using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -97,7 +98,7 @@ public sealed partial class VoiceTranscriptionService
                 break;
 
             case "openai":
-                _baseUrl = "https://api.openai.com/v1/audio/transcriptions";
+                _baseUrl = ClawsharpConstants.OpenAiDefaultBaseUrl + "/audio/transcriptions";
                 _model = cfg.EffectiveModel;
                 break;
 
