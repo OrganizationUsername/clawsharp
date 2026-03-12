@@ -1,7 +1,7 @@
 namespace Clawsharp.Tests;
 
-using Clawsharp.Core;
-using Clawsharp.Core.Sessions;
+using Core;
+using Core.Sessions;
 
 public sealed class SessionPruneTests
 {

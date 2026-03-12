@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Clawsharp.Memory;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Memory;
 
 public sealed class MemorySearchTool : Tool

@@ -1,12 +1,9 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers;
 

@@ -1,6 +1,5 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using Clawsharp.Cli.Models;
 using Clawsharp.Config;
 using JetBrains.Annotations;
 using Spectre.Console;

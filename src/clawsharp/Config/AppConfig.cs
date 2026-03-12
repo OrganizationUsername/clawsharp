@@ -50,4 +50,7 @@ public sealed class AppConfig
 
     /// <summary>HTTP request settings (proxy) for outbound LLM provider calls.</summary>
     public HttpRequestConfig? HttpRequest { get; set; }
+
+    /// <summary>Interaction analytics configuration (prompt/response/cost logging).</summary>
+    public AnalyticsConfig? Analytics { get; set; }
 }

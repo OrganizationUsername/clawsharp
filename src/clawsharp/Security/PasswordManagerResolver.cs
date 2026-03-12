@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.Json;
-using Clawsharp.Config;
 using Clawsharp.Config.Security;
 
 namespace Clawsharp.Security;

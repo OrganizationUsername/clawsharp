@@ -1,10 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using Clawsharp.Channels;
 using Clawsharp.Config;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;

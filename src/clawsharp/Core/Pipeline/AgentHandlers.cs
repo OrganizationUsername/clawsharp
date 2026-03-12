@@ -6,11 +6,6 @@ using Clawsharp.Features.Memory.Commands;
 using Clawsharp.Features.Memory.Queries;
 using Clawsharp.Features.Session.Commands;
 using Clawsharp.Features.Session.Queries;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Core.Pipeline;
 

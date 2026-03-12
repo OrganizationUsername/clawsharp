@@ -1,4 +1,3 @@
-using Clawsharp.Config.Channels;
 namespace Clawsharp.Channels;
 
 /// <summary>

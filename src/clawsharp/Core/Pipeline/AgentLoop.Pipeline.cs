@@ -1,6 +1,6 @@
+using System.Diagnostics;
 using System.Text;
 using Clawsharp.Channels;
-using Clawsharp.Config;
 using Clawsharp.Cost;
 using Clawsharp.Features.Chat.Commands;
 using Clawsharp.Features.Chat.Queries;
@@ -8,17 +8,13 @@ using Clawsharp.Features.Cost.Commands;
 using Clawsharp.Features.Cost.Queries;
 using Clawsharp.Features.Memory.Commands;
 using Clawsharp.Features.Session.Commands;
-using Clawsharp.Memory;
 using Clawsharp.Providers;
 using Clawsharp.Security;
 using Microsoft.Extensions.Logging;
 using Clawsharp.Config.Agent;
 using Clawsharp.Config.Features;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Core.Pipeline;
 
@@ -147,6 +143,7 @@ public sealed partial class AgentLoop
 
         // Use streaming when both the active provider and the channel support it.
         var activeProvider = overrideProvider ?? _provider;
+        var sw = Stopwatch.StartNew();
         LoopResult loopResult;
         if (activeProvider is IStreamingProvider && channel is IStreamingChannel streamingChannel)
         {
@@ -160,6 +157,8 @@ public sealed partial class AgentLoop
                 request, messages, session, ct, overrideProvider).ConfigureAwait(false);
         }
 
+        sw.Stop();
+
         // Record cost usage — use the actual model (may differ from _defaults.Model due to routing).
         // For streaming responses the delta may be 0 (providers don't always report counts).
         var inputDelta = session.TotalInputTokens - inputTokensBefore;
@@ -167,6 +166,37 @@ public sealed partial class AgentLoop
         await _handlers.RecordUsage.HandleAsync(new RecordUsage.Command(
             sessionId, actualModel, inputDelta, outputDelta,
             loopResult.CacheRead, loopResult.CacheWrite), ct).ConfigureAwait(false);
+
+        // Record interaction analytics (fire-and-forget — must not block the response pipeline).
+        if (_analyticsEnabled && loopResult.Reply is not null)
+        {
+            var userPrompt = messages.LastOrDefault(m => m.Role == MessageRole.User)?.Content ?? "";
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _interactionTracker.RecordAsync(
+                        sessionId,
+                        inbound.Channel.Value,
+                        actualModel,
+                        userPrompt,
+                        loopResult.Thinking,
+                        loopResult.Reply,
+                        loopResult.ToolCallSummaries,
+                        loopResult.ToolIterations,
+                        inputDelta,
+                        outputDelta,
+                        loopResult.CacheRead,
+                        loopResult.CacheWrite,
+                        sw.ElapsedMilliseconds,
+                        CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to record interaction analytics");
+                }
+            });
+        }
 
         return loopResult;
     }

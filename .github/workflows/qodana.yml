@@ -18,6 +18,21 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}  # to check out the actual pull request commit, not the merge commit
           fetch-depth: 0  # a full history is required for pull request analysis
+      - name: Generate .sln for Qodana
+        run: |
+          # Qodana doesn't support .slnx — generate a traditional .sln from project paths in the .slnx
+          python3 -c "
+          import xml.etree.ElementTree as ET, uuid
+          tree = ET.parse('clawsharp.slnx')
+          projects = [(p.get('Path'), str(uuid.uuid4()).upper()) for p in tree.findall('.//Project')]
+          with open('clawsharp.sln', 'w') as f:
+              f.write('Microsoft Visual Studio Solution File, Format Version 12.00\n')
+              for path, guid in projects:
+                  name = path.rsplit('/', 1)[-1].replace('.csproj', '')
+                  f.write(f'Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"{name}\", \"{path}\", \"{{{guid}}}\"\nEndProject\n')
+              f.write('Global\nEndGlobal\n')
+          print(f'Generated clawsharp.sln with {len(projects)} project(s)')
+          "
       - name: 'Qodana Scan'
         uses: JetBrains/qodana-action@v2025.3
         with:

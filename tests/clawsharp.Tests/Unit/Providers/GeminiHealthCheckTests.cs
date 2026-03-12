@@ -1,5 +1,4 @@
 using System.Net;
-using Clawsharp.Providers;
 using Clawsharp.Providers.Gemini;
 
 namespace Clawsharp.Tests.Unit.Providers;

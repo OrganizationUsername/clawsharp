@@ -2,10 +2,6 @@
 using System.Text.RegularExpressions;
 using Clawsharp.Providers;
 using Microsoft.Extensions.Logging;
-using Clawsharp.Config.Agent;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Core.Services;

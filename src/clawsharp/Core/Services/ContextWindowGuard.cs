@@ -1,9 +1,5 @@
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Core.Services;
 

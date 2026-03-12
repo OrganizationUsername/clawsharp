@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Clawsharp.Security;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Web;
 
 public sealed partial class WebFetchTool : Tool

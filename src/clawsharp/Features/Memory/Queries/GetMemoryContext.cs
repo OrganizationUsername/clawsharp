@@ -1,5 +1,4 @@
 using System.Text;
-using Clawsharp.Config;
 using Clawsharp.Memory;
 using Immediate.Handlers.Shared;
 using Microsoft.Extensions.Logging;

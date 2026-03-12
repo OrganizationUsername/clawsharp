@@ -1,5 +1,4 @@
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
@@ -12,7 +11,6 @@ using Remora.Discord.API.Abstractions.Rest;
 using Remora.Discord.Gateway.Responders;
 using Remora.Rest.Core;
 using Remora.Results;
-using Clawsharp.Config.Channels;
 
 namespace Clawsharp.Channels.Discord;
 

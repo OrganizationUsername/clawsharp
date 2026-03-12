@@ -7,24 +7,19 @@ COPY src/clawsharp-web/ .
 RUN npm run build
 
 # ── Stage 2: .NET restore + publish ─────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.102 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /repo
 
-# Restore as a separate layer — only re-runs when .csproj changes
-COPY ["src/clawsharp/clawsharp.csproj", "src/clawsharp/"]
-RUN dotnet restore "src/clawsharp/clawsharp.csproj"
-
-# Copy source and the pre-built web UI
-COPY . .
-COPY --from=web /web/dist/index.html src/clawsharp/Channels/Web/index.html
-
-# Publish (BuildWebUI target auto-skips — package.json absent after flat COPY)
-WORKDIR "/repo/src/clawsharp"
-RUN dotnet publish "./clawsharp.csproj" -c $BUILD_CONFIGURATION -o /app/publish --no-restore
+# Use bind mount from build context — avoids Buildah COPY overlay issue with MSBuild globs
+COPY --from=web /web/dist/index.html /tmp/web-index.html
+RUN --mount=type=bind,target=/src,rw \
+    cp -a /src/src/clawsharp/. . && \
+    cp /tmp/web-index.html Channels/Web/index.html && \
+    dotnet publish "./clawsharp.csproj" -c $BUILD_CONFIGURATION -r linux-x64 -o /app/publish -p:SkipWebUI=true -p:SelfContained=false -p:PublishSingleFile=false
 
 # ── Stage 3: Runtime image ──────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 
 # The .NET base image pre-creates an 'app' user and group (UID/GID 1654).
 # Set HOME so the key file and config are written to the right place.
@@ -52,4 +47,4 @@ RUN dotnet tool install --global Microsoft.Playwright.CLI --version 1.58.0 2>/de
 RUN mkdir -p /home/app/.clawsharp/workspace && chown -R app:app /home/app /app
 
 USER app
-ENTRYPOINT ["dotnet", "clawsharp.dll"]
+ENTRYPOINT ["dotnet", "/app/clawsharp.dll"]

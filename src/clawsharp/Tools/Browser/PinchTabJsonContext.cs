@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Browser;
 
 /// <summary>PinchTab navigate request.</summary>

@@ -1,5 +1,4 @@
 using Clawsharp.Channels.Discord;
-using Clawsharp.Config;
 using Clawsharp.Config.Channels;
 
 namespace Clawsharp.Tests;

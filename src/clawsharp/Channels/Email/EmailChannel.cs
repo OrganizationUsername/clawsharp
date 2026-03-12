@@ -1,6 +1,5 @@
 using Clawsharp.Config;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
@@ -8,7 +7,6 @@ using MailKit;
 using MailKit.Net.Imap;
 using MailKit.Net.Smtp;
 using MailKit.Search;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;

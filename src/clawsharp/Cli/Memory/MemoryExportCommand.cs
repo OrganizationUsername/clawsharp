@@ -38,8 +38,8 @@ public sealed class MemoryExportCommand : AsyncCommand<MemoryExportCommand.Setti
             return 0;
         }
 
-        var outputPath = System.IO.Path.GetFullPath(settings.Path);
-        var dir = System.IO.Path.GetDirectoryName(outputPath);
+        var outputPath = Path.GetFullPath(settings.Path);
+        var dir = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);

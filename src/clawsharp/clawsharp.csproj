@@ -18,10 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\.dockerignore">
-      <Link>.dockerignore</Link>
-    </Content>
-    <EmbeddedResource Include="Channels\Web\index.html"/>
+    <EmbeddedResource Remove="**/*.resx"/>
+    <EmbeddedResource Include="Channels/Web/index.html"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -75,7 +73,7 @@
   </PropertyGroup>
 
   <Target Name="BuildWebUI" BeforeTargets="Build;Publish"
-          Condition="Exists('$(WebUiDir)/package.json')">
+          Condition="'$(SkipWebUI)' != 'true' AND Exists('$(WebUiDir)/package.json')">
     <Exec Command="npm install --prefer-offline --no-audit --no-fund"
           WorkingDirectory="$(WebUiDir)" StandardOutputImportance="Low"/>
     <Exec Command="npm run build:embed"

@@ -1,4 +1,5 @@
 using clawsharp;
+using Clawsharp.Analytics;
 using Clawsharp.Channels;
 using Clawsharp.Config;
 using Clawsharp.Core;
@@ -50,7 +51,12 @@ internal sealed class AgentLoopTestHarness : IDisposable
 
     public SessionManager Sessions => _sessionManager;
 
-    public AgentLoopTestHarness(Action<AgentDefaults>? configureDefaults = null)
+    public IInteractionStore InteractionStore { get; }
+
+    public AgentLoopTestHarness(
+        Action<AgentDefaults>? configureDefaults = null,
+        AnalyticsConfig? analyticsConfig = null,
+        IInteractionStore? interactionStore = null)
     {
         _workspaceDir = Path.Combine(Path.GetTempPath(), "clawsharp-test-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_workspaceDir);
@@ -78,6 +84,7 @@ internal sealed class AgentLoopTestHarness : IDisposable
         var appConfig = new AppConfig
         {
             Tools = new ToolsConfig { Workspace = _workspaceDir },
+            Analytics = analyticsConfig,
         };
 
         var defaultsOptions = Options.Create(Defaults);
@@ -138,6 +145,13 @@ internal sealed class AgentLoopTestHarness : IDisposable
 
         var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
 
+        InteractionStore = interactionStore ?? new InteractionStorage(
+            Path.Combine(Path.GetTempPath(), $"clawsharp-test-{Guid.NewGuid():N}", "interactions.jsonl"));
+
+        var interactionTracker = new InteractionTracker(
+            InteractionStore, Memory, NullLogger<InteractionTracker>.Instance,
+            storeInMemory: analyticsConfig?.StoreInMemory ?? false);
+
         _loop = new AgentLoop(
             provider: Provider,
             channels: channels,
@@ -155,6 +169,7 @@ internal sealed class AgentLoopTestHarness : IDisposable
             auditLogger: auditLogger,
             goalStorage: goalStorage,
             factExtractor: factExtractor,
+            interactionTracker: interactionTracker,
             handlers: sp.GetRequiredService<AgentHandlers>());
     }
 

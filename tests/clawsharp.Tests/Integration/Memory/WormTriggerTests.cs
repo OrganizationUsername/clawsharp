@@ -1,4 +1,3 @@
-using Clawsharp.Memory.Entities;
 using Clawsharp.Memory.MsSql;
 using Clawsharp.Memory.Postgres;
 using Clawsharp.Memory.Sqlite;

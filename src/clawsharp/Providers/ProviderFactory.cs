@@ -1,5 +1,4 @@
 using Clawsharp.Auth;
-using Clawsharp.Config;
 using Clawsharp.Providers.Anthropic;
 using Clawsharp.Providers.Bedrock;
 using Clawsharp.Providers.Copilot;

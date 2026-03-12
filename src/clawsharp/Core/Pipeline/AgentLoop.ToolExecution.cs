@@ -1,13 +1,6 @@
 using Clawsharp.Channels;
-using Clawsharp.Providers;
 using Clawsharp.Security;
 using Clawsharp.Tools;
-using Microsoft.Extensions.Logging;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Core.Pipeline;
 
@@ -107,7 +100,7 @@ public sealed partial class AgentLoop
             return;
         }
 
-        if (channel is Channels.IFileChannel fileChannel)
+        if (channel is IFileChannel fileChannel)
         {
             foreach (var file in pending)
             {

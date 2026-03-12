@@ -1,10 +1,6 @@
 using System.Text;
 using System.Text.Json;
 using Clawsharp.Config;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 using Clawsharp.Security;
 using Microsoft.Extensions.Logging;
@@ -12,7 +8,6 @@ using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
 using Clawsharp.Config.Features;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Browser;
 
 /// <summary>

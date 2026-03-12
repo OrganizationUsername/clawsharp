@@ -1,14 +1,11 @@
 using System.Text;
 using System.Text.Json;
-using Clawsharp.Channels;
 using Clawsharp.Config;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 using Clawsharp.Core.Transcription;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

@@ -5,11 +5,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using Clawsharp.Config;
 using Clawsharp.Security;
 using Clawsharp.Config.Features;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Web;
 
 public sealed partial class WebSearchTool : Tool
@@ -265,7 +263,7 @@ public sealed partial class WebSearchTool : Tool
     {
         var url = $"{_searxngBaseUrl!.TrimEnd('/')}/search?q={Uri.EscapeDataString(query)}&format=json&categories=general&pageno=1";
 
-        var ssrfError = await Security.SsrfGuard.CheckAsync(new Uri(url), ct);
+        var ssrfError = await SsrfGuard.CheckAsync(new Uri(url), ct);
         if (ssrfError is not null)
         {
             return $"Error: {ssrfError}";
@@ -331,7 +329,7 @@ public sealed partial class WebSearchTool : Tool
         var requestUrl = $"{baseUrl}/v1/search";
 
         // HIGH-04: SSRF-check the Firecrawl base URL (user-configurable in config)
-        var ssrfError = await Security.SsrfGuard.CheckAsync(new Uri(requestUrl), ct);
+        var ssrfError = await SsrfGuard.CheckAsync(new Uri(requestUrl), ct);
         if (ssrfError is not null)
         {
             return $"Error: {ssrfError}";
@@ -544,24 +542,24 @@ public sealed partial class WebSearchTool : Tool
 // AOT-safe JSON DTOs + source-generated context
 // ──────────────────────────────────────────────
 
-internal sealed record ExaSearchRequest(string query, int numResults, string type);
+internal sealed record ExaSearchRequest(string Query, int NumResults, string Type);
 
-internal sealed record TavilySearchRequest(string api_key, string query, int max_results, string search_depth);
+internal sealed record TavilySearchRequest(string ApiKey, string Query, int MaxResults, string SearchDepth);
 
-internal sealed record FirecrawlSearchRequest(string query, int limit);
+internal sealed record FirecrawlSearchRequest(string Query, int Limit);
 
-internal sealed record PerplexityMessage(string role, string content);
+internal sealed record PerplexityMessage(string Role, string Content);
 
 internal sealed record PerplexitySearchRequest(
-    string model,
-    IReadOnlyList<PerplexityMessage> messages,
-    int max_tokens);
+    string Model,
+    IReadOnlyList<PerplexityMessage> Messages,
+    int MaxTokens);
 
-internal sealed record GlmMessage(string role, string content);
+internal sealed record GlmMessage(string Role, string Content);
 
 internal sealed record GlmSearchRequest(
-    string model,
-    IReadOnlyList<GlmMessage> messages);
+    string Model,
+    IReadOnlyList<GlmMessage> Messages);
 
 [JsonSerializable(typeof(ExaSearchRequest))]
 [JsonSerializable(typeof(TavilySearchRequest))]

@@ -20,7 +20,6 @@ using Clawsharp.Channels.WeChat;
 using Clawsharp.Channels.WeCom;
 using Clawsharp.Channels.WhatsApp;
 using Clawsharp.Config;
-using Clawsharp.Core;
 using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
@@ -59,7 +58,11 @@ using Clawsharp.Config.Agent;
 using Clawsharp.Config.Channels;
 using Clawsharp.Config.Features;
 using Clawsharp.Config.Memory;
-using Clawsharp.Config.Security;
+using Clawsharp.Analytics;
+using Clawsharp.Analytics.MsSql;
+using Clawsharp.Analytics.Postgres;
+using Clawsharp.Analytics.Sqlite;
+using Clawsharp.Tools.Mcp;
 
 namespace Clawsharp.Cli;
 
@@ -501,7 +504,7 @@ public static partial class GatewayHost
                                   // MCP servers (conditional — only when servers are configured)
                                   if (appConfig.McpServers is { Count: > 0 })
                                   {
-                                      services.AddHostedService<Clawsharp.Tools.Mcp.McpHostedService>();
+                                      services.AddHostedService<McpHostedService>();
                                   }
 
                                   // Discord (conditional, Remora-specific — keep manual)
@@ -573,6 +576,65 @@ public static partial class GatewayHost
                                   services.AddSingleton<BrowserSessionManager>();
                                   services.AddSingleton<PinchTabSessionManager>();
                                   services.AddSingleton<GitHubDeviceFlow>();
+
+                                  // Interaction analytics — storage backend (JSONL file, SQLite, Postgres, MS SQL)
+                                  {
+                                      var analyticsBackend = appConfig.Analytics?.Backend ?? "jsonl";
+                                      if (string.Equals(analyticsBackend, "postgres", StringComparison.OrdinalIgnoreCase))
+                                      {
+                                          var cs = appConfig.Analytics?.ConnectionString
+                                                   ?? appConfig.Memory.ConnectionString
+                                                   ?? throw new InvalidOperationException(
+                                                       "Analytics backend 'postgres' requires a connection string. " +
+                                                       "Set analytics.connectionString or memory.connectionString in config.");
+                                          services.AddPooledDbContextFactory<PostgresAnalyticsContext>(o =>
+                                              o.UseNpgsql(cs)
+                                               .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+                                          services.AddSingleton<IInteractionStore>(sp =>
+                                              new EfInteractionStore<PostgresAnalyticsContext>(
+                                                  sp.GetRequiredService<IDbContextFactory<PostgresAnalyticsContext>>(),
+                                                  sp.GetRequiredService<ILogger<EfInteractionStore<PostgresAnalyticsContext>>>()));
+                                      }
+                                      else if (string.Equals(analyticsBackend, "mssql", StringComparison.OrdinalIgnoreCase))
+                                      {
+                                          var cs = appConfig.Analytics?.ConnectionString
+                                                   ?? appConfig.Memory.ConnectionString
+                                                   ?? throw new InvalidOperationException(
+                                                       "Analytics backend 'mssql' requires a connection string. " +
+                                                       "Set analytics.connectionString or memory.connectionString in config.");
+                                          services.AddPooledDbContextFactory<MsSqlAnalyticsContext>(o =>
+                                              o.UseSqlServer(cs)
+                                               .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+                                          services.AddSingleton<IInteractionStore>(sp =>
+                                              new EfInteractionStore<MsSqlAnalyticsContext>(
+                                                  sp.GetRequiredService<IDbContextFactory<MsSqlAnalyticsContext>>(),
+                                                  sp.GetRequiredService<ILogger<EfInteractionStore<MsSqlAnalyticsContext>>>()));
+                                      }
+                                      else if (string.Equals(analyticsBackend, "sqlite", StringComparison.OrdinalIgnoreCase))
+                                      {
+                                          var sqliteDir = ConfigLoader.ExpandHome(appConfig.Analytics?.Dir ?? "~/.clawsharp");
+                                          Directory.CreateDirectory(sqliteDir);
+                                          var dbPath = Path.Combine(sqliteDir, "analytics.db");
+                                          services.AddPooledDbContextFactory<SqliteAnalyticsContext>(o =>
+                                              o.UseSqlite($"Data Source={dbPath}")
+                                               .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+                                          services.AddSingleton<IInteractionStore>(sp =>
+                                              new EfInteractionStore<SqliteAnalyticsContext>(
+                                                  sp.GetRequiredService<IDbContextFactory<SqliteAnalyticsContext>>(),
+                                                  sp.GetRequiredService<ILogger<EfInteractionStore<SqliteAnalyticsContext>>>()));
+                                      }
+                                      else
+                                      {
+                                          // Default: JSONL file storage
+                                          services.AddSingleton<IInteractionStore, InteractionStorage>();
+                                      }
+                                  }
+                                  services.AddSingleton<InteractionTracker>(sp =>
+                                      new InteractionTracker(
+                                          sp.GetRequiredService<IInteractionStore>(),
+                                          sp.GetRequiredService<IMemory>(),
+                                          sp.GetRequiredService<ILogger<InteractionTracker>>(),
+                                          appConfig.Analytics?.StoreInMemory ?? false));
 
                                   // CronService needs singleton + hosted service so it can be
                                   // resolved by type AND participate in the host lifecycle.

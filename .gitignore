@@ -22,4 +22,4 @@ dist/
 .claude/agent-memory/
 
 # Svelte/Node frontend
-clawsharp-web/node_modules/
+**/node_modules/

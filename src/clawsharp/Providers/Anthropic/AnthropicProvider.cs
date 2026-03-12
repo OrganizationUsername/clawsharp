@@ -1,11 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
-using Clawsharp.Config.Features;
 
 namespace Clawsharp.Providers.Anthropic;
 

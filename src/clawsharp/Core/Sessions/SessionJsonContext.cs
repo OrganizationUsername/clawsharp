@@ -1,9 +1,4 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Core.Sessions;

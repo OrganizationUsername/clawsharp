@@ -3,10 +3,6 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers.OpenAi;
 
@@ -263,7 +259,7 @@ public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheck
     /// </summary>
     internal static string Sanitize(string raw) => ProviderHttpHelper.SanitizeErrorBody(raw);
 
-    private static MessageContent BuildContent(string? text, IReadOnlyList<Core.ImageAttachment>? images)
+    private static MessageContent BuildContent(string? text, IReadOnlyList<ImageAttachment>? images)
     {
         if (images is null || images.Count == 0)
         {

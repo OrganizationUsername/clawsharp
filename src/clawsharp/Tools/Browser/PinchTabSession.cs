@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Browser;
 
 /// <summary>

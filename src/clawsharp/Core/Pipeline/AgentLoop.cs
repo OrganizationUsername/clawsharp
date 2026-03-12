@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
-using System.Text;
 using System.Threading.Channels;
+using Clawsharp.Analytics;
 using Clawsharp.Channels;
 using Clawsharp.Config;
 using Clawsharp.Cost;
@@ -19,8 +19,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Clawsharp.Config.Agent;
 using Clawsharp.Config.Memory;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
@@ -77,6 +75,10 @@ public sealed partial class AgentLoop
 
     private readonly SuspicionTracker _suspicionTracker = new();
 
+    private readonly InteractionTracker _interactionTracker;
+
+    private readonly bool _analyticsEnabled;
+
     /// <summary>Lazily-built candidate list for provider fallback. Built once on first use.</summary>
     private IReadOnlyList<(string Name, IProvider Provider)>? _fallbackCandidates;
 
@@ -87,7 +89,13 @@ public sealed partial class AgentLoop
     private Dictionary<string, string>? _fallbackModelOverrides;
 
     /// <summary>Result of a single tool-loop execution (streaming or non-streaming).</summary>
-    private sealed record LoopResult(string? Reply, long CacheRead, long CacheWrite);
+    private sealed record LoopResult(
+        string? Reply,
+        long CacheRead,
+        long CacheWrite,
+        string? Thinking = null,
+        IReadOnlyList<ToolCallSummary>? ToolCallSummaries = null,
+        int ToolIterations = 0);
 
 
     public AgentLoop(
@@ -107,6 +115,7 @@ public sealed partial class AgentLoop
         AuditLogger auditLogger,
         GoalStorage goalStorage,
         FactExtractor factExtractor,
+        InteractionTracker interactionTracker,
         AgentHandlers handlers)
     {
         _provider = provider;
@@ -128,6 +137,8 @@ public sealed partial class AgentLoop
         _auditLogger = auditLogger;
         _goalStorage = goalStorage;
         _factExtractor = factExtractor;
+        _interactionTracker = interactionTracker;
+        _analyticsEnabled = configOptions.Value.Analytics?.Enabled ?? false;
         _handlers = handlers;
     }
 
@@ -389,6 +400,9 @@ public sealed partial class AgentLoop
             : GetFallbackCandidates();
         long totalCacheRead = 0;
         long totalCacheWrite = 0;
+        string? lastThinking = null;
+        List<ToolCallSummary>? toolCallSummaries = null;
+        var completedIterations = 0;
 
         for (var iteration = 0; iteration < _defaults.MaxToolIterations; iteration++)
         {
@@ -404,21 +418,30 @@ public sealed partial class AgentLoop
             {
                 LogAllProvidersExhausted(ex.Message);
                 return new LoopResult("Sorry, all configured providers are currently unavailable. Please try again later.", totalCacheRead,
-                    totalCacheWrite);
+                    totalCacheWrite, lastThinking, toolCallSummaries, completedIterations);
             }
             catch (Exception ex)
             {
                 LogProviderError(_logger, ex);
-                return new LoopResult("Sorry, I encountered an error processing your request.", totalCacheRead, totalCacheWrite);
+                return new LoopResult("Sorry, I encountered an error processing your request.", totalCacheRead, totalCacheWrite,
+                    lastThinking, toolCallSummaries, completedIterations);
             }
 
             session.TotalInputTokens += response.InputTokens ?? 0;
             session.TotalOutputTokens += response.OutputTokens ?? 0;
             totalCacheRead += response.CacheReadTokens ?? 0;
             totalCacheWrite += response.CacheWriteTokens ?? 0;
+            lastThinking = response.ReasoningContent ?? lastThinking;
 
             if (response.ToolCalls?.Count > 0)
             {
+                completedIterations++;
+                toolCallSummaries ??= [];
+                foreach (var tc in response.ToolCalls)
+                {
+                    toolCallSummaries.Add(new ToolCallSummary { Name = tc.Name, ResultLength = tc.ArgumentsJson.Length });
+                }
+
                 messages.Add(new ChatMessage(MessageRole.Assistant, response.Content, ToolCalls: response.ToolCalls));
                 await ExecuteToolCallsAsync(response.ToolCalls, messages, ct);
 
@@ -433,10 +456,10 @@ public sealed partial class AgentLoop
             }
 
             messages.Add(new ChatMessage(MessageRole.Assistant, finalReply));
-            return new LoopResult(finalReply, totalCacheRead, totalCacheWrite);
+            return new LoopResult(finalReply, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations);
         }
 
-        return new LoopResult(null, totalCacheRead, totalCacheWrite); // iteration cap hit
+        return new LoopResult(null, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations); // iteration cap hit
     }
 
     // ──────────────────────────────────────────────────────────────────────

@@ -3,14 +3,11 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Clawsharp.Channels;
 using Clawsharp.Config;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -620,7 +617,7 @@ public sealed partial class SlackChannel : LifecycleBackgroundService, IChannel,
         // Step 2: PUT file bytes to the upload URL
         using var step2Req = new HttpRequestMessage(HttpMethod.Put, uploadUrl.UploadUrl);
         step2Req.Content = new ReadOnlyMemoryContent(content);
-        step2Req.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        step2Req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
 
         using var step2Resp = await _http.SendAsync(step2Req, ct);
         if (!step2Resp.IsSuccessStatusCode)

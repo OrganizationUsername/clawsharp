@@ -2,10 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Clawsharp.Config;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 using Clawsharp.Cost;
 using Clawsharp.Goals;
 using Clawsharp.Memory;
@@ -14,6 +11,7 @@ using Clawsharp.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Clawsharp.Config.Agent;
+using Clawsharp.Analytics;
 using Clawsharp.Config.Features;
 using Clawsharp.Tools.Browser;
 using Clawsharp.Tools.Files;
@@ -63,6 +61,7 @@ public sealed class ToolRegistry : IToolRegistry
         GoalStorage goalStorage,
         RateLimiter rateLimiter,
         CostTracker costTracker,
+        IInteractionStore interactionStore,
         ILoggerFactory loggerFactory)
     {
         var config = configOptions.Value;
@@ -97,6 +96,7 @@ public sealed class ToolRegistry : IToolRegistry
                 loggerFactory.CreateLogger<PinchTabTool>()),
             new GoalTool(goalStorage, loggerFactory.CreateLogger<GoalTool>()),
             new SendFileTool(workspace, auditLogger),
+            new InteractionsTool(interactionStore),
         };
 
         _tools = new ConcurrentDictionary<string, Tool>(
@@ -116,13 +116,13 @@ public sealed class ToolRegistry : IToolRegistry
         _currentSessionId.Value = sessionId;
     }
 
-    public IReadOnlyList<Core.ToolDefinition> GetDefinitions()
+    public IReadOnlyList<ToolDefinition> GetDefinitions()
     {
         return _tools.Values.Select(t => t.ToDefinition()).ToList();
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<Core.ToolDefinition> GetFilteredDefinitions(string? messageText)
+    public IReadOnlyList<ToolDefinition> GetFilteredDefinitions(string? messageText)
     {
         if (_filterGroups is null || _filterGroups.Count == 0)
         {

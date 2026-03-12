@@ -1,10 +1,8 @@
 using System.Text;
 using System.Threading.Channels;
+using Clawsharp.Analytics;
 using Clawsharp.Channels;
 using Clawsharp.Providers;
-using Microsoft.Extensions.Logging;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
@@ -35,6 +33,9 @@ public sealed partial class AgentLoop
             : GetStreamingFallbackCandidates();
         long totalCacheRead = 0;
         long totalCacheWrite = 0;
+        string? lastThinking = null;
+        List<ToolCallSummary>? toolCallSummaries = null;
+        var completedIterations = 0;
 
         for (var iteration = 0; iteration < _defaults.MaxToolIterations; iteration++)
         {
@@ -67,6 +68,12 @@ public sealed partial class AgentLoop
             totalCacheRead += result.CacheReadTokens;
             totalCacheWrite += result.CacheWriteTokens;
 
+            // Capture thinking content from this iteration.
+            if (result.Thinking.Length > 0)
+            {
+                lastThinking = result.Thinking.ToString();
+            }
+
             // If all streaming providers were exhausted, return an error reply.
             // When text has already been streamed to the user, append the notice inline
             // so the user sees a single coherent message rather than a partial response
@@ -76,11 +83,12 @@ public sealed partial class AgentLoop
                 var errorNotice = "\n\n[Error: all configured providers became unavailable. The response above may be incomplete.]";
                 if (result.Text.Length > 0)
                 {
-                    return new LoopResult(result.Text + errorNotice, totalCacheRead, totalCacheWrite);
+                    return new LoopResult(result.Text + errorNotice, totalCacheRead, totalCacheWrite,
+                        lastThinking, toolCallSummaries, completedIterations);
                 }
 
                 return new LoopResult("Sorry, all configured providers are currently unavailable. Please try again later.", totalCacheRead,
-                    totalCacheWrite);
+                    totalCacheWrite, lastThinking, toolCallSummaries, completedIterations);
             }
 
             // Reconstruct tool calls from the builders.
@@ -89,6 +97,13 @@ public sealed partial class AgentLoop
 
             if (toolCalls?.Count > 0)
             {
+                completedIterations++;
+                toolCallSummaries ??= [];
+                foreach (var tc in toolCalls)
+                {
+                    toolCallSummaries.Add(new ToolCallSummary { Name = tc.Name, ResultLength = tc.ArgumentsJson.Length });
+                }
+
                 // Add the assistant's turn (which may include streaming text + tool calls) to history.
                 messages.Add(new ChatMessage(MessageRole.Assistant, assistantText, ToolCalls: toolCalls));
                 await ExecuteToolCallsAsync(toolCalls, messages, ct);
@@ -100,10 +115,10 @@ public sealed partial class AgentLoop
             // No tool calls — the streamed text IS the final reply.
             var finalReply = BuildStreamingFinalReply(assistantText, result.Thinking, session.ShowThinking);
             messages.Add(new ChatMessage(MessageRole.Assistant, finalReply));
-            return new LoopResult(finalReply, totalCacheRead, totalCacheWrite);
+            return new LoopResult(finalReply, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations);
         }
 
-        return new LoopResult(null, totalCacheRead, totalCacheWrite); // iteration cap hit
+        return new LoopResult(null, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations); // iteration cap hit
     }
 
     /// <summary>Accumulated state from consuming a single streaming iteration.</summary>

@@ -3,7 +3,6 @@ using System.Text.Json;
 using Clawsharp.Goals;
 using Microsoft.Extensions.Logging;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Ops;
 
 public sealed partial class GoalTool : Tool

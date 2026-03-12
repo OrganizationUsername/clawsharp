@@ -1,4 +1,3 @@
-using Clawsharp.Config.Features;
 namespace Clawsharp.Core;
 
 /// <summary>A request to an LLM provider for chat completion.</summary>

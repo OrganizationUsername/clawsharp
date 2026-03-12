@@ -1,4 +1,4 @@
 version: "1.0"
 linter: jetbrains/qodana-cdnet:2025.3-eap
 dotnet:
-  project: src/clawsharp/clawsharp.csproj
+  solution: clawsharp.sln

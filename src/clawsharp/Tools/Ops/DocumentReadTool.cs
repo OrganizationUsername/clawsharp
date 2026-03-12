@@ -5,7 +5,6 @@ using System.Xml.Linq;
 using Clawsharp.Security;
 using UglyToad.PdfPig;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Ops;
 
 public sealed class DocumentReadTool : Tool

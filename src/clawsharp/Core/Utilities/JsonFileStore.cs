@@ -1,9 +1,5 @@
 using System.Text.Json.Serialization.Metadata;
-using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
+using UglyToad.PdfPig.Core;
 
 namespace Clawsharp.Core.Utilities;
 

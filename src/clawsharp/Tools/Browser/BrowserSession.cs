@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
 using Clawsharp.Config.Features;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Browser;
 
 /// <summary>

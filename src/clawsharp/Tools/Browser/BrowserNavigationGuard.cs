@@ -1,4 +1,3 @@
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Browser;
 
 /// <summary>

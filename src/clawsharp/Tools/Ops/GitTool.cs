@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Text.Json;
 using Clawsharp.Security;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Ops;
 
 public sealed class GitTool : Tool

@@ -1,6 +1,5 @@
 using System.Text.Json;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Files;
 
 public sealed class FileListTool : Tool

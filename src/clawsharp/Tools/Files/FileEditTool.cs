@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Clawsharp.Security;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Files;
 
 public sealed class FileEditTool : Tool

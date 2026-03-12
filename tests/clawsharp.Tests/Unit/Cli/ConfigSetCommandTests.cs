@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using Clawsharp.Cli.Config;
 
 namespace Clawsharp.Tests.Unit.Cli;

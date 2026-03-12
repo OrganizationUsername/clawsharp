@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Clawsharp.Config;
 using Clawsharp.Memory.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

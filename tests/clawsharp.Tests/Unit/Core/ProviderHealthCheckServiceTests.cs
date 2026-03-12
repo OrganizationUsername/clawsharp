@@ -1,11 +1,9 @@
-using System.Net;
 using Clawsharp.Config;
 using Clawsharp.Config.Agent;
 using Clawsharp.Config.Features;
 using Clawsharp.Core;
 using Clawsharp.Core.Services;
 using Clawsharp.Providers;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 

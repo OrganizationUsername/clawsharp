@@ -1,8 +1,11 @@
+using Clawsharp.Cli.Cron;
+using Clawsharp.Tools.Ops;
+
 namespace Clawsharp.Cron;
 
 /// <summary>
 /// Shared schedule parsing for cron expressions, "every:" durations, and "at:" one-shot datetimes.
-/// Used by both <see cref="Tools.CronTool"/> and <see cref="Cli.CronAddCommand"/>.
+/// Used by both <see cref="CronTool"/> and <see cref="CronAddCommand"/>.
 /// </summary>
 public static class CronScheduleParser
 {

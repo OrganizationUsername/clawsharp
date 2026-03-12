@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Text.Json;
 using Clawsharp.Security;
 
-using Clawsharp.Tools;
 namespace Clawsharp.Tools.Browser;
 
 public sealed class ScreenshotTool : Tool

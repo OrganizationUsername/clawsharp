@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Clawsharp.Goals;
-using Clawsharp.Tools;
 using Clawsharp.Tools.Ops;
 using Microsoft.Extensions.Logging.Abstractions;
 

@@ -1,4 +1,4 @@
-﻿**/.dockerignore
+**/.dockerignore
 **/.env
 **/.git
 # Secret / credential files — should never be in the build context

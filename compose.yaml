@@ -35,11 +35,13 @@
 
 services:
   clawsharp:
+    container_name: clawsharp
     image: clawsharp
     build:
       context: .
       dockerfile: src/clawsharp/Dockerfile
     restart: unless-stopped
+    env_file: .env
     # ── Container hardening ──────────────────────────────────────────────────
     security_opt:
       - no-new-privileges:true   # process cannot gain new privileges via setuid/setgid
@@ -98,6 +100,7 @@ services:
   # For manual connection string override, export:
   #   export POSTGRES_PASSWORD=yourpassword
   postgres:
+    container_name: clawsharp-postgres-db
     image: pgvector/pgvector:pg17
     profiles: [postgres]
     restart: unless-stopped
@@ -116,6 +119,7 @@ services:
       retries: 5
 
   clawsharp-postgres:
+    container_name: clawsharp-postgres
     extends:
       service: clawsharp
     profiles: [postgres]
@@ -136,6 +140,7 @@ services:
   # For manual connection string override, export:
   #   export MSSQL_SA_PASSWORD=YourStrong!Password
   mssql:
+    container_name: clawsharp-mssql-db
     image: mcr.microsoft.com/mssql/server:2025-latest
     profiles: [mssql]
     restart: unless-stopped
@@ -155,6 +160,7 @@ services:
       start_period: 30s
 
   clawsharp-mssql:
+    container_name: clawsharp-mssql
     extends:
       service: clawsharp
     profiles: [mssql]

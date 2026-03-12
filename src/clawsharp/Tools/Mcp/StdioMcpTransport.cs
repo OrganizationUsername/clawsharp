@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using Clawsharp.Config;
 using Microsoft.Extensions.Logging;
 using Clawsharp.Config.Features;
 

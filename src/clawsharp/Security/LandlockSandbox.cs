@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 using Clawsharp.Config;
 using Microsoft.Extensions.Logging;
-using Clawsharp.Config.Security;
 
 namespace Clawsharp.Security;
 

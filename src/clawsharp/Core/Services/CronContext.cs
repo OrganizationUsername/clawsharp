@@ -1,7 +1,5 @@
-using Clawsharp.Core;
 using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
+using Clawsharp.Tools.Ops;
 
 namespace Clawsharp.Core.Services;
 
@@ -16,7 +14,7 @@ internal static class CronContext
     /// <summary>
     ///     Gets or sets whether the current async flow is inside a cron job execution.
     ///     Set by <see cref="AgentLoop" /> when processing a cron-fired message;
-    ///     checked by <see cref="Tools.CronTool" /> to block self-scheduling.
+    ///     checked by <see cref="CronTool" /> to block self-scheduling.
     /// </summary>
     public static bool IsInCronExecution
     {

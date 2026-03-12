@@ -1,10 +1,6 @@
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers.OpenAi;
 

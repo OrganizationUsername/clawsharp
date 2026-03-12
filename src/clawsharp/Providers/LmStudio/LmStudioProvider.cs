@@ -1,8 +1,4 @@
 using Clawsharp.Core;
-using Clawsharp.Core.Pipeline;
-using Clawsharp.Core.Services;
-using Clawsharp.Core.Sessions;
-using Clawsharp.Core.Utilities;
 using Clawsharp.Providers.OpenAi;
 
 namespace Clawsharp.Providers.LmStudio;
