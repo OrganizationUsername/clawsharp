@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Net;
 using System.Net.Sockets;
+using Clawsharp.Config.Security;
 
 namespace Clawsharp.Security;
 
@@ -14,6 +15,17 @@ namespace Clawsharp.Security;
 /// </summary>
 public static class SsrfGuard
 {
+    private static volatile EgressConfig? _egressConfig;
+
+    /// <summary>
+    ///     Configures the egress policy at startup. Call once with the egress section
+    ///     from <see cref="SecurityConfig"/>. Pass null to keep the default open policy.
+    /// </summary>
+    public static void Configure(EgressConfig? config)
+    {
+        _egressConfig = config;
+    }
+
     private static readonly FrozenSet<string> BlockedSchemes = FrozenSet.ToFrozenSet(
         ["file", "ftp", "gopher", "data", "dict", "sftp", "ldap", "ldaps"], StringComparer.OrdinalIgnoreCase);
 
@@ -83,6 +95,13 @@ public static class SsrfGuard
             return $"[SSRF] Blocked: host '{host}' could not be resolved.";
         }
 
+        // Egress policy check (after SSRF validation passes)
+        var egressResult = CheckEgressPolicy(uri);
+        if (egressResult is not null)
+        {
+            return egressResult;
+        }
+
         return null; // safe
     }
 
@@ -117,6 +136,13 @@ public static class SsrfGuard
             if (addresses.Length == 0)
             {
                 throw new HttpRequestException($"SSRF blocked: host '{host}' did not resolve to any address.");
+            }
+
+            // Egress policy check at connect time (before any connection attempt).
+            var egressError = CheckEgressPolicy(host, port);
+            if (egressError is not null)
+            {
+                throw new HttpRequestException(egressError);
             }
 
             // Try each resolved address until one connects (mirrors default .NET behavior)
@@ -237,6 +263,82 @@ public static class SsrfGuard
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Checks the configured egress policy for a URI. Returns null if allowed,
+    ///     an error message if blocked. Uses the URI's host and port.
+    /// </summary>
+    public static string? CheckEgressPolicy(Uri uri) => CheckEgressPolicy(uri.Host, uri.Port);
+
+    /// <summary>
+    ///     Checks the configured egress policy for a host and port.
+    ///     Returns null if allowed, an error message if blocked.
+    /// </summary>
+    public static string? CheckEgressPolicy(string host, int port)
+    {
+        var config = _egressConfig;
+
+        // No config or open mode → allow everything.
+        if (config is null || config.Mode == EgressMode.Open)
+        {
+            return null;
+        }
+
+        // Allowlist mode with no rules → deny everything.
+        if (config.Rules is not { Count: > 0 })
+        {
+            return $"[Egress] Blocked: host '{host}' denied by egress policy (allowlist mode with no rules).";
+        }
+
+        foreach (var rule in config.Rules)
+        {
+            if (MatchesEgressRule(host, port, rule))
+            {
+                return null;
+            }
+        }
+
+        return $"[Egress] Blocked: host '{host}:{port}' is not in the egress allowlist.";
+    }
+
+    /// <summary>
+    ///     Checks whether a host and port match a single egress rule.
+    ///     Supports exact host match and wildcard prefix ("*.example.com" matches
+    ///     "sub.example.com" AND bare "example.com").
+    /// </summary>
+    private static bool MatchesEgressRule(string host, int port, EgressRule rule)
+    {
+        // Port check: null or 0 means any port is allowed.
+        if (rule.Port is > 0 && rule.Port != port)
+        {
+            return false;
+        }
+
+        var ruleHost = rule.Host;
+
+        // Wildcard pattern: *.example.com
+        if (ruleHost.StartsWith("*.", StringComparison.Ordinal))
+        {
+            var domain = ruleHost.AsSpan(2); // "example.com" from "*.example.com"
+
+            // Match bare domain (e.g. "example.com" matches "*.example.com")
+            if (host.AsSpan().Equals(domain, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Match subdomains (e.g. "sub.example.com" matches "*.example.com")
+            if (host.EndsWith(ruleHost.AsSpan(1), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        // Exact match
+        return host.Equals(ruleHost, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

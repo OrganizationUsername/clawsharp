@@ -55,6 +55,8 @@ namespace Clawsharp.Config;
  JsonSerializable(typeof(GlmConfig)),
  // Security
  JsonSerializable(typeof(LandlockConfig)),
+ JsonSerializable(typeof(EgressConfig)), JsonSerializable(typeof(EgressRule)),
+ JsonSerializable(typeof(List<EgressRule>)), JsonSerializable(typeof(EgressMode)),
  // Intellenum config types
  JsonSerializable(typeof(DmPolicy)), JsonSerializable(typeof(GroupPolicy)),
  JsonSerializable(typeof(ReasoningEffort)), JsonSerializable(typeof(PromptGuardMode)),

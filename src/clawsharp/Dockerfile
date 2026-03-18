@@ -26,6 +26,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 ENV HOME=/home/app \
     DOTNET_RUNNING_IN_CONTAINER=true
 
+# ── OpenShell transparent inference routing (optional) ───────────────────────
+# When running inside an OpenShell sandbox, inference requests are routed
+# transparently via 'inference.local'. Uncomment to use:
+# ENV CLAWSHARP__providers__lmstudio__baseUrl=http://inference.local:443/v1
+
 WORKDIR /app
 COPY --from=build /app/publish .
 

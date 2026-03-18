@@ -22,7 +22,9 @@
 | **Secrets encryption** | ✅ ChaCha20-Poly1305 | ❌ | ❌ | ✅ | ✅ | ❌ |
 | **Sandbox execution** | ✅ (Bubblewrap/Firejail/Docker auto) | ✅ Docker | ❌ | ✅ multi | ✅ multi | ❌ |
 | **Audit logging** | ✅ (all tool types + auth events) | ❌ | ❌ | ✅ | ✅ | ❌ |
-| **SSRF protection** | ✅ (exceeds siblings; cloud metadata + DNS resolution) | Partial | ❌ | ✅ | ✅ | ❌ |
+| **SSRF protection** | ✅ (exceeds siblings; cloud metadata + DNS resolution + configurable egress allowlist) | Partial | ❌ | ✅ | ✅ | ❌ |
+| **Network egress policy** | ✅ (deny-by-default allowlist; wildcard host patterns; dual-layer enforcement) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **OpenShell sandbox** | ✅ (reference policy + inference.local routing) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Injection guard** | ✅ (6-layer: XML wrapping, direct+indirect pattern scan, suspicion scoring, compaction sanitization, tool sensitivity gating, egress firewall) | ✅ | ❌ | ✅ Aho-Corasick | ✅ | ❌ |
 | **Leak detection** | ✅ (entropy + 15-pattern LLM output scan) | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **Path traversal guard** | ✅ (all file/git/document tools) | ✅ | ✅ | ✅ | ✅ | ✅ |

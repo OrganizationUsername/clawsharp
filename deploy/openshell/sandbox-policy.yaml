@@ -1,0 +1,206 @@
+# clawsharp — OpenShell Sandbox Policy
+#
+# Apply with: openshell policy apply sandbox-policy.yaml
+#
+# This policy runs clawsharp inside an OpenShell sandbox with the minimum
+# privileges required for normal operation. Adjust the network egress
+# allowlist to match the channels and providers enabled in config.json.
+#
+# See: https://openshell.dev/docs/policy-reference
+
+version: "1"
+
+# ── Filesystem ────────────────────────────────────────────────────────────────
+filesystem_policy:
+
+  # Read-only mounts — application code and OS libraries.
+  # Writing to these paths is denied at the kernel level via Landlock.
+  read_only:
+    - /usr          # OS userland (libc, libssl, etc.)
+    - /lib          # Dynamic linker and core shared libraries
+    - /lib64        # 64-bit dynamic linker (present on most distros)
+    - /etc          # System configuration (resolv.conf, nsswitch.conf, CA certs)
+    - /app          # clawsharp binary and its .NET runtime assemblies
+
+  # Read-write mounts — runtime state that clawsharp must be able to write.
+  read_write:
+    - /home/app/.clawsharp   # Sessions, memory, costs, audit log, config, workspace
+    - /tmp                   # Ephemeral scratch space (Playwright temp files, EF Core pragmas)
+
+# ── Network (egress allowlist) ────────────────────────────────────────────────
+#
+# All outbound connections not listed here are denied. Ports map to the
+# protocols used by each service; add entries only for providers/channels
+# that are actually enabled in clawsharp's config.json.
+#
+# Format: { host: <hostname-or-glob>, port: <number>, protocol: tcp }
+#
+network_policies:
+
+  # -- LLM Providers -----------------------------------------------------------
+  #
+  # Most providers expose an OpenAI-compatible REST API over HTTPS (port 443).
+  # A single api.openai.com entry therefore covers OpenAI itself plus any
+  # provider that is routed through OpenAiProvider with a custom baseUrl
+  # (OpenRouter, Groq, DeepSeek, Mistral, Perplexity, xAI, Fireworks,
+  # Cerebras, LM Studio, Ollama, etc.) — add those hosts individually below
+  # if you point clawsharp at an external proxy rather than OpenShell routing.
+
+  llm_providers:
+    # OpenAI — also covers OpenRouter, Groq, DeepSeek, Mistral, Perplexity,
+    # xAI, Fireworks, and Cerebras when they are accessed via their own base URLs.
+    - host: api.openai.com
+      port: 443
+      protocol: tcp
+
+    # Add individual hosts for providers with their own domains, e.g.:
+    # - host: openrouter.ai
+    #   port: 443
+    #   protocol: tcp
+    # - host: api.groq.com
+    #   port: 443
+    #   protocol: tcp
+
+    # Anthropic (dedicated implementation — not OpenAI-compatible)
+    - host: api.anthropic.com
+      port: 443
+      protocol: tcp
+
+    # Google Gemini
+    - host: generativelanguage.googleapis.com
+      port: 443
+      protocol: tcp
+
+    # AWS Bedrock — regional endpoints follow the pattern
+    # bedrock-runtime.<region>.amazonaws.com
+    - host: "bedrock-runtime.*.amazonaws.com"
+      port: 443
+      protocol: tcp
+
+    # OpenShell transparent inference routing.
+    # When this policy is applied inside an OpenShell sandbox, inference.local
+    # is resolved to the host-side inference router automatically — no API key
+    # required. Set clawsharp's provider baseUrl to http://inference.local:443/v1
+    # to enable (see Dockerfile comment and provider config docs).
+    - host: inference.local
+      port: 443
+      protocol: tcp
+
+  # -- Messaging Channels ------------------------------------------------------
+  #
+  # Enable only the entries that correspond to channels configured in
+  # config.json. Commented-out entries are included for reference.
+
+  messaging_channels:
+    # Telegram Bot API
+    - host: api.telegram.org
+      port: 443
+      protocol: tcp
+
+    # Discord REST + WebSocket gateway
+    - host: discord.com
+      port: 443
+      protocol: tcp
+    - host: gateway.discord.gg
+      port: 443
+      protocol: tcp
+
+    # Slack — REST API and Socket Mode WebSocket
+    - host: slack.com
+      port: 443
+      protocol: tcp
+    - host: wss-primary.slack.com
+      port: 443
+      protocol: tcp
+
+    # Matrix — federation endpoint (replace matrix.org with your homeserver)
+    - host: matrix.org
+      port: 443
+      protocol: tcp
+
+    # Email — IMAP (read) and SMTP (send) for Gmail.
+    # Adjust hosts/ports for other providers (Outlook: imap-mail.outlook.com:993,
+    # smtp-mail.outlook.com:587; Fastmail: imap.fastmail.com:993, etc.)
+    - host: imap.gmail.com
+      port: 993
+      protocol: tcp
+    - host: smtp.gmail.com
+      port: 587
+      protocol: tcp
+
+    # Mattermost — replace with your self-hosted Mattermost domain
+    # - host: mattermost.example.com
+    #   port: 443
+    #   protocol: tcp
+
+    # WhatsApp (via Meta Cloud API)
+    # - host: graph.facebook.com
+    #   port: 443
+    #   protocol: tcp
+
+    # Signal (via signal-cli REST bridge)
+    # - host: your-signal-cli-host
+    #   port: 8080
+    #   protocol: tcp
+
+    # IRC
+    # - host: irc.libera.chat
+    #   port: 6697
+    #   protocol: tcp
+
+    # Nostr relays (WebSocket)
+    # - host: relay.damus.io
+    #   port: 443
+    #   protocol: tcp
+
+  # -- Tool Endpoints ----------------------------------------------------------
+  #
+  # clawsharp tools that perform outbound HTTP are guarded by SsrfGuard before
+  # any request is made. These allowlist entries add a second, kernel-level
+  # enforcement layer via OpenShell's network policy.
+
+  tool_endpoints:
+    # GitHub tool (issues, PRs, search)
+    - host: api.github.com
+      port: 443
+      protocol: tcp
+
+    # Wikipedia tool (article fetch + search)
+    - host: "*.wikipedia.org"
+      port: 443
+      protocol: tcp
+
+  # -- External Memory Backends ------------------------------------------------
+  #
+  # The sqlite backend writes to /home/app/.clawsharp (already covered above).
+  # Add entries here only if you use the postgres or mssql backend and the
+  # database server is not co-located in the same sandbox / pod.
+  #
+  # Example — PostgreSQL on a remote host:
+  # memory_backends:
+  #   - host: db.internal.example.com
+  #     port: 5432
+  #     protocol: tcp
+  #
+  # Example — Azure SQL (mssql backend):
+  # memory_backends:
+  #   - host: "*.database.windows.net"
+  #     port: 1433
+  #     protocol: tcp
+
+# ── Process ───────────────────────────────────────────────────────────────────
+#
+# Matches the 'app' user pre-created in the .NET base image (UID/GID 1654).
+# clawsharp's Dockerfile already switches to this user before ENTRYPOINT.
+process:
+  run_as_user: app
+  run_as_group: app
+
+# ── Landlock ──────────────────────────────────────────────────────────────────
+#
+# best_effort: apply Landlock filesystem restrictions on kernels that support
+# it (5.13+) and silently skip on older kernels. Switch to 'strict' if you
+# need a hard guarantee that Landlock is enforced (the sandbox will refuse to
+# start if the kernel does not support it).
+landlock_policy:
+  compatibility: best_effort

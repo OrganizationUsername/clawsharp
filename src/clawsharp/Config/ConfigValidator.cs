@@ -1,6 +1,8 @@
 using Clawsharp.Core.Utilities;
 using Clawsharp.Config.Agent;
 using Clawsharp.Config.Memory;
+using Clawsharp.Config.Security;
+using Clawsharp.Security;
 
 namespace Clawsharp.Config;
 
@@ -240,6 +242,42 @@ public static class ConfigValidator
 
                     break;
                 // cli, web: no required fields beyond enabled
+            }
+        }
+
+        // ── Egress policy ────────────────────────────────────────────────────
+        if (config.Security?.Egress is { } egress)
+        {
+            if (egress.Mode == EgressMode.Allowlist && egress.Rules is not { Count: > 0 })
+            {
+                errors.Add("security.egress: mode is 'allowlist' but no rules are defined — all outbound traffic will be blocked.");
+            }
+
+            if (egress.Rules is { Count: > 0 })
+            {
+                for (var i = 0; i < egress.Rules.Count; i++)
+                {
+                    var rule = egress.Rules[i];
+
+                    if (string.IsNullOrWhiteSpace(rule.Host))
+                    {
+                        errors.Add($"security.egress.rules[{i}]: 'host' must not be empty.");
+                    }
+                    else if (rule.Host != rule.Host.Trim())
+                    {
+                        errors.Add($"security.egress.rules[{i}]: 'host' has leading or trailing whitespace.");
+                    }
+                    else if (rule.Host == "*")
+                    {
+                        errors.Add($"security.egress.rules[{i}]: 'host' value '*' does not match any host. " +
+                                   "Use mode 'open' to allow all traffic, or '*.example.com' for wildcard subdomain matching.");
+                    }
+
+                    if (rule.Port is < 0 or > 65535)
+                    {
+                        errors.Add($"security.egress.rules[{i}]: 'port' must be between 1 and 65535 (got {rule.Port}). Omit or set to null for any port.");
+                    }
+                }
             }
         }
 

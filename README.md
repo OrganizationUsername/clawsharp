@@ -363,7 +363,7 @@ All SQL backends support hybrid search: full-text pre-filter (capped at 500 cand
 | Component | Purpose |
 |-----------|---------|
 | **PathGuard** | Restricts file operations to the workspace directory |
-| **SsrfGuard** | Blocks requests to private IPs, link-local, cloud metadata endpoints, and unapproved domains |
+| **SsrfGuard** | Blocks requests to private IPs, link-local, cloud metadata endpoints, and unapproved domains. Configurable egress policy for deny-by-default allowlisting |
 | **ShellGuard** | Quote-aware pattern matching blocks dangerous shell commands and network egress on non-CLI channels |
 | **PromptGuard** | XML-wraps untrusted content and scans for direct and indirect injection directives |
 | **LeakDetector** | Regex-scans all outbound messages for secrets and PII |
@@ -438,8 +438,41 @@ All prompt injection defenses are enabled by default. You can tune them in `agen
 | `security.promptGuard.customPatterns` | `null` | Additional regex patterns to scan for (appended to built-in patterns) |
 | `security.maxNonCliToolSensitivity` | `"high"` | Maximum tool sensitivity on non-CLI channels. `"low"`, `"medium"`, `"high"`, or `"critical"`/`"unrestricted"`. Default blocks only Critical tools on external channels |
 | `security.allowedExternalDomains` | `null` | Domain allowlist for network tools. `null` = allow all (default), `[]` = block all, `["example.com"]` = allow only listed domains and their subdomains |
+| `security.egress.mode` | `"open"` | Network egress mode. `"open"` = only SSRF blocklists apply (default). `"allowlist"` = deny-by-default, only explicitly listed hosts permitted |
+| `security.egress.rules` | `null` | Egress allowlist rules (when mode is `"allowlist"`). Each rule has a `host` pattern and optional `port` |
 
 Note that `maxNonCliToolSensitivity` and `allowedExternalDomains` are independent of the `promptInjectionGuard` toggle — they enforce access control regardless of whether injection scanning is enabled.
+
+### Network egress policy
+
+For high-security deployments, clawsharp supports a deny-by-default egress policy inspired by [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell). When enabled, only explicitly listed hosts are permitted for outbound HTTP connections.
+
+```json
+{
+  "security": {
+    "egress": {
+      "mode": "allowlist",
+      "rules": [
+        { "host": "api.anthropic.com", "port": 443 },
+        { "host": "api.openai.com", "port": 443 },
+        { "host": "*.telegram.org", "port": 443 },
+        { "host": "api.github.com", "port": 443 }
+      ]
+    }
+  }
+}
+```
+
+| Setting | Description |
+|---------|-------------|
+| `mode: "open"` | Default — only SSRF blocklists apply, all public destinations allowed |
+| `mode: "allowlist"` | Deny-by-default — only hosts matching a rule are permitted |
+| `rules[].host` | Exact match or wildcard prefix (`*.example.com` matches subdomains and bare domain) |
+| `rules[].port` | Optional port restriction. Omit or set to `null` to allow any port |
+
+The egress policy is enforced at two layers: pre-flight URI validation (`SsrfGuard.CheckAsync`) and TCP connect time (`CreateConnectCallback`). It stacks with the existing domain allowlist — the global egress policy must allow the host, AND tool-specific domain restrictions still apply.
+
+> **Note:** The egress policy applies to tool HTTP requests, channel connections, and transcription calls. LLM provider traffic uses admin-configured base URLs and is not subject to egress restrictions — providers are trusted endpoints configured by the operator, not user-controlled inputs.
 
 **Examples:**
 
@@ -659,7 +692,9 @@ clawsharp is the .NET implementation in a family of AI assistant gateways, each 
 | **Secrets encryption** | ✅ ChaCha20-Poly1305 | ❌ | ❌ | ✅ | ✅ | ❌ |
 | **Sandbox execution** | ✅ (Bubblewrap/Firejail/Docker auto) | ✅ Docker | ❌ | ✅ multi | ✅ multi | ❌ |
 | **Audit logging** | ✅ (all tool types + auth events) | ❌ | ❌ | ✅ | ✅ | ❌ |
-| **SSRF protection** | ✅ (exceeds siblings; cloud metadata + DNS resolution) | Partial | ❌ | ✅ | ✅ | ❌ |
+| **SSRF protection** | ✅ (exceeds siblings; cloud metadata + DNS resolution + configurable egress allowlist) | Partial | ❌ | ✅ | ✅ | ❌ |
+| **Network egress policy** | ✅ (deny-by-default allowlist; wildcard host patterns; dual-layer enforcement) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **OpenShell sandbox** | ✅ (reference policy + inference.local routing) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Injection guard** | ✅ (6-layer: XML wrapping, direct+indirect pattern scan, suspicion scoring, compaction sanitization, tool sensitivity gating, egress firewall) | ✅ | ❌ | ✅ Aho-Corasick | ✅ | ❌ |
 | **Leak detection** | ✅ (entropy + 15-pattern LLM output scan) | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **Path traversal guard** | ✅ (all file/git/document tools) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -713,11 +748,34 @@ These features are unique to clawsharp or significantly more developed than in s
 - **Landlock sandboxing** — Optional Linux Landlock filesystem restriction for defense in depth
 - **Canary guard** — Per-turn cryptographic tokens detect prompt exfiltration attacks in real time
 - **Prompt injection defense** — Six-layer defense against indirect prompt injection: XML content wrapping, two-layer pattern scanning, cumulative suspicion scoring, compaction sanitization, tool sensitivity classification, and network egress firewall
+- **Network egress policy** — Configurable deny-by-default egress allowlist with wildcard host patterns and optional port restrictions, enforced at both pre-flight and TCP connect time
+- **OpenShell sandbox support** — Reference sandbox policy for running inside NVIDIA OpenShell with filesystem isolation, network policy, and transparent inference routing via `inference.local`
 - **Session compaction** — LLM-powered summarization of old messages when history grows, preserving context while managing token budgets
 
 ### Parity status
 
 All 44 features identified from sibling analysis are implemented. 2 items (JSONL session store, bootstrap provider system) were intentionally skipped — existing designs cover those use cases.
+
+---
+
+## OpenShell Deployment
+
+clawsharp can run inside an [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) sandbox for enterprise-grade isolation. OpenShell adds kernel-level security (Landlock, seccomp, network namespaces) and declarative network policies on top of clawsharp's application-level guards.
+
+```bash
+# Create a sandbox running clawsharp
+openshell sandbox create --from ghcr.io/clawsharp/clawsharp:latest -- clawsharp
+```
+
+A reference sandbox policy is provided at `deploy/openshell/sandbox-policy.yaml` with pre-configured rules for:
+- LLM provider endpoints (OpenAI, Anthropic, Gemini, Bedrock, `inference.local`)
+- Messaging channels (Telegram, Discord, Slack, Matrix, Email)
+- Tool endpoints (GitHub, Wikipedia)
+- Filesystem isolation (read-only system, read-write `~/.clawsharp/`)
+
+When running inside OpenShell, enable transparent inference routing by setting `CLAWSHARP__providers__lmstudio__baseUrl=http://inference.local:443/v1` — the sandbox proxy rewrites auth headers and routes to the configured backend without exposing API keys to the agent.
+
+Combine with the egress policy (`security.egress.mode: "allowlist"`) for defense-in-depth: OpenShell enforces at the kernel/network layer, clawsharp enforces at the application layer.
 
 ---
 
@@ -747,7 +805,7 @@ The codebase uses vertical slice architecture with CQRS handlers in `Features/` 
 ```
 src/clawsharp/          Main .NET 10 project
 src/clawsharp-web/      Svelte web UI (embedded via MSBuild)
-tests/clawsharp.Tests/  NUnit tests (1,855+ non-integration)
+tests/clawsharp.Tests/  NUnit tests (1,900+ non-integration)
 benchmarks/             BenchmarkDotNet projects
 clawsharp.slnx          Solution file
 compose.yaml            Docker Compose

@@ -17,7 +17,7 @@ on:
 jobs:
   db-integration:
     name: Database Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v6
@@ -25,7 +25,7 @@ jobs:
       - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.102'
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v6
@@ -35,17 +35,20 @@ jobs:
       - name: Install Svelte web UI dependencies
         run: cd src/clawsharp-web && npm ci
 
+      # Build via .slnx to work around .NET 10 MSBuild glob expansion bug
+      - name: Restore
+        run: dotnet restore
+
       - name: Build
-        run: dotnet build tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
+        run: dotnet build -c Release --no-restore
 
       - name: Run DB integration tests
         run: >
-          dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
+          dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release --no-build
           --filter "Category=Integration&FullyQualifiedName!~LmStudio&FullyQualifiedName!~E2E"
           --logger "trx;LogFileName=db-integration.trx"
           --results-directory ./test-results
         env:
-          # Testcontainers uses Docker socket
           DOCKER_HOST: unix:///var/run/docker.sock
 
       - name: Upload test results
@@ -57,7 +60,7 @@ jobs:
 
   ollama-e2e:
     name: Ollama E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ inputs.run_ollama == true }}
 
     services:
@@ -72,7 +75,7 @@ jobs:
       - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.102'
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v6
@@ -82,8 +85,12 @@ jobs:
       - name: Install Svelte web UI dependencies
         run: cd src/clawsharp-web && npm ci
 
+      # Build via .slnx to work around .NET 10 MSBuild glob expansion bug
+      - name: Restore
+        run: dotnet restore
+
       - name: Build
-        run: dotnet build tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
+        run: dotnet build -c Release --no-restore
 
       - name: Pull Ollama model
         run: |
@@ -108,13 +115,11 @@ jobs:
 
       - name: Run E2E tests against Ollama
         run: >
-          dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
+          dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release --no-build
           --filter "FullyQualifiedName~LmStudioRoundTripTests"
           --logger "trx;LogFileName=ollama-e2e.trx"
           --results-directory ./test-results
         env:
-          # Ollama serves OpenAI-compatible API on port 11434
-          # The LmStudioRoundTripTests hit http://127.0.0.1:1234 — we need to adapt
           OLLAMA_HOST: http://localhost:11434
 
       - name: Upload test results

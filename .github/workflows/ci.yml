@@ -9,12 +9,15 @@ on:
 jobs:
   build-and-test:
     name: Build & Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
 
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up .NET 10 SDK
+      - name: Set up .NET 10
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
@@ -27,11 +30,15 @@ jobs:
       - name: Install Svelte web UI dependencies
         run: cd src/clawsharp-web && npm ci
 
-      - name: Build
-        run: dotnet build src/clawsharp/clawsharp.csproj -c Release
+      # The main csproj has a .NET 10 SDK glob expansion bug when built as
+      # the root project on GitHub Actions runners (**/*.cs passed literally
+      # to CSC). Building via the test project works — MSBuild correctly
+      # compiles the main project as a transitive ProjectReference dependency.
+      - name: Build (via test project)
+        run: dotnet build tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
 
       - name: Run unit tests
-        run: dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release --filter "Category!=Integration" --logger "trx;LogFileName=unit-tests.trx" --results-directory ./test-results
+        run: dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release --no-build --filter "Category!=Integration" --logger "trx;LogFileName=unit-tests.trx" --results-directory ./test-results
 
       - name: Upload test results
         if: always()

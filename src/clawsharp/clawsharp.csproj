@@ -8,7 +8,9 @@
     <Nullable>enable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <RuntimeIdentifiers>linux-x64;win-x64</RuntimeIdentifiers>
+    <!-- RuntimeIdentifiers removed from csproj — causes MSBuild glob expansion bug
+         on GitHub Actions (.NET 10 SDK). Pass -r at publish time instead:
+         dotnet publish -r linux-x64 / dotnet publish -r win-x64 -->
     <EnableConfigurationBindingGenerator>false</EnableConfigurationBindingGenerator>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UserSecretsId>bccbb6a5-c295-49ad-bf69-ff2dba2f6450</UserSecretsId>
@@ -17,6 +19,22 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+
+  <!-- GitHub Actions runners have a .NET 10 MSBuild bug where glob patterns
+       (**/*.cs, **/*.resx) are not expanded and passed literally to the compiler.
+       Disable default items and include source files explicitly via a Target that
+       enumerates the directory at build time (works around the glob expansion bug). -->
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+  </PropertyGroup>
+
+  <Target Name="_EnumerateSourceFiles" BeforeTargets="BeforeBuild" Condition="'$(CI)' == 'true'">
+    <ItemGroup>
+      <_AllCsFiles Include="$([System.IO.Directory]::GetFiles('$(MSBuildProjectDirectory)', '*.cs', System.IO.SearchOption.AllDirectories))" />
+      <Compile Include="@(_AllCsFiles)" Exclude="$(MSBuildProjectDirectory)/obj/**;$(MSBuildProjectDirectory)/bin/**" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <EmbeddedResource Remove="**/*.resx" />

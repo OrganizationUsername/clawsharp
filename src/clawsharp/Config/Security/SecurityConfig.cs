@@ -20,6 +20,9 @@ public sealed class SecurityConfig
     /// <summary>Canary token exfiltration guard settings.</summary>
     public CanaryGuardConfig? CanaryGuard { get; init; }
 
+    /// <summary>Network egress policy (deny-by-default allowlist or open).</summary>
+    public EgressConfig? Egress { get; init; }
+
     /// <summary>
     ///     Regex patterns for commands that require explicit approval even when tools are auto-approved.
     ///     Matched against the raw command string. Built-in patterns are always applied;

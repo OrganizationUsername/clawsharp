@@ -89,6 +89,7 @@ public static partial class GatewayHost
         ClawsharpConfiguration.DecryptSecrets(appConfig);
 
         PromptGuard.Configure(appConfig.Security?.PromptGuard);
+        SsrfGuard.Configure(appConfig.Security?.Egress);
 
         if (!ValidateConfiguration(appConfig))
         {
