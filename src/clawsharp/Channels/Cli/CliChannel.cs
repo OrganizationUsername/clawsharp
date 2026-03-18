@@ -110,9 +110,18 @@ public sealed partial class CliChannel(
     public async Task StreamAsync(OutboundMessage message, IAsyncEnumerable<string> tokens, CancellationToken ct = default)
     {
         AnsiConsole.Markup("[blue]Assistant:[/] ");
+        var first = true;
         await foreach (var token in tokens.WithCancellation(ct))
         {
-            AnsiConsole.Markup(Markup.Escape(token.TrimStart()));
+            if (first)
+            {
+                AnsiConsole.Markup(Markup.Escape(token.TrimStart()));
+                first = false;
+            }
+            else
+            {
+                AnsiConsole.Markup(Markup.Escape(token));
+            }
         }
 
         AnsiConsole.Markup("\n\n[green]> [/]");

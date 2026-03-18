@@ -257,7 +257,7 @@ clawsharp can verify that your LLM provider is reachable on startup and continuo
     "defaults": {
       "healthCheck": {
         "enabled": true,
-        "intervalSeconds": 300,
+        "interval": "00:05:00",
         "checkOnStartup": true
       }
     }
@@ -269,7 +269,7 @@ clawsharp can verify that your LLM provider is reachable on startup and continuo
 |---------|---------|-------------|
 | `enabled` | `true` | Enable or disable health checks |
 | `checkOnStartup` | `true` | Verify provider connectivity immediately on launch |
-| `intervalSeconds` | `300` | How often (in seconds) to re-check provider health |
+| `interval` | `"00:05:00"` | How often to re-check provider health (TimeSpan or integer seconds) |
 
 **How it works:**
 
@@ -679,7 +679,7 @@ clawsharp is the .NET implementation in a family of AI assistant gateways, each 
 | **Shell completion** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **Migration from siblings** | ✅ (openclaw + picoclaw + zeroclaw) | N/A | ✅ | ✅ | ✅ | ❌ |
 | **Web UI** | ✅ Svelte 5 | ✅ WebChat + Canvas | ❌ | ✅ WebChat | ✅ Relay UI | ❌ |
-| **AOT compilation** | ✅ | ❌ | ✅ | ✅ | ✅ | N/A |
+| **AOT compilation** | ⚠️ Blocked (EF Core + Intellenum) | ❌ | ✅ | ✅ | ✅ | N/A |
 | **Source-gen JSON** | ✅ | ❌ | N/A | ✅ | ✅ | ❌ |
 | **Atomic session writes** | ✅ | ✅ | ❌ | N/A | ✅ | ❌ |
 | **Heartbeat / health probes** | ✅ (startup + periodic; per-provider + fallback chain) | ❌ | ✅ | ❌ | ❌ | ✅ |
@@ -747,7 +747,7 @@ The codebase uses vertical slice architecture with CQRS handlers in `Features/` 
 ```
 src/clawsharp/          Main .NET 10 project
 src/clawsharp-web/      Svelte web UI (embedded via MSBuild)
-tests/clawsharp.Tests/  NUnit tests (1,080+ non-integration)
+tests/clawsharp.Tests/  NUnit tests (1,855+ non-integration)
 benchmarks/             BenchmarkDotNet projects
 clawsharp.slnx          Solution file
 compose.yaml            Docker Compose

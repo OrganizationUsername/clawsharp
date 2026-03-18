@@ -42,7 +42,7 @@
 | **Shell completion** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **Migration from siblings** | ✅ (openclaw + picoclaw + zeroclaw) | N/A | ✅ | ✅ | ✅ | ❌ |
 | **Web UI** | ✅ Svelte 5 | ✅ WebChat + Canvas | ❌ | ✅ WebChat | ✅ Relay UI | ❌ |
-| **AOT compilation** | ✅ | ❌ | ✅ | ✅ | ✅ | N/A |
+| **AOT compilation** | ⚠️ Blocked (EF Core + Intellenum) | ❌ | ✅ | ✅ | ✅ | N/A |
 | **Source-gen JSON** | ✅ | ❌ | N/A | ✅ | ✅ | ❌ |
 | **Atomic session writes** | ✅ | ✅ | ❌ | N/A | ✅ | ❌ |
 | **Heartbeat / health probes** | ✅ (startup + periodic; per-provider + fallback chain) | ❌ | ✅ | ❌ | ❌ | ✅ |

@@ -159,6 +159,33 @@ public sealed class LmStudioRoundTripTests
         }
     }
 
+    [Test]
+    public async Task StreamAsync_ReassembledTextContainsSpaces()
+    {
+        var request = MakeChatRequest("Write a short sentence about the weather.");
+
+        var textParts = new List<string>();
+        await foreach (var chunk in _provider.StreamAsync(request))
+        {
+            if (chunk is TextDeltaChunk delta)
+            {
+                textParts.Add(delta.Delta);
+            }
+        }
+
+        textParts.ShouldNotBeEmpty();
+
+        // Reassemble the full text from streaming tokens
+        var fullText = string.Join("", textParts).Trim();
+        fullText.ShouldNotBeNullOrWhiteSpace();
+
+        // The reassembled text should contain spaces between words.
+        // A multi-word response about weather should have at least a few spaces.
+        var spaceCount = fullText.Count(c => c == ' ');
+        spaceCount.ShouldBeGreaterThan(2,
+            $"Expected spaces between words in streamed response but got: \"{fullText}\"");
+    }
+
     // ── Helpers ──
 
     private ChatRequest MakeChatRequest(string userMessage) => new(
