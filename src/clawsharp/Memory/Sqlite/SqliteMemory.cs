@@ -215,6 +215,12 @@ public sealed partial class SqliteMemory(
                 candidates.Add(fact);
             }
 
+            var ids = candidates.Select(f => f.Id).ToList();
+            if (ids.Count > 0)
+            {
+                await UpdateAccessCountsAsync(ids, ct);
+            }
+
             return candidates;
         }
 
@@ -605,6 +611,22 @@ public sealed partial class SqliteMemory(
         {
             // Column already exists — ignore
         }
+
+        // WORM enforcement: recreate triggers if missing (SQLite AlterColumn table rebuild drops them)
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER IF NOT EXISTS trg_prevent_history_update
+                BEFORE UPDATE ON History
+                BEGIN
+                    SELECT RAISE(ABORT, 'HistoryEntry is append-only (WORM). UPDATE operations are not allowed.');
+                END;
+            """);
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER IF NOT EXISTS trg_prevent_history_delete
+                BEFORE DELETE ON History
+                BEGIN
+                    SELECT RAISE(ABORT, 'HistoryEntry is append-only (WORM). DELETE operations are not allowed.');
+                END;
+            """);
 
         // sqlite-vec: create vec0 virtual table for ANN search if extension is loaded
         if (SqliteVecConnectionInterceptor.VecExtensionLoaded)

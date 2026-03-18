@@ -23,7 +23,7 @@ public sealed class PostgresAnalyticsIntegrationTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _container = new PostgreSqlBuilder("postgres:16-alpine").Build();
+        _container = new PostgreSqlBuilder("postgres:18").Build();
         await _container.StartAsync();
         _connectionString = _container.GetConnectionString();
 

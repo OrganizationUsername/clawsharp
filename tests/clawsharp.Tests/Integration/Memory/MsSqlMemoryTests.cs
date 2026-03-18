@@ -20,23 +20,26 @@ public sealed class MsSqlMemoryTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+        _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2025-latest").Build();
         await _container.StartAsync();
         _connectionString = _container.GetConnectionString();
 
-        // Init schema
-        var options = new DbContextOptionsBuilder<MsSqlMemoryContext>()
-                      .UseSqlServer(_connectionString)
-                      .Options;
-        var factory = new SimpleDbContextFactory<MsSqlMemoryContext>(options);
-        _ = new MsSqlMemory(factory, NullLogger<MsSqlMemory>.Instance);
+        // Init schema — must call a method to trigger lazy migration before Respawn scans tables
+        var memory = CreateMemory();
+        await memory.AppendFactAsync("schema init");
+        await memory.ClearAsync();
 
         // Initialize Respawn
         await using var conn = new SqlConnection(_connectionString);
         await conn.OpenAsync();
         _respawner = await Respawner.CreateAsync(conn, new RespawnerOptions
         {
-            DbAdapter = DbAdapter.SqlServer
+            DbAdapter = DbAdapter.SqlServer,
+            TablesToIgnore =
+            [
+                new Respawn.Graph.Table("__EFMigrationsHistory"),
+                new Respawn.Graph.Table("History"),
+            ],
         });
     }
 

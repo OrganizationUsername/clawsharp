@@ -17,7 +17,7 @@ public sealed class PostgresCronStoreTests : CronStoreContractTests
     [OneTimeSetUp]
     public async Task ContainerSetUp()
     {
-        _container = new PostgreSqlBuilder("postgres:16-alpine").Build();
+        _container = new PostgreSqlBuilder("postgres:18").Build();
         await _container.StartAsync();
         _connectionString = _container.GetConnectionString();
 

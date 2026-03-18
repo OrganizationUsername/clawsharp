@@ -1,0 +1,125 @@
+name: Integration Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_ollama:
+        description: 'Run Ollama E2E tests (pulls ~400MB model)'
+        required: false
+        type: boolean
+        default: false
+      ollama_model:
+        description: 'Ollama model to use for E2E tests'
+        required: false
+        type: string
+        default: 'qwen2.5:0.5b'
+
+jobs:
+  db-integration:
+    name: Database Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install Svelte web UI dependencies
+        run: cd src/clawsharp-web && npm ci
+
+      - name: Build
+        run: dotnet build tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
+
+      - name: Run DB integration tests
+        run: >
+          dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
+          --filter "Category=Integration&FullyQualifiedName!~LmStudio&FullyQualifiedName!~E2E"
+          --logger "trx;LogFileName=db-integration.trx"
+          --results-directory ./test-results
+        env:
+          # Testcontainers uses Docker socket
+          DOCKER_HOST: unix:///var/run/docker.sock
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-integration-results
+          path: ./test-results/*.trx
+
+  ollama-e2e:
+    name: Ollama E2E Tests
+    runs-on: ubuntu-latest
+    if: ${{ inputs.run_ollama == true }}
+
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install Svelte web UI dependencies
+        run: cd src/clawsharp-web && npm ci
+
+      - name: Build
+        run: dotnet build tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
+
+      - name: Pull Ollama model
+        run: |
+          # Wait for Ollama to be ready
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
+              echo "Ollama is ready"
+              break
+            fi
+            echo "Waiting for Ollama... ($i/30)"
+            sleep 2
+          done
+          echo "Pulling model: ${{ inputs.ollama_model }}"
+          curl -sf http://localhost:11434/api/pull -d '{"name":"${{ inputs.ollama_model }}"}' | tail -1
+          echo "Model pulled successfully"
+
+      - name: Verify model is loaded
+        run: |
+          MODELS=$(curl -sf http://localhost:11434/api/tags)
+          echo "Available models: $MODELS"
+          echo "$MODELS" | grep -q "${{ inputs.ollama_model }}" || { echo "Model not found!"; exit 1; }
+
+      - name: Run E2E tests against Ollama
+        run: >
+          dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release
+          --filter "FullyQualifiedName~LmStudioRoundTripTests"
+          --logger "trx;LogFileName=ollama-e2e.trx"
+          --results-directory ./test-results
+        env:
+          # Ollama serves OpenAI-compatible API on port 11434
+          # The LmStudioRoundTripTests hit http://127.0.0.1:1234 — we need to adapt
+          OLLAMA_HOST: http://localhost:11434
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ollama-e2e-results
+          path: ./test-results/*.trx

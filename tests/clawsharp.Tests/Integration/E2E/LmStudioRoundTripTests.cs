@@ -13,6 +13,12 @@ namespace Clawsharp.Tests.Integration.E2E;
 [Category("Integration")]
 public sealed class LmStudioRoundTripTests
 {
+    // LM Studio default; override with OLLAMA_HOST for CI (Ollama serves OpenAI-compat at /v1)
+    private static readonly string BaseUrl =
+        Environment.GetEnvironmentVariable("OLLAMA_HOST") is { Length: > 0 } host
+            ? host.TrimEnd('/') + "/v1"
+            : "http://127.0.0.1:1234/v1";
+
     private static bool _lmStudioAvailable;
     private static string _modelName = "unknown";
     private HttpClient _http = null!;
@@ -24,7 +30,7 @@ public sealed class LmStudioRoundTripTests
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         try
         {
-            var response = await _http.GetAsync("http://127.0.0.1:1234/v1/models");
+            var response = await _http.GetAsync($"{BaseUrl}/models");
             _lmStudioAvailable = response.IsSuccessStatusCode;
 
             if (_lmStudioAvailable)
@@ -51,7 +57,7 @@ public sealed class LmStudioRoundTripTests
         if (_lmStudioAvailable)
         {
             var httpFactory = CreateHttpClientFactory();
-            _provider = new OpenAiProvider(httpFactory, "http://127.0.0.1:1234/v1", "", "lmstudio");
+            _provider = new OpenAiProvider(httpFactory, BaseUrl, "", "lmstudio");
         }
     }
 
@@ -63,7 +69,7 @@ public sealed class LmStudioRoundTripTests
     {
         if (!_lmStudioAvailable)
         {
-            Assert.Ignore("LM Studio not available at http://127.0.0.1:1234");
+            Assert.Ignore($"LLM server not available at {BaseUrl} (set OLLAMA_HOST to override)");
         }
     }
 

@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using Pgvector.EntityFrameworkCore;
 using Respawn;
 using Testcontainers.MsSql;
 using Testcontainers.PostgreSql;
@@ -67,7 +68,7 @@ public static class WormTriggerTests
             await using var context = _factory.CreateDbContext();
             var ex = await Should.ThrowAsync<SqliteException>(async () =>
                 await context.Database.ExecuteSqlRawAsync(
-                    "UPDATE History SET Summary = 'tampered' WHERE Id = 1"));
+                    "UPDATE History SET Summary = 'tampered'"));
 
             ex.Message.ShouldContain("WORM");
         }
@@ -78,11 +79,12 @@ public static class WormTriggerTests
             // Arrange
             await _memory.AppendHistoryAsync("conversation snapshot beta");
 
-            // Act & Assert: raw SQL DELETE bypasses EF WORM validation; the DB trigger must block it
             await using var context = _factory.CreateDbContext();
+
+            // Act & Assert: raw SQL DELETE bypasses EF WORM validation; the DB trigger must block it
             var ex = await Should.ThrowAsync<SqliteException>(async () =>
                 await context.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM History WHERE Id = 1"));
+                    "DELETE FROM History"));
 
             ex.Message.ShouldContain("WORM");
         }
@@ -118,13 +120,13 @@ public static class WormTriggerTests
         [OneTimeSetUp]
         public async Task OneTimeSetUp()
         {
-            _container = new PostgreSqlBuilder("postgres:16-alpine").Build();
+            _container = new PostgreSqlBuilder("pgvector/pgvector:pg18-trixie").Build();
             await _container.StartAsync();
             _connectionString = _container.GetConnectionString();
 
             // Create schema by instantiating memory once (triggers MigrateAsync)
             var options = new DbContextOptionsBuilder<PostgresMemoryContext>()
-                          .UseNpgsql(_connectionString)
+                          .UseNpgsql(_connectionString, o => o.UseVector())
                           .Options;
             var factory = new SimpleDbContextFactory<PostgresMemoryContext>(options);
             var memory = new PostgresMemory(factory, NullLogger<PostgresMemory>.Instance);
@@ -137,7 +139,11 @@ public static class WormTriggerTests
             {
                 DbAdapter = DbAdapter.Postgres,
                 SchemasToInclude = ["public"],
-                TablesToIgnore = [new Respawn.Graph.Table("__EFMigrationsHistory")]
+                TablesToIgnore =
+                [
+                    new Respawn.Graph.Table("__EFMigrationsHistory"),
+                    new Respawn.Graph.Table("History"),
+                ],
             });
         }
 
@@ -158,7 +164,7 @@ public static class WormTriggerTests
         private PostgresMemory CreateMemory()
         {
             var options = new DbContextOptionsBuilder<PostgresMemoryContext>()
-                          .UseNpgsql(_connectionString)
+                          .UseNpgsql(_connectionString, o => o.UseVector())
                           .Options;
             var factory = new SimpleDbContextFactory<PostgresMemoryContext>(options);
             return new PostgresMemory(factory, NullLogger<PostgresMemory>.Instance);
@@ -171,11 +177,18 @@ public static class WormTriggerTests
             var memory = CreateMemory();
             await memory.AppendHistoryAsync("conversation snapshot alpha");
 
+            // Get actual ID
+            await using var idConn = new NpgsqlConnection(_connectionString);
+            await idConn.OpenAsync();
+            await using var idCmd = idConn.CreateCommand();
+            idCmd.CommandText = "SELECT \"Id\" FROM \"History\" ORDER BY \"Id\" DESC LIMIT 1";
+            var id = (long)(await idCmd.ExecuteScalarAsync())!;
+
             // Act & Assert: raw SQL UPDATE — the Postgres trigger function must raise an exception
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE \"History\" SET \"Summary\" = 'tampered' WHERE \"Id\" = 1";
+            cmd.CommandText = $"UPDATE \"History\" SET \"Summary\" = 'tampered' WHERE \"Id\" = {id}";
 
             var ex = await Should.ThrowAsync<PostgresException>(async () =>
                 await cmd.ExecuteNonQueryAsync());
@@ -190,11 +203,18 @@ public static class WormTriggerTests
             var memory = CreateMemory();
             await memory.AppendHistoryAsync("conversation snapshot beta");
 
+            // Get actual ID
+            await using var idConn = new NpgsqlConnection(_connectionString);
+            await idConn.OpenAsync();
+            await using var idCmd = idConn.CreateCommand();
+            idCmd.CommandText = "SELECT \"Id\" FROM \"History\" ORDER BY \"Id\" DESC LIMIT 1";
+            var id = (long)(await idCmd.ExecuteScalarAsync())!;
+
             // Act & Assert: raw SQL DELETE — the Postgres trigger function must raise an exception
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM \"History\" WHERE \"Id\" = 1";
+            cmd.CommandText = $"DELETE FROM \"History\" WHERE \"Id\" = {id}";
 
             var ex = await Should.ThrowAsync<PostgresException>(async () =>
                 await cmd.ExecuteNonQueryAsync());
@@ -233,7 +253,7 @@ public static class WormTriggerTests
         [OneTimeSetUp]
         public async Task OneTimeSetUp()
         {
-            _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+            _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2025-latest").Build();
             await _container.StartAsync();
             _connectionString = _container.GetConnectionString();
 
@@ -251,7 +271,11 @@ public static class WormTriggerTests
             _respawner = await Respawner.CreateAsync(conn, new RespawnerOptions
             {
                 DbAdapter = DbAdapter.SqlServer,
-                TablesToIgnore = [new Respawn.Graph.Table("__EFMigrationsHistory")]
+                TablesToIgnore =
+                [
+                    new Respawn.Graph.Table("__EFMigrationsHistory"),
+                    new Respawn.Graph.Table("History"),
+                ],
             });
         }
 
@@ -285,11 +309,18 @@ public static class WormTriggerTests
             var memory = CreateMemory();
             await memory.AppendHistoryAsync("conversation snapshot alpha");
 
+            // Get actual ID
+            await using var idConn = new SqlConnection(_connectionString);
+            await idConn.OpenAsync();
+            await using var idCmd = idConn.CreateCommand();
+            idCmd.CommandText = "SELECT TOP 1 Id FROM History ORDER BY Id DESC";
+            var id = (long)(await idCmd.ExecuteScalarAsync())!;
+
             // Act & Assert: raw SQL UPDATE — the INSTEAD OF trigger must RAISERROR
             await using var conn = new SqlConnection(_connectionString);
             await conn.OpenAsync();
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE History SET Summary = 'tampered' WHERE Id = 1";
+            cmd.CommandText = $"UPDATE History SET Summary = 'tampered' WHERE Id = {id}";
 
             var ex = await Should.ThrowAsync<SqlException>(async () =>
                 await cmd.ExecuteNonQueryAsync());
@@ -304,11 +335,18 @@ public static class WormTriggerTests
             var memory = CreateMemory();
             await memory.AppendHistoryAsync("conversation snapshot beta");
 
+            // Get actual ID
+            await using var idConn = new SqlConnection(_connectionString);
+            await idConn.OpenAsync();
+            await using var idCmd = idConn.CreateCommand();
+            idCmd.CommandText = "SELECT TOP 1 Id FROM History ORDER BY Id DESC";
+            var id = (long)(await idCmd.ExecuteScalarAsync())!;
+
             // Act & Assert: raw SQL DELETE — the INSTEAD OF trigger must RAISERROR
             await using var conn = new SqlConnection(_connectionString);
             await conn.OpenAsync();
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM History WHERE Id = 1";
+            cmd.CommandText = $"DELETE FROM History WHERE Id = {id}";
 
             var ex = await Should.ThrowAsync<SqlException>(async () =>
                 await cmd.ExecuteNonQueryAsync());

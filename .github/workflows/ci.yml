@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install Svelte web UI dependencies
+        run: cd src/clawsharp-web && npm ci
+
+      - name: Build
+        run: dotnet build src/clawsharp/clawsharp.csproj -c Release
+
+      - name: Run unit tests
+        run: dotnet test tests/clawsharp.Tests/clawsharp.Tests.csproj -c Release --filter "Category!=Integration" --logger "trx;LogFileName=unit-tests.trx" --results-directory ./test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: ./test-results/*.trx

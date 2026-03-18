@@ -106,7 +106,7 @@ services:
   # ── PostgreSQL (pgvector) ──────────────────────────────────────────────────
   postgres:
     container_name: clawsharp-postgres-db
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg18-trixie
     restart: unless-stopped
     environment:
       POSTGRES_DB: clawsharp

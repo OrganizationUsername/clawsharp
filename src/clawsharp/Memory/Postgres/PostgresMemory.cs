@@ -199,6 +199,12 @@ public sealed partial class PostgresMemory(
                 candidates.Add(fact);
             }
 
+            var ids = candidates.Select(f => f.Id).ToList();
+            if (ids.Count > 0)
+            {
+                await UpdateAccessCountsAsync(ids, ct);
+            }
+
             return candidates;
         }
 

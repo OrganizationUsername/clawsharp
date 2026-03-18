@@ -17,7 +17,7 @@ public sealed class MssqlCronStoreTests : CronStoreContractTests
     [OneTimeSetUp]
     public async Task ContainerSetUp()
     {
-        _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+        _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2025-latest").Build();
         await _container.StartAsync();
         _connectionString = _container.GetConnectionString();
 
