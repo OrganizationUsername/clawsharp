@@ -9,7 +9,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <RuntimeIdentifiers>linux-x64;win-x64</RuntimeIdentifiers>
-    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <EnableConfigurationBindingGenerator>false</EnableConfigurationBindingGenerator>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UserSecretsId>bccbb6a5-c295-49ad-bf69-ff2dba2f6450</UserSecretsId>
   </PropertyGroup>
