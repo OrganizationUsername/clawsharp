@@ -10,6 +10,8 @@ using Clawsharp.Core.Transcription;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 
 namespace Clawsharp.Channels.Mattermost;
 
@@ -23,6 +25,10 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
     private readonly string _serverUrl = "";
 
     private readonly string _botToken = "";
+
+    private readonly ResiliencePipeline _retryPipeline;
+
+    private static readonly TimeSpan PipelineExhaustionDelay = TimeSpan.FromMinutes(1);
 
     private readonly AllowListPolicy _allowPolicy = AllowListPolicy.AllowAll;
 
@@ -50,7 +56,8 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
         ILogger<MattermostChannel> logger,
         IHttpClientFactory httpClientFactory,
         ApprovedSendersStore approvedSenders,
-        VoiceTranscriptionService voiceService)
+        VoiceTranscriptionService voiceService,
+        ResiliencePipelineProvider<string> pipelineProvider)
     {
         _bus = bus;
         _logger = logger;
@@ -58,6 +65,7 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
         _http = httpClientFactory.CreateClient("mattermost");
         _voiceService = voiceService;
         _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
+        _retryPipeline = pipelineProvider.GetPipeline(ChannelName.Mattermost.Value);
 
         var cfg = options.Value.Channels.GetValueOrDefault(ChannelName.Mattermost.Value);
         if (cfg is not { Enabled: true } || cfg.MattermostUrl is null || cfg.BotToken is null)
@@ -81,28 +89,24 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
 
         LogStarting();
 
-        var backoffMs = 5_000;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                if (_selfId is null)
+                await _retryPipeline.ExecuteAsync(async ct =>
                 {
-                    await FetchSelfIdAsync(stoppingToken);
-                }
+                    if (_selfId is null)
+                    {
+                        await FetchSelfIdAsync(ct);
+                    }
 
-                await RunWebSocketAsync(stoppingToken);
-                backoffMs = 5_000; // reset on clean exit
+                    await RunWebSocketAsync(ct);
+                }, stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                break;
-            }
-            catch (Exception ex)
-            {
-                LogConnectError(backoffMs, ex);
-                await Task.Delay(backoffMs, stoppingToken);
-                backoffMs = Math.Min(backoffMs * 2, 60_000);
+                LogPipelineExhausted(ex);
+                await Task.Delay(PipelineExhaustionDelay, stoppingToken);
             }
         }
     }
@@ -147,7 +151,7 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
                 continue;
             }
 
-            if (string.Equals(envelope.Event, "posted", StringComparison.Ordinal))
+            if (string.Equals(envelope.Event, MattermostEventType.Posted, StringComparison.Ordinal))
             {
                 await HandlePostedEventAsync(envelope, ct);
             }
@@ -176,9 +180,14 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
                 var transcript = await TryTranscribeAttachmentsAsync(fileIdsProp, ct);
                 if (transcript is not null)
                 {
-                    message = string.IsNullOrWhiteSpace(message)
-                        ? $"[Voice] {transcript}"
-                        : $"{message}\n[Voice] {transcript}";
+                    if (string.IsNullOrWhiteSpace(message))
+                    {
+                        message = $"[Voice] {transcript}";
+                    }
+                    else
+                    {
+                        message = $"{message}\n[Voice] {transcript}";
+                    }
                 }
             }
 
@@ -276,13 +285,11 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
 
         // Ignore webhook/bot posts (props.from_webhook)
         if (root.TryGetProperty("props", out var props) &&
-            props.TryGetProperty("from_webhook", out var fromWebhook))
+            props.TryGetProperty("from_webhook", out var fromWebhook) &&
+            bool.TryParse(fromWebhook.GetString(), out var isWebhook) &&
+            isWebhook)
         {
-            var webhookStr = fromWebhook.GetString();
-            if (string.Equals(webhookStr, "true", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
+            return true;
         }
 
         return false;
@@ -349,9 +356,11 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
 
                 await using var infoStream = await infoResp.Content.ReadAsStreamAsync(ct);
                 using var infoDoc = await JsonDocument.ParseAsync(infoStream, default, ct);
-                var mimeType = infoDoc.RootElement.TryGetProperty("mime_type", out var mimeProp)
-                    ? mimeProp.GetString()
-                    : null;
+                string? mimeType = null;
+                if (infoDoc.RootElement.TryGetProperty("mime_type", out var mimeProp))
+                {
+                    mimeType = mimeProp.GetString();
+                }
 
                 if (mimeType is null || !mimeType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
                 {
@@ -359,9 +368,11 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
                 }
 
                 // Check file size (max 25 MB for Whisper API).
-                var fileSize = infoDoc.RootElement.TryGetProperty("size", out var sizeProp)
-                    ? sizeProp.GetInt64()
-                    : 0L;
+                var fileSize = 0L;
+                if (infoDoc.RootElement.TryGetProperty("size", out var sizeProp))
+                {
+                    fileSize = sizeProp.GetInt64();
+                }
                 if (fileSize > _maxVoiceFileBytes)
                 {
                     LogVoiceFileTooLarge(fileId, fileSize);
@@ -489,9 +500,6 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Starting Mattermost channel")]
     private partial void LogStarting();
 
-    [LoggerMessage(EventId = 2, Level = LogLevel.Error, Message = "Mattermost connection error, reconnecting in {BackoffMs}ms")]
-    private partial void LogConnectError(int backoffMs, Exception exception);
-
     [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Mattermost WebSocket connected to {WsUrl}")]
     private partial void LogConnected(string wsUrl);
 
@@ -526,4 +534,8 @@ public sealed partial class MattermostChannel : LifecycleBackgroundService, ICha
     [LoggerMessage(EventId = 13, Level = LogLevel.Warning,
         Message = "Mattermost voice file {FileId} too large ({FileSize} bytes, max 25 MB)")]
     private partial void LogVoiceFileTooLarge(string fileId, long fileSize);
+
+    [LoggerMessage(EventId = 14, Level = LogLevel.Critical,
+        Message = "All retry attempts exhausted, restarting pipeline in 60s")]
+    private partial void LogPipelineExhausted(Exception exception);
 }

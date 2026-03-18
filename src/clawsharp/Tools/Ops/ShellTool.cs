@@ -6,6 +6,10 @@ namespace Clawsharp.Tools.Ops;
 
 public sealed class ShellTool : Tool
 {
+    private const int DefaultTimeoutSeconds = 30;
+
+    private const int MaxTimeoutSeconds = 120;
+
     private readonly bool _enableDenyPatterns;
 
     private readonly IReadOnlyList<string>? _customDenyPatterns;
@@ -63,9 +67,15 @@ public sealed class ShellTool : Tool
     public override async Task<string> ExecuteAsync(JsonElement arguments, CancellationToken ct = default)
     {
         var command = arguments.TryGetProperty("command", out var cmdProp) ? cmdProp.GetString() ?? "" : "";
-        var timeout = arguments.TryGetProperty("timeout", out var toProp) && toProp.TryGetInt32(out var toVal)
-            ? Math.Min(toVal, 120)
-            : 30;
+        int timeout;
+        if (arguments.TryGetProperty("timeout", out var toProp) && toProp.TryGetInt32(out var toVal))
+        {
+            timeout = Math.Min(toVal, MaxTimeoutSeconds);
+        }
+        else
+        {
+            timeout = DefaultTimeoutSeconds;
+        }
 
         if (string.IsNullOrWhiteSpace(command))
         {
@@ -76,9 +86,15 @@ public sealed class ShellTool : Tool
         // Non-CLI channels also get network egress detection to prevent data exfiltration.
         if (_enableDenyPatterns)
         {
-            var blocked = ChannelName is not (null or "cli")
-                ? ShellGuard.CheckCommandWithEgress(command, _customDenyPatterns)
-                : ShellGuard.CheckCommand(command, _customDenyPatterns);
+            string? blocked;
+            if (ChannelName is not (null or "cli"))
+            {
+                blocked = ShellGuard.CheckCommandWithEgress(command, _customDenyPatterns);
+            }
+            else
+            {
+                blocked = ShellGuard.CheckCommand(command, _customDenyPatterns);
+            }
             if (blocked is not null)
             {
                 if (_auditLogger is not null)
@@ -137,9 +153,17 @@ public sealed class ShellTool : Tool
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(timeout));
 
-        var (shell, shellArgs) = OperatingSystem.IsWindows()
-            ? ("cmd.exe", (IReadOnlyList<string>)["/c", command])
-            : BuildPosixShellArgs(command);
+        string shell;
+        IReadOnlyList<string> shellArgs;
+        if (OperatingSystem.IsWindows())
+        {
+            shell = "cmd.exe";
+            shellArgs = ["/c", command];
+        }
+        else
+        {
+            (shell, shellArgs) = BuildPosixShellArgs(command);
+        }
 
         static (string Shell, IReadOnlyList<string> Args) BuildPosixShellArgs(string command)
         {
@@ -157,9 +181,17 @@ public sealed class ShellTool : Tool
         }
 
         // Wrap with sandbox backend if available (Firejail, Docker, or passthrough)
-        var (program, wrappedArgs) = _sandboxProbe is not null
-            ? _sandboxProbe.Wrap(shell, shellArgs)
-            : (shell, shellArgs);
+        string program;
+        IReadOnlyList<string> wrappedArgs;
+        if (_sandboxProbe is not null)
+        {
+            (program, wrappedArgs) = _sandboxProbe.Wrap(shell, shellArgs);
+        }
+        else
+        {
+            program = shell;
+            wrappedArgs = shellArgs;
+        }
         var sandboxName = _sandboxProbe?.Effective.ToString().ToLowerInvariant();
 
         var psi = new ProcessStartInfo

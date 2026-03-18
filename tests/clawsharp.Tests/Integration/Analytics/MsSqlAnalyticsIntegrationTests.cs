@@ -105,8 +105,8 @@ public sealed class MsSqlAnalyticsIntegrationTests
             OutputTokens = 800,
             CacheReadTokens = 300,
             CacheWriteTokens = 150,
-            CostUsd = 0.042,
-            CacheSavingsUsd = 0.008,
+            CostUsd = 0.042m,
+            CacheSavingsUsd = 0.008m,
             DurationMs = 3200,
             Timestamp = timestamp,
         };
@@ -129,8 +129,8 @@ public sealed class MsSqlAnalyticsIntegrationTests
         r.OutputTokens.ShouldBe(800);
         r.CacheReadTokens.ShouldBe(300);
         r.CacheWriteTokens.ShouldBe(150);
-        r.CostUsd.ShouldBe(0.042, tolerance: 0.0001);
-        r.CacheSavingsUsd.ShouldBe(0.008, tolerance: 0.0001);
+        r.CostUsd.ShouldBe(0.042m);
+        r.CacheSavingsUsd.ShouldBe(0.008m);
         r.DurationMs.ShouldBe(3200);
         r.Timestamp.ShouldBe(timestamp);
 
@@ -185,7 +185,7 @@ public sealed class MsSqlAnalyticsIntegrationTests
             ToolIterations = 3,
             InputTokens = 3000,
             OutputTokens = 1200,
-            CostUsd = 0.05,
+            CostUsd = 0.05m,
             DurationMs = 5000,
             Timestamp = DateTimeOffset.UtcNow,
         };
@@ -271,8 +271,8 @@ public sealed class MsSqlAnalyticsIntegrationTests
         OutputTokens = 50,
         CacheReadTokens = 0,
         CacheWriteTokens = 0,
-        CostUsd = 0.001,
-        CacheSavingsUsd = 0.0,
+        CostUsd = 0.001m,
+        CacheSavingsUsd = 0.0m,
         DurationMs = 250,
         Timestamp = DateTimeOffset.UtcNow,
     };

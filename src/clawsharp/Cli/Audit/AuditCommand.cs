@@ -50,15 +50,26 @@ public sealed class AuditTailCommand : AsyncCommand<AuditTailCommand.Settings>
                     continue;
                 }
 
-                var color = evt.EventType switch
+                string color;
+                if (evt.EventType == AuditEventType.PolicyViolation || evt.EventType == AuditEventType.AuthFailure)
                 {
-                    AuditEventTypes.PolicyViolation or AuditEventTypes.AuthFailure => "red",
-                    AuditEventTypes.SecurityEvent => "yellow",
-                    AuditEventTypes.CommandExecution => "cyan",
-                    _ => "white"
-                };
+                    color = "red";
+                }
+                else if (evt.EventType == AuditEventType.SecurityEvent)
+                {
+                    color = "yellow";
+                }
+                else if (evt.EventType == AuditEventType.CommandExecution)
+                {
+                    color = "cyan";
+                }
+                else
+                {
+                    color = "white";
+                }
+
                 AnsiConsole.MarkupLine(
-                    $"[grey]{Markup.Escape(evt.Timestamp)}[/] [[{color}]{Markup.Escape(evt.EventType)}[/{color}]] {Markup.Escape(evt.Action?.Detail ?? evt.Action?.Command ?? "")}");
+                    $"[grey]{Markup.Escape(evt.Timestamp.ToString("O"))}[/] [[{color}]{Markup.Escape(evt.EventType.Value)}[/{color}]] {Markup.Escape(evt.Action?.Detail ?? evt.Action?.Command ?? "")}");
             }
             catch
             {
@@ -72,11 +83,17 @@ public sealed class AuditTailCommand : AsyncCommand<AuditTailCommand.Settings>
     internal static string ResolveLogPath(AuditConfig auditConfig)
     {
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".clawsharp");
-        return string.IsNullOrWhiteSpace(auditConfig.LogPath)
-            ? Path.Combine(dir, "audit.log")
-            : Path.IsPathRooted(auditConfig.LogPath)
-                ? auditConfig.LogPath
-                : Path.Combine(dir, auditConfig.LogPath);
+        if (string.IsNullOrWhiteSpace(auditConfig.LogPath))
+        {
+            return Path.Combine(dir, "audit.log");
+        }
+
+        if (Path.IsPathRooted(auditConfig.LogPath))
+        {
+            return auditConfig.LogPath;
+        }
+
+        return Path.Combine(dir, auditConfig.LogPath);
     }
 }
 
@@ -118,7 +135,7 @@ public sealed class AuditSearchCommand : AsyncCommand<AuditSearchCommand.Setting
                 }
 
                 if (settings.EventType is not null &&
-                    !evt.EventType.Equals(settings.EventType, StringComparison.OrdinalIgnoreCase))
+                    !evt.EventType.Value.Equals(settings.EventType, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -130,7 +147,7 @@ public sealed class AuditSearchCommand : AsyncCommand<AuditSearchCommand.Setting
                 }
 
                 AnsiConsole.MarkupLine(
-                    $"[grey]{Markup.Escape(evt.Timestamp)}[/] [cyan]{Markup.Escape(evt.EventType)}[/] {Markup.Escape(evt.Action?.Detail ?? evt.Action?.Command ?? "")}");
+                    $"[grey]{Markup.Escape(evt.Timestamp.ToString("O"))}[/] [cyan]{Markup.Escape(evt.EventType.Value)}[/] {Markup.Escape(evt.Action?.Detail ?? evt.Action?.Command ?? "")}");
                 count++;
             }
             catch

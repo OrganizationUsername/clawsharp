@@ -16,8 +16,8 @@ public sealed class CostSimulationTests
         var costPerRequest = DefaultPricing.CalculateCost("gpt-4o-mini", 200, 100);
         var monthlyCost = costPerRequest * 300;
 
-        monthlyCost.ShouldBeLessThan(1.0);
-        monthlyCost.ShouldBeGreaterThan(0.0);
+        monthlyCost.ShouldBeLessThan(1.0m);
+        monthlyCost.ShouldBeGreaterThan(0.0m);
     }
 
     [Test]
@@ -26,7 +26,7 @@ public sealed class CostSimulationTests
         // claude-opus-4-6: $15/1M input, $75/1M output
         // avg 2000 input + 1000 output per request
         var costPerRequest = DefaultPricing.CalculateCost("claude-opus-4-6", 2000, 1000);
-        costPerRequest.ShouldBeGreaterThan(0);
+        costPerRequest.ShouldBeGreaterThan(0m);
 
         // Set a daily limit of 5x a single request cost
         var dailyLimit = costPerRequest * 5;
@@ -37,7 +37,7 @@ public sealed class CostSimulationTests
 
         // After 5 requests, we are exactly at the limit
         var totalCostAfter5 = costPerRequest * 5;
-        totalCostAfter5.ShouldBe(dailyLimit, tolerance: 0.0001);
+        totalCostAfter5.ShouldBe(dailyLimit);
     }
 
     [Test]
@@ -48,11 +48,11 @@ public sealed class CostSimulationTests
         var cheapCost = DefaultPricing.CalculateCost("gpt-4o-mini", 1_000_000, 1_000_000);
         var expensiveCost = DefaultPricing.CalculateCost("claude-opus-4-6", 1_000_000, 1_000_000);
 
-        cheapCost.ShouldBeGreaterThan(0);
-        expensiveCost.ShouldBeGreaterThan(0);
+        cheapCost.ShouldBeGreaterThan(0m);
+        expensiveCost.ShouldBeGreaterThan(0m);
 
         var ratio = expensiveCost / cheapCost;
-        ratio.ShouldBeGreaterThan(100.0);
+        ratio.ShouldBeGreaterThan(100.0m);
     }
 
     [Test]
@@ -65,8 +65,8 @@ public sealed class CostSimulationTests
         var monthlyCost = costPerRequest * 600;
 
         // Should be in a reasonable range: $5-$50
-        monthlyCost.ShouldBeGreaterThan(5.0);
-        monthlyCost.ShouldBeLessThan(50.0);
+        monthlyCost.ShouldBeGreaterThan(5.0m);
+        monthlyCost.ShouldBeLessThan(50.0m);
     }
 
     [Test]
@@ -87,7 +87,7 @@ public sealed class CostSimulationTests
         foreach (var model in knownModels)
         {
             var cost = DefaultPricing.CalculateCost(model, 1000, 1000);
-            cost.ShouldBeGreaterThanOrEqualTo(0, $"Cost for {model} should be >= 0");
+            cost.ShouldBeGreaterThanOrEqualTo(0m, $"Cost for {model} should be >= 0");
         }
     }
 
@@ -99,7 +99,7 @@ public sealed class CostSimulationTests
         foreach (var model in models)
         {
             var cost = DefaultPricing.CalculateCost(model, 0, 0);
-            cost.ShouldBe(0.0, $"Zero tokens for {model} should cost $0.00");
+            cost.ShouldBe(0.0m, $"Zero tokens for {model} should cost $0.00");
         }
     }
 
@@ -115,8 +115,8 @@ public sealed class CostSimulationTests
         var (cost, savings) =
             DefaultPricing.CalculateCostWithCaching("claude-sonnet-4-6", 0, 0, cacheReadTokens: 1000, cacheWriteTokens: 0);
 
-        cost.ShouldBe(1000 * 3.00 * 0.10 / 1_000_000.0, tolerance: 1e-9);
-        savings.ShouldBe(1000 * 3.00 * 0.90 / 1_000_000.0, tolerance: 1e-9);
+        cost.ShouldBe(1000m * 3.00m * 0.10m / 1_000_000m);
+        savings.ShouldBe(1000m * 3.00m * 0.90m / 1_000_000m);
     }
 
     [Test]
@@ -129,8 +129,8 @@ public sealed class CostSimulationTests
         var (cost, savings) =
             DefaultPricing.CalculateCostWithCaching("claude-sonnet-4-6", 0, 0, cacheReadTokens: 0, cacheWriteTokens: 1000);
 
-        cost.ShouldBe(1000 * 3.00 * 1.25 / 1_000_000.0, tolerance: 1e-9);
-        savings.ShouldBe(-1000 * 3.00 * 0.25 / 1_000_000.0, tolerance: 1e-9);
+        cost.ShouldBe(1000m * 3.00m * 1.25m / 1_000_000m);
+        savings.ShouldBe(-1000m * 3.00m * 0.25m / 1_000_000m);
     }
 
     [Test]
@@ -142,9 +142,9 @@ public sealed class CostSimulationTests
         // Cached input             = 500 tokens at $5 * 0.50 / 1M
         var (cost, savings) = DefaultPricing.CalculateCostWithCaching("gpt-4o", 1000, 0, cacheReadTokens: 500, cacheWriteTokens: 0);
 
-        var expected = (500 * 5.0 + 500 * 5.0 * 0.50) / 1_000_000.0;
-        cost.ShouldBe(expected, tolerance: 1e-9);
-        savings.ShouldBe(500 * 5.0 * 0.50 / 1_000_000.0, tolerance: 1e-9);
+        var expected = (500m * 5.0m + 500m * 5.0m * 0.50m) / 1_000_000m;
+        cost.ShouldBe(expected);
+        savings.ShouldBe(500m * 5.0m * 0.50m / 1_000_000m);
     }
 
     [Test]
@@ -158,8 +158,8 @@ public sealed class CostSimulationTests
             var (cost, savings) = DefaultPricing.CalculateCostWithCaching(model, 1000, 500, 0, 0);
             var basicCost = DefaultPricing.CalculateCost(model, 1000, 500);
 
-            cost.ShouldBe(basicCost, tolerance: 1e-9, $"{model}: cache-aware cost with zero cache tokens should equal basic cost");
-            savings.ShouldBe(0.0, $"{model}: zero cache tokens should yield zero savings");
+            cost.ShouldBe(basicCost, $"{model}: cache-aware cost with zero cache tokens should equal basic cost");
+            savings.ShouldBe(0.0m, $"{model}: zero cache tokens should yield zero savings");
         }
     }
 
@@ -168,8 +168,8 @@ public sealed class CostSimulationTests
     {
         var (cost, savings) = DefaultPricing.CalculateCostWithCaching("totally-unknown-model", 1000, 500, 200, 100);
 
-        cost.ShouldBe(0.0);
-        savings.ShouldBe(0.0);
+        cost.ShouldBe(0.0m);
+        savings.ShouldBe(0.0m);
     }
 
     [Test]
@@ -193,10 +193,10 @@ public sealed class CostSimulationTests
         var totalSavings = writeRequestSavings + (msgs - 1) * readRequestSavings;
 
         // Uncached baseline: all 100 turns pay full input price for the system prompt.
-        var uncachedCost = msgs * systemTokens * 3.00 / 1_000_000.0;
+        var uncachedCost = msgs * systemTokens * 3.00m / 1_000_000m;
 
         // Net savings should be ≈89% of uncached cost.
-        var netSavingsPercent = totalSavings / uncachedCost * 100.0;
+        var netSavingsPercent = (double)(totalSavings / uncachedCost * 100.0m);
         netSavingsPercent.ShouldBeGreaterThan(85.0);
 
         totalCost.ShouldBeLessThan(uncachedCost);

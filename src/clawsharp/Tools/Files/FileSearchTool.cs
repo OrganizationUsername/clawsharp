@@ -2,18 +2,13 @@ using System.Text.Json;
 
 namespace Clawsharp.Tools.Files;
 
-public sealed class FileSearchTool : Tool
+public sealed class FileSearchTool(string workspace) : Tool
 {
     private const int MaxSearchResults = 100;
 
     private const long MaxFileSizeBytes = 1 * 1024 * 1024;
 
-    private readonly string _workspace;
-
-    public FileSearchTool(string workspace)
-    {
-        _workspace = Path.GetFullPath(workspace);
-    }
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     public override string Name => "file_search";
 
@@ -114,8 +109,11 @@ public sealed class FileSearchTool : Tool
             }
         }
 
-        return results.Count > 0
-            ? string.Join("\n", results)
-            : "No matches found.";
+        if (results.Count > 0)
+        {
+            return string.Join("\n", results);
+        }
+
+        return "No matches found.";
     }
 }

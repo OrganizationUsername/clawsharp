@@ -7,5 +7,5 @@ public sealed class AgentConfig
 {
     /// <summary>Default agent settings.</summary>
     [ValidateObjectMembers]
-    public AgentDefaults Defaults { get; set; } = new();
+    public AgentDefaults Defaults { get; init; } = new();
 }

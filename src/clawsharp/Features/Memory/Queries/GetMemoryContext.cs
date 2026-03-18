@@ -61,9 +61,15 @@ public static partial class GetMemoryContext
             }
 
             var additionalFacts = new List<string>();
-            var keywordsToSearch = keywords.Count > maxKeywords
-                ? keywords.Take(maxKeywords).ToList()
-                : keywords;
+            IReadOnlyList<string> keywordsToSearch;
+            if (keywords.Count > maxKeywords)
+            {
+                keywordsToSearch = keywords.Take(maxKeywords).ToList();
+            }
+            else
+            {
+                keywordsToSearch = keywords;
+            }
 
             foreach (var keyword in keywordsToSearch)
             {

@@ -27,11 +27,20 @@ public sealed class StatusCommand : AsyncCommand
         AnsiConsole.MarkupLine($"[cyan]Temperature[/]    : {d.Temperature}");
         AnsiConsole.MarkupLine($"[cyan]Max tool iters[/] : {d.MaxToolIterations}");
 
-        var cachingStatus = d.Caching?.Enabled == false
-            ? "[grey]disabled[/]"
-            : d.Caching?.CacheToolDefinitions == false
-                ? "[green]enabled[/] [grey](system only)[/]"
-                : "[green]enabled[/] [grey](system + tools)[/]";
+        string cachingStatus;
+        if (d.Caching?.Enabled == false)
+        {
+            cachingStatus = "[grey]disabled[/]";
+        }
+        else if (d.Caching?.CacheToolDefinitions == false)
+        {
+            cachingStatus = "[green]enabled[/] [grey](system only)[/]";
+        }
+        else
+        {
+            cachingStatus = "[green]enabled[/] [grey](system + tools)[/]";
+        }
+
         AnsiConsole.MarkupLine($"[cyan]Caching[/]        : {cachingStatus}");
         AnsiConsole.WriteLine();
 

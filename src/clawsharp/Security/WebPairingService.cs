@@ -1,3 +1,4 @@
+using System.Net;
 using Clawsharp.Config;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
@@ -42,5 +43,5 @@ public sealed class WebPairingService
     public bool IsAuthenticated(string token) => _guard?.IsAuthenticated(token) ?? false;
 
     /// <inheritdoc cref="WebPairingGuard.TryPair"/>
-    public string? TryPair(string clientIp, string code) => _guard?.TryPair(clientIp, code);
+    public string? TryPair(IPAddress? clientIp, string code) => _guard?.TryPair(clientIp, code);
 }

@@ -119,9 +119,16 @@ public sealed class MigrateCommand : AsyncCommand<MigrateCommand.Settings>
             {
                 if (provVal is JsonObject pObj && pObj["apiKey"]?.GetValue<string>() is { } key)
                 {
-                    var mappedName = provName.Equals("claude", StringComparison.OrdinalIgnoreCase)
-                        ? "anthropic"
-                        : provName;
+                    string mappedName;
+                    if (provName.Equals("claude", StringComparison.OrdinalIgnoreCase))
+                    {
+                        mappedName = "anthropic";
+                    }
+                    else
+                    {
+                        mappedName = provName;
+                    }
+
                     SetNode(dest, $"providers.{mappedName}.apiKey", JsonValue.Create(key)!);
                     SetNode(dest, $"providers.{mappedName}.type", JsonValue.Create(mappedName)!);
                     migrated.Add($"providers.{mappedName}.apiKey");
@@ -276,9 +283,16 @@ public sealed class MigrateCommand : AsyncCommand<MigrateCommand.Settings>
             {
                 if (provVal is JsonObject pObj && pObj["apiKey"]?.GetValue<string>() is { } key)
                 {
-                    var mappedName = provName.Equals("claude", StringComparison.OrdinalIgnoreCase)
-                        ? "anthropic"
-                        : provName;
+                    string mappedName;
+                    if (provName.Equals("claude", StringComparison.OrdinalIgnoreCase))
+                    {
+                        mappedName = "anthropic";
+                    }
+                    else
+                    {
+                        mappedName = provName;
+                    }
+
                     SetNode(dest, $"providers.{mappedName}.apiKey", JsonValue.Create(key)!);
                     migrated.Add($"providers.{mappedName}.apiKey");
                 }
@@ -517,12 +531,26 @@ public sealed class MigrateCommand : AsyncCommand<MigrateCommand.Settings>
             if (raw.StartsWith('"'))
             {
                 var closeQuote = raw.IndexOf('"', 1);
-                value = closeQuote > 0 ? raw[1..closeQuote] : raw.Trim('"');
+                if (closeQuote > 0)
+                {
+                    value = raw[1..closeQuote];
+                }
+                else
+                {
+                    value = raw.Trim('"');
+                }
             }
             else if (raw.StartsWith('\''))
             {
                 var closeQuote = raw.IndexOf('\'', 1);
-                value = closeQuote > 0 ? raw[1..closeQuote] : raw.Trim('\'');
+                if (closeQuote > 0)
+                {
+                    value = raw[1..closeQuote];
+                }
+                else
+                {
+                    value = raw.Trim('\'');
+                }
             }
             else
             {

@@ -39,6 +39,9 @@ namespace Clawsharp.Config;
  JsonSerializable(typeof(EnhancedRecallConfig)), JsonSerializable(typeof(FactExtractionConfig)),
  // Provider health checks
  JsonSerializable(typeof(HealthCheckConfig)),
+ // Resilience pipeline
+ JsonSerializable(typeof(ResilienceConfig)), JsonSerializable(typeof(RetryPolicyConfig)),
+ JsonSerializable(typeof(CircuitBreakerConfig)),
  // Browser automation
  JsonSerializable(typeof(BrowserConfig)),
  JsonSerializable(typeof(PinchTabConfig)),
@@ -52,6 +55,9 @@ namespace Clawsharp.Config;
  JsonSerializable(typeof(GlmConfig)),
  // Security
  JsonSerializable(typeof(LandlockConfig)),
+ // Intellenum config types
+ JsonSerializable(typeof(DmPolicy)), JsonSerializable(typeof(GroupPolicy)),
+ JsonSerializable(typeof(ReasoningEffort)), JsonSerializable(typeof(PromptGuardMode)),
  // HTTP request
  JsonSerializable(typeof(HttpRequestConfig)),
  // Analytics

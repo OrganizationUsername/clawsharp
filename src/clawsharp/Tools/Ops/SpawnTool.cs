@@ -7,6 +7,7 @@ using Clawsharp.Memory;
 using Clawsharp.Providers;
 using Microsoft.Extensions.Logging;
 using Clawsharp.Config.Agent;
+using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Tools.Ops;
 
@@ -26,49 +27,25 @@ namespace Clawsharp.Tools.Ops;
 /// session's quota via the same <see cref="RateLimiter"/> key) and cost budget checks
 /// (via <see cref="CostTracker"/>). If either check fails, the spawn is denied immediately.
 /// </remarks>
-public sealed partial class SpawnTool : Tool
+public sealed partial class SpawnTool(
+    IProvider provider,
+    IToolRegistry tools,
+    IMemory memory,
+    AgentDefaults defaults,
+    RateLimiter rateLimiter,
+    CostTracker costTracker,
+    ILogger<SpawnTool> logger)
+    : Tool
 {
     private const int MaxSpawnDepth = 2;
 
     private static readonly TimeSpan SpawnTimeout = TimeSpan.FromSeconds(60);
-
-    private readonly AgentDefaults _defaults;
-
-    private readonly CostTracker _costTracker;
-
-    private readonly ILogger<SpawnTool> _logger;
-
-    private readonly IMemory _memory;
-
-    private readonly IProvider _provider;
-
-    private readonly RateLimiter _rateLimiter;
-
-    private readonly IToolRegistry _tools;
 
     /// <summary>
     ///     Current spawn depth of the parent that owns this tool instance.
     ///     Reads from the per-async-flow AsyncLocal in ToolRegistry.
     /// </summary>
     public int CurrentSpawnDepth => ToolRegistry.CurrentSpawnDepth;
-
-    public SpawnTool(
-        IProvider provider,
-        IToolRegistry tools,
-        IMemory memory,
-        AgentDefaults defaults,
-        RateLimiter rateLimiter,
-        CostTracker costTracker,
-        ILogger<SpawnTool> logger)
-    {
-        _provider = provider;
-        _tools = tools;
-        _memory = memory;
-        _defaults = defaults;
-        _rateLimiter = rateLimiter;
-        _costTracker = costTracker;
-        _logger = logger;
-    }
 
     public override string Name => "spawn_agent";
 
@@ -101,7 +78,7 @@ public sealed partial class SpawnTool : Tool
 
     public override async Task<string> ExecuteAsync(JsonElement arguments, CancellationToken ct = default)
     {
-        if (!_defaults.AllowSubagents)
+        if (!defaults.AllowSubagents)
         {
             return "Error: sub-agent spawning is disabled. Set defaults.allowSubagents=true in config to enable.";
         }
@@ -114,18 +91,18 @@ public sealed partial class SpawnTool : Tool
         // HIGH-04: Enforce rate limiting — child agents share the parent's rate limit key
         // so that spawned sub-agents count against the same per-session quota.
         var rateLimitKey = ToolRegistry.CurrentSessionId ?? "spawn";
-        if (!_rateLimiter.TryAcquire(rateLimitKey))
+        if (!rateLimiter.TryAcquire(rateLimitKey))
         {
-            LogSpawnRateLimited(_logger, rateLimitKey);
+            LogSpawnRateLimited(logger, rateLimitKey);
             return "Error: rate limit exceeded. The sub-agent spawn was denied because the current session has exceeded its request quota.";
         }
 
         // HIGH-04: Enforce cost budget — reject spawn if budget is already exhausted.
         // Pass 0 for estimated cost; this still blocks when the budget is already over the limit.
-        var budgetCheck = await _costTracker.CheckBudgetAsync(0, ct).ConfigureAwait(false);
+        var budgetCheck = await costTracker.CheckBudgetAsync(0, ct).ConfigureAwait(false);
         if (budgetCheck.Status == BudgetStatus.Exceeded)
         {
-            LogSpawnBudgetExceeded(_logger, budgetCheck.Message ?? "budget exceeded");
+            LogSpawnBudgetExceeded(logger, budgetCheck.Message ?? "budget exceeded");
             return $"Error: cost budget exceeded. The sub-agent spawn was denied. {budgetCheck.Message}";
         }
 
@@ -158,7 +135,7 @@ public sealed partial class SpawnTool : Tool
 
         var spawnId = $"spawn:{Guid.NewGuid():N}";
         var displayName = agentName ?? spawnId;
-        LogSpawning(_logger, displayName, CurrentSpawnDepth + 1);
+        LogSpawning(logger, displayName, CurrentSpawnDepth + 1);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(SpawnTimeout);
@@ -166,17 +143,17 @@ public sealed partial class SpawnTool : Tool
         try
         {
             var result = await RunChildLoopAsync(task, spawnId, restrictedTools, cts.Token);
-            LogSpawnCompleted(_logger, displayName, result.Length);
+            LogSpawnCompleted(logger, displayName, result.Length);
             return result;
         }
         catch (OperationCanceledException)
         {
-            LogSpawnTimedOut(_logger, displayName);
+            LogSpawnTimedOut(logger, displayName);
             return $"Error: sub-agent '{displayName}' timed out after {SpawnTimeout.TotalSeconds}s.";
         }
         catch (Exception ex)
         {
-            LogSpawnError(_logger, ex, displayName);
+            LogSpawnError(logger, ex, displayName);
             return $"Error: sub-agent '{displayName}' failed.";
         }
     }
@@ -188,16 +165,22 @@ public sealed partial class SpawnTool : Tool
     private async Task<string> RunChildLoopAsync(
         string task, string sessionId, HashSet<string>? restrictedTools, CancellationToken ct)
     {
-        var memoryCtx = await _memory.GetContextAsync(ct).ConfigureAwait(false);
-        var allToolDefs = _tools.GetDefinitions();
+        var memoryCtx = await memory.GetContextAsync(ct).ConfigureAwait(false);
+        var allToolDefs = tools.GetDefinitions();
 
         // If restricted_tools is provided, filter to only those tools
-        var toolDefs = restrictedTools is not null
-            ? allToolDefs.Where(t => restrictedTools.Contains(t.Name)).ToList()
-            : allToolDefs;
+        IReadOnlyList<ToolDefinition> toolDefs;
+        if (restrictedTools is not null)
+        {
+            toolDefs = allToolDefs.Where(t => restrictedTools.Contains(t.Name)).ToList();
+        }
+        else
+        {
+            toolDefs = allToolDefs;
+        }
 
-        var cachingEnabled = _defaults.Caching?.Enabled ?? true;
-        var cacheToolDefs = cachingEnabled && (_defaults.Caching?.CacheToolDefinitions ?? true);
+        var cachingEnabled = defaults.Caching?.Enabled ?? true;
+        var cacheToolDefs = cachingEnabled && (defaults.Caching?.CacheToolDefinitions ?? true);
 
         var (staticPrompt, dynamicPrompt) = SystemPromptBuilder.BuildSplit(
             memoryCtx,
@@ -205,9 +188,15 @@ public sealed partial class SpawnTool : Tool
             channelName: "spawn",
             enabledTools: toolDefs.Select(t => t.Name).ToList());
 
-        var systemPrompt = string.IsNullOrEmpty(dynamicPrompt)
-            ? staticPrompt
-            : staticPrompt + "\n\n" + dynamicPrompt;
+        string systemPrompt;
+        if (string.IsNullOrEmpty(dynamicPrompt))
+        {
+            systemPrompt = staticPrompt;
+        }
+        else
+        {
+            systemPrompt = staticPrompt + "\n\n" + dynamicPrompt;
+        }
 
         var messages = new List<ChatMessage>
         {
@@ -215,29 +204,43 @@ public sealed partial class SpawnTool : Tool
             new(MessageRole.User, task)
         };
 
+        IReadOnlyList<ToolDefinition>? spawnTools = null;
+        if (toolDefs.Count > 0)
+        {
+            spawnTools = toolDefs;
+        }
+
+        string? spawnStaticPrompt = null;
+        string? spawnDynamicPrompt = null;
+        if (cachingEnabled)
+        {
+            spawnStaticPrompt = staticPrompt;
+            spawnDynamicPrompt = dynamicPrompt;
+        }
+
         var request = new ChatRequest(
-            Model: _defaults.Model,
+            Model: defaults.Model,
             Messages: messages,
-            Tools: toolDefs.Count > 0 ? toolDefs : null,
-            Temperature: _defaults.Temperature,
-            SystemStaticPart: cachingEnabled ? staticPrompt : null,
-            SystemDynamicPart: cachingEnabled ? dynamicPrompt : null,
+            Tools: spawnTools,
+            Temperature: defaults.Temperature,
+            SystemStaticPart: spawnStaticPrompt,
+            SystemDynamicPart: spawnDynamicPrompt,
             CacheToolDefinitions: cacheToolDefs
         );
 
         // Cap iterations for the child — use the same config limit.
-        for (var iteration = 0; iteration < _defaults.MaxToolIterations; iteration++)
+        for (var iteration = 0; iteration < defaults.MaxToolIterations; iteration++)
         {
             ct.ThrowIfCancellationRequested();
 
             ChatResponse response;
             try
             {
-                response = await _provider.ChatAsync(request, ct);
+                response = await provider.ChatAsync(request, ct);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Sub-agent provider request failed");
+                logger.LogWarning(ex, "Sub-agent provider request failed");
                 return "Error: sub-agent provider request failed.";
             }
 
@@ -248,7 +251,7 @@ public sealed partial class SpawnTool : Tool
                 {
                     // Propagate spawn depth to nested SpawnTool calls
                     SetChildSpawnDepth(CurrentSpawnDepth + 1);
-                    var result = await _tools.ExecuteAsync(tc.Name, tc.ArgumentsJson, ct);
+                    var result = await tools.ExecuteAsync(tc.Name, tc.ArgumentsJson, ct);
                     messages.Add(new ChatMessage(MessageRole.Tool, result, ToolCallId: tc.Id, Name: tc.Name));
                 }
 
@@ -275,7 +278,7 @@ public sealed partial class SpawnTool : Tool
     /// </summary>
     private void SetChildSpawnDepth(int depth)
     {
-        _tools.SetChannelContext(ToolRegistry.CurrentChannelName ?? "cli", depth, ToolRegistry.CurrentSessionId);
+        tools.SetChannelContext(ToolRegistry.CurrentChannelName ?? ChannelName.Cli, depth, ToolRegistry.CurrentSessionId);
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Spawning sub-agent '{AgentName}' at depth {Depth}")]

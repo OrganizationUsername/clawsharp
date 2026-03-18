@@ -68,7 +68,7 @@ internal static class PasswordManagerResolver
                 $"and export {cfg.TokenEnvVar}=<token>.");
         }
 
-        var (stdout, stderr, exit) = RunProcess(cfg.CliBinary, ["read", reference], cfg.TimeoutSeconds);
+        var (stdout, stderr, exit) = RunProcess(cfg.CliBinary, ["read", reference], cfg.Timeout);
 
         if (exit != 0)
         {
@@ -100,7 +100,7 @@ internal static class PasswordManagerResolver
         }
 
         var (stdout, stderr, exit) = RunProcess(
-            cfg.CliBinary, ["secret", "get", secretId, "--output", "json"], cfg.TimeoutSeconds);
+            cfg.CliBinary, ["secret", "get", secretId, "--output", "json"], cfg.Timeout);
 
         if (exit != 0)
         {
@@ -147,7 +147,7 @@ internal static class PasswordManagerResolver
     ];
 
     private static (string Stdout, string Stderr, int ExitCode) RunProcess(
-        string binary, string[] arguments, int timeoutSeconds)
+        string binary, string[] arguments, TimeSpan timeout)
     {
         // Validate the binary name to prevent arbitrary command execution.
         // Only the filename portion is checked so that full paths like /usr/bin/op are allowed.
@@ -225,7 +225,7 @@ internal static class PasswordManagerResolver
         var stdout = proc.StandardOutput.ReadToEnd();
         var stderr = proc.StandardError.ReadToEnd();
 
-        if (!proc.WaitForExit(timeoutSeconds * 1000))
+        if (!proc.WaitForExit((int)timeout.TotalMilliseconds))
         {
             try
             {
@@ -237,7 +237,7 @@ internal static class PasswordManagerResolver
             }
 
             throw new InvalidOperationException(
-                $"'{binary}' timed out after {timeoutSeconds}s resolving a secret reference.");
+                $"'{binary}' timed out after {timeout.TotalSeconds}s resolving a secret reference.");
         }
 
         return (stdout, stderr, proc.ExitCode);

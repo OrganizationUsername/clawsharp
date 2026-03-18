@@ -32,7 +32,7 @@ public sealed class McpServerConfig
     public string? Url { get; init; }
 
     /// <summary>Optional HTTP headers for SSE or StreamableHTTP transports (e.g. authorization).</summary>
-    public Dictionary<string, string>? Headers { get; set; }
+    public Dictionary<string, string>? Headers { get; init; }
 
     /// <summary>Command to launch the MCP server process (e.g. "npx", "python", "uvx"). Used for stdio transport.</summary>
     public string Command { get; init; } = "";

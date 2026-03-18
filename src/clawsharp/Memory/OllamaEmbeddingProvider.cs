@@ -6,34 +6,21 @@ namespace Clawsharp.Memory;
 /// <summary>
 ///     Embedding provider using the Ollama /api/embeddings endpoint.
 /// </summary>
-public sealed class OllamaEmbeddingProvider : IEmbeddingProvider
+public sealed class OllamaEmbeddingProvider(
+    IHttpClientFactory httpClientFactory,
+    string model = "nomic-embed-text",
+    string baseUrl = ClawsharpConstants.OllamaDefaultBaseUrl,
+    int dimensions = 768)
+    : IEmbeddingProvider
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly string _baseUrl = baseUrl.TrimEnd('/');
 
-    private readonly string _model;
-
-    private readonly string _baseUrl;
-
-    private readonly int _dimensions;
-
-    public OllamaEmbeddingProvider(
-        IHttpClientFactory httpClientFactory,
-        string model = "nomic-embed-text",
-        string baseUrl = ClawsharpConstants.OllamaDefaultBaseUrl,
-        int dimensions = 768)
-    {
-        _httpClientFactory = httpClientFactory;
-        _model = model;
-        _baseUrl = baseUrl.TrimEnd('/');
-        _dimensions = dimensions;
-    }
-
-    public int Dimensions => _dimensions;
+    public int Dimensions => dimensions;
 
     public async Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
     {
-        var client = _httpClientFactory.CreateClient("llm");
-        var request = new OllamaEmbeddingRequest { Model = _model, Prompt = text };
+        var client = httpClientFactory.CreateClient("llm");
+        var request = new OllamaEmbeddingRequest { Model = model, Prompt = text };
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/api/embeddings");
         httpRequest.Content = JsonContent.Create(request, EmbeddingJsonContext.Default.OllamaEmbeddingRequest);

@@ -6,15 +6,8 @@ using Spectre.Console.Cli;
 namespace Clawsharp.Cli.Auth;
 
 [UsedImplicitly]
-internal sealed class AuthLoginCopilotCommand : AsyncCommand
+internal sealed class AuthLoginCopilotCommand(GitHubDeviceFlow deviceFlow) : AsyncCommand
 {
-    private readonly GitHubDeviceFlow _deviceFlow;
-
-    public AuthLoginCopilotCommand(GitHubDeviceFlow deviceFlow)
-    {
-        _deviceFlow = deviceFlow;
-    }
-
     public override async Task<int> ExecuteAsync(CommandContext context, CancellationToken cancellationToken)
     {
         AnsiConsole.MarkupLine("[bold]=== GitHub Copilot Login (Device Flow) ===[/]");
@@ -23,7 +16,7 @@ internal sealed class AuthLoginCopilotCommand : AsyncCommand
         AnsiConsole.MarkupLine("Your GitHub account must have an active Copilot subscription.");
         AnsiConsole.WriteLine();
 
-        var token = await _deviceFlow.LoginAsync(cancellationToken);
+        var token = await deviceFlow.LoginAsync(cancellationToken);
         if (token is null)
         {
             AnsiConsole.MarkupLine("[red]Login failed.[/]");

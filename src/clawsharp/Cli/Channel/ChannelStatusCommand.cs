@@ -29,7 +29,12 @@ public sealed class ChannelStatusCommand : AsyncCommand
             config.Channels.TryGetValue(name.Value, out var ch);
             var enabled = ch?.Enabled == true;
             var stateMarkup = enabled ? "[green]enabled[/]" : "[grey]disabled[/]";
-            var details = enabled ? GetDetails(name, ch) : "";
+            var details = "";
+            if (enabled)
+            {
+                details = GetDetails(name, ch);
+            }
+
             table.AddRow(new Text(name.Value), new Markup(stateMarkup), new Text(details));
         }
 
@@ -96,7 +101,17 @@ public sealed class ChannelStatusCommand : AsyncCommand
 
         if (name == ChannelName.WeChat)
         {
-            return ch.BridgeUrl is not null ? $"({ch.BridgeUrl})" : ch.WebhookKey is not null ? "(webhook only)" : "(not configured)";
+            if (ch.BridgeUrl is not null)
+            {
+                return $"({ch.BridgeUrl})";
+            }
+
+            if (ch.WebhookKey is not null)
+            {
+                return "(webhook only)";
+            }
+
+            return "(not configured)";
         }
 
         return "";

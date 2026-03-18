@@ -3,17 +3,9 @@ using Clawsharp.Security;
 
 namespace Clawsharp.Tools.Files;
 
-public sealed class FileEditTool : Tool
+public sealed class FileEditTool(string workspace, AuditLogger? auditLogger = null) : Tool
 {
-    private readonly string _workspace;
-
-    private readonly AuditLogger? _auditLogger;
-
-    public FileEditTool(string workspace, AuditLogger? auditLogger = null)
-    {
-        _workspace = Path.GetFullPath(workspace);
-        _auditLogger = auditLogger;
-    }
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
@@ -59,9 +51,9 @@ public sealed class FileEditTool : Tool
         }
         catch (InvalidOperationException ex)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(rel, "file_edit", ChannelName, success: false, error: ex.Message, ct: ct);
+                _ = auditLogger.LogFileAccessAsync(rel, "file_edit", ChannelName, success: false, error: ex.Message, ct: ct);
             }
 
             return "Error: path is outside the workspace.";
@@ -105,9 +97,9 @@ public sealed class FileEditTool : Tool
 
         await File.WriteAllTextAsync(fullPath, updated, ct);
 
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogFileAccessAsync(rel, "file_edit", ChannelName, success: true, ct: ct);
+            _ = auditLogger.LogFileAccessAsync(rel, "file_edit", ChannelName, success: true, ct: ct);
         }
 
         return $"Replaced {count} occurrence(s) in {rel}";

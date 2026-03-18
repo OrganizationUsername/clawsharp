@@ -2,19 +2,13 @@ using Clawsharp.Memory.Entities;
 
 namespace Clawsharp.Memory.Markdown;
 
-public sealed class MarkdownMemory : IMemory, IDisposable
+public sealed class MarkdownMemory(string dir) : IMemory, IDisposable
 {
-    private readonly string _historyPath;
+    private readonly string _historyPath = Path.Combine(dir, "HISTORY.md");
 
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    private readonly string _memoryPath;
-
-    public MarkdownMemory(string dir)
-    {
-        _memoryPath = Path.Combine(dir, "MEMORY.md");
-        _historyPath = Path.Combine(dir, "HISTORY.md");
-    }
+    private readonly string _memoryPath = Path.Combine(dir, "MEMORY.md");
 
     public async Task<string?> GetContextAsync(CancellationToken ct = default)
     {

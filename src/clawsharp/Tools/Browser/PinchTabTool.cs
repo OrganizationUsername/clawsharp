@@ -21,36 +21,26 @@ namespace Clawsharp.Tools.Browser;
 ///
 /// Requires a running PinchTab server (default: http://localhost:9867). Start with: pinchtab
 /// </summary>
-public sealed partial class PinchTabTool : Tool
+public sealed partial class PinchTabTool(
+    PinchTabSessionManager sessions,
+    IOptions<AppConfig> configOptions,
+    IHttpClientFactory httpFactory,
+    AuditLogger? auditLogger,
+    ILogger<PinchTabTool> logger)
+    : Tool
 {
-    private readonly PinchTabSessionManager _sessions;
+    private const int MaxErrorResponseLength = 500;
 
-    private readonly PinchTabConfig _config;
+    private const int MaxTextContentLength = 16_000;
 
-    private readonly IHttpClientFactory _httpFactory;
+    private const int MaxEvaluateResultLength = 8_000;
 
-    private readonly AuditLogger? _auditLogger;
-
-    private readonly ILogger<PinchTabTool> _logger;
+    private readonly PinchTabConfig _config = configOptions.Value.Tools.PinchTab;
 
     /// <summary>Session ID read from the per-async-flow AsyncLocal in ToolRegistry.</summary>
     public string? SessionId => ToolRegistry.CurrentSessionId;
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
-
-    public PinchTabTool(
-        PinchTabSessionManager sessions,
-        IOptions<AppConfig> configOptions,
-        IHttpClientFactory httpFactory,
-        AuditLogger? auditLogger,
-        ILogger<PinchTabTool> logger)
-    {
-        _sessions = sessions;
-        _config = configOptions.Value.Tools.PinchTab;
-        _httpFactory = httpFactory;
-        _auditLogger = auditLogger;
-        _logger = logger;
-    }
 
     public override string Name => "pinchtab_browser";
 
@@ -117,7 +107,7 @@ public sealed partial class PinchTabTool : Tool
         }
         catch (HttpRequestException ex)
         {
-            LogPinchTabConnectionError(_logger, ex, action);
+            LogPinchTabConnectionError(logger, ex, action);
             return $"Error: cannot connect to PinchTab server at {_config.BaseUrl}. Start it with: pinchtab";
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
@@ -126,7 +116,7 @@ public sealed partial class PinchTabTool : Tool
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            LogUnexpectedPinchTabError(_logger, ex, action);
+            LogUnexpectedPinchTabError(logger, ex, action);
             return "Error: operation failed.";
         }
     }
@@ -144,7 +134,7 @@ public sealed partial class PinchTabTool : Tool
 
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
-        var client = _httpFactory.CreateClient("pinchtab");
+        var client = httpFactory.CreateClient("pinchtab");
         return await client.SendAsync(request, ct).ConfigureAwait(false);
     }
 
@@ -156,12 +146,12 @@ public sealed partial class PinchTabTool : Tool
         }
 
         var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        return $"Error: PinchTab returned {(int)response.StatusCode}: {Truncate(body, 500)}";
+        return $"Error: PinchTab returned {(int)response.StatusCode}: {Truncate(body, MaxErrorResponseLength)}";
     }
 
     private string? RequireTabId(string sessionId)
     {
-        var tabId = _sessions.GetTabId(sessionId);
+        var tabId = sessions.GetTabId(sessionId);
         if (tabId is null)
         {
             return "Error: no active tab — use 'navigate' first.";
@@ -187,11 +177,11 @@ public sealed partial class PinchTabTool : Tool
         var ssrfError = await SsrfGuard.CheckAsync(uri, ct).ConfigureAwait(false);
         if (ssrfError is not null)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogPolicyViolationAsync(
+                _ = auditLogger.LogPolicyViolationAsync(
                                     $"SSRF blocked PinchTab navigation: {url}", ChannelName, ssrfBlocked: true, ct: ct)
-                                .LogExceptions(_logger, "audit:pinchtab_ssrf");
+                                .LogExceptions(logger, "audit:pinchtab_ssrf");
             }
 
             return ssrfError;
@@ -205,13 +195,13 @@ public sealed partial class PinchTabTool : Tool
         }
 
         // Audit log
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogFileAccessAsync(url, "pinchtab_navigate", ChannelName, success: true, ct: ct)
-                            .LogExceptions(_logger, "audit:pinchtab_navigate");
+            _ = auditLogger.LogFileAccessAsync(url, "pinchtab_navigate", ChannelName, success: true, ct: ct)
+                            .LogExceptions(logger, "audit:pinchtab_navigate");
         }
 
-        var existingTabId = _sessions.GetTabId(sessionId);
+        var existingTabId = sessions.GetTabId(sessionId);
         var body = new PtNavigateRequest(url, existingTabId);
 
         var request = CreateRequest(HttpMethod.Post, "/navigate");
@@ -231,13 +221,13 @@ public sealed partial class PinchTabTool : Tool
             return "Error: failed to parse PinchTab navigate response.";
         }
 
-        _sessions.SetTabId(sessionId, nav.TabId);
+        sessions.SetTabId(sessionId, nav.TabId);
         return $"Navigated to {nav.Url}. Tab: {nav.TabId}. Title: {nav.Title}";
     }
 
     private async Task<string> SnapshotAsync(JsonElement args, string sessionId, CancellationToken ct)
     {
-        var tabId = _sessions.GetTabId(sessionId);
+        var tabId = sessions.GetTabId(sessionId);
         if (tabId is null)
         {
             return "Error: no active tab — use 'navigate' first.";
@@ -266,7 +256,7 @@ public sealed partial class PinchTabTool : Tool
 
     private async Task<string> TextAsync(string sessionId, CancellationToken ct)
     {
-        var tabId = _sessions.GetTabId(sessionId);
+        var tabId = sessions.GetTabId(sessionId);
         if (tabId is null)
         {
             return "Error: no active tab — use 'navigate' first.";
@@ -282,9 +272,9 @@ public sealed partial class PinchTabTool : Tool
         }
 
         var text = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        if (text.Length > 16_000)
+        if (text.Length > MaxTextContentLength)
         {
-            text = text[..16_000] + "\n... (truncated)";
+            text = text[..MaxTextContentLength] + "\n... (truncated)";
         }
 
         return text;
@@ -292,14 +282,14 @@ public sealed partial class PinchTabTool : Tool
 
     private async Task<string> ActionAsync(string kind, JsonElement args, string sessionId, CancellationToken ct)
     {
-        var tabId = _sessions.GetTabId(sessionId);
+        var tabId = sessions.GetTabId(sessionId);
         if (tabId is null)
         {
             return "Error: no active tab — use 'navigate' first.";
         }
 
         var refId = args.TryGetProperty("ref", out var r) ? r.GetString() : null;
-        if (refId is not null && !Regex.IsMatch(refId, @"^e\d+$"))
+        if (refId is not null && !MyRegex().IsMatch(refId))
         {
             return $"Error: invalid ref format '{refId}'. Expected format: e1, e2, e3, ...";
         }
@@ -324,7 +314,7 @@ public sealed partial class PinchTabTool : Tool
 
     private async Task<string> ScreenshotAsync(string sessionId, CancellationToken ct)
     {
-        var tabId = _sessions.GetTabId(sessionId);
+        var tabId = sessions.GetTabId(sessionId);
         if (tabId is null)
         {
             return "Error: no active tab — use 'navigate' first.";
@@ -359,7 +349,7 @@ public sealed partial class PinchTabTool : Tool
                    "Enable it only if you trust the LLM's output.";
         }
 
-        var tabId = _sessions.GetTabId(sessionId);
+        var tabId = sessions.GetTabId(sessionId);
         if (tabId is null)
         {
             return "Error: no active tab — use 'navigate' first.";
@@ -372,12 +362,12 @@ public sealed partial class PinchTabTool : Tool
         }
 
         // Audit log JS evaluation
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogCommandAsync(
+            _ = auditLogger.LogCommandAsync(
                                 $"pinchtab_evaluate: {Truncate(expression, 200)}", ChannelName, userId: null,
                                 allowed: true, success: true, ct: ct)
-                            .LogExceptions(_logger, "audit:pinchtab_evaluate");
+                            .LogExceptions(logger, "audit:pinchtab_evaluate");
         }
 
         var body = new PtEvaluateRequest(tabId, expression);
@@ -392,9 +382,9 @@ public sealed partial class PinchTabTool : Tool
         }
 
         var result = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        if (result.Length > 8_000)
+        if (result.Length > MaxEvaluateResultLength)
         {
-            result = result[..8_000] + "\n... (truncated)";
+            result = result[..MaxEvaluateResultLength] + "\n... (truncated)";
         }
 
         return result;
@@ -429,7 +419,7 @@ public sealed partial class PinchTabTool : Tool
 
     private async Task<string> CloseAsync(string sessionId, CancellationToken ct)
     {
-        var tabId = _sessions.GetTabId(sessionId);
+        var tabId = sessions.GetTabId(sessionId);
         if (tabId is null)
         {
             return "Error: no active tab to close.";
@@ -446,16 +436,25 @@ public sealed partial class PinchTabTool : Tool
             return error;
         }
 
-        _sessions.RemoveTabId(sessionId);
+        sessions.RemoveTabId(sessionId);
         return $"Closed tab {tabId}.";
     }
 
-    private static string Truncate(string value, int maxLength) =>
-        value.Length <= maxLength ? value : value[..maxLength] + "...";
+    private static string Truncate(string value, int maxLength)
+    {
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value[..maxLength] + "...";
+    }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Cannot connect to PinchTab server for '{Action}' action")]
     private static partial void LogPinchTabConnectionError(ILogger logger, Exception exception, string action);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Unexpected error during pinchtab '{Action}' action")]
     private static partial void LogUnexpectedPinchTabError(ILogger logger, Exception exception, string action);
+    [GeneratedRegex(@"^e\d+$", RegexOptions.None, 200)]
+    private static partial Regex MyRegex();
 }

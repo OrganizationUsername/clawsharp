@@ -9,16 +9,11 @@ namespace Clawsharp.Cron;
 // SemaphoreSlim locking and MapRow logic, but the SQL strings and parameter binding are
 // dialect-specific enough that the extraction would be fragile. Deferring until a fourth
 // backend is added or ADO.NET abstractions are unified.
-public sealed class SqliteCronStore : ICronStore
+public sealed class SqliteCronStore(string dbPath) : ICronStore
 {
-    private readonly string _connectionString;
+    private readonly string _connectionString = $"Data Source={dbPath}";
 
     private readonly SemaphoreSlim _lock = new(1, 1);
-
-    public SqliteCronStore(string dbPath)
-    {
-        _connectionString = $"Data Source={dbPath}";
-    }
 
     public async Task InitAsync(CancellationToken ct = default)
     {
@@ -153,7 +148,7 @@ public sealed class SqliteCronStore : ICronStore
         }
     }
 
-    public async Task UpdateRunStatsAsync(string id, string lastRunAt, int runCount, CancellationToken ct = default)
+    public async Task UpdateRunStatsAsync(string id, DateTimeOffset lastRunAt, int runCount, CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
         try
@@ -162,7 +157,7 @@ public sealed class SqliteCronStore : ICronStore
             await conn.OpenAsync(ct);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = "UPDATE cron_jobs SET last_run_at=@lra, run_count=@rc WHERE id=@id";
-            cmd.Parameters.AddWithValue("@lra", lastRunAt);
+            cmd.Parameters.AddWithValue("@lra", lastRunAt.ToString("O"));
             cmd.Parameters.AddWithValue("@rc", runCount);
             cmd.Parameters.AddWithValue("@id", id);
             await cmd.ExecuteNonQueryAsync(ct);
@@ -186,8 +181,8 @@ public sealed class SqliteCronStore : ICronStore
             Message = r.GetString(6),
             SenderId = r.GetString(7),
             Enabled = r.GetInt32(8) != 0,
-            CreatedAt = r.GetString(9),
-            LastRunAt = r.IsDBNull(10) ? null : r.GetString(10),
+            CreatedAt = DateTimeOffset.Parse(r.GetString(9), null, System.Globalization.DateTimeStyles.RoundtripKind),
+            LastRunAt = r.IsDBNull(10) ? null : DateTimeOffset.Parse(r.GetString(10), null, System.Globalization.DateTimeStyles.RoundtripKind),
             RunCount = r.GetInt32(11),
             Source = CronSource.FromValue(r.GetString(12)),
             Model = r.IsDBNull(13) ? null : r.GetString(13),
@@ -206,8 +201,8 @@ public sealed class SqliteCronStore : ICronStore
         cmd.Parameters.AddWithValue("@msg", job.Message);
         cmd.Parameters.AddWithValue("@sid", job.SenderId);
         cmd.Parameters.AddWithValue("@en", job.Enabled ? 1 : 0);
-        cmd.Parameters.AddWithValue("@ca", job.CreatedAt);
-        cmd.Parameters.AddWithValue("@lra", (object?)job.LastRunAt ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ca", job.CreatedAt.ToString("O"));
+        cmd.Parameters.AddWithValue("@lra", (object?)job.LastRunAt?.ToString("O") ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@rc", job.RunCount);
         cmd.Parameters.AddWithValue("@src", job.Source.Value);
         cmd.Parameters.AddWithValue("@model", (object?)job.Model ?? DBNull.Value);

@@ -38,7 +38,11 @@ public static class SlashCommandRouter
 
         var parts = trimmed.Split(' ', 2, StringSplitOptions.TrimEntries);
         var cmd = parts[0].ToLowerInvariant();
-        var arg = parts.Length > 1 ? parts[1] : null;
+        string? arg = null;
+        if (parts.Length > 1)
+        {
+            arg = parts[1];
+        }
 
         if (arg is not null && arg.Length > MaxArgumentLength)
         {

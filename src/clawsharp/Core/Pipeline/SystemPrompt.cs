@@ -16,9 +16,12 @@ public static class SystemPromptBuilder
         string? activeGoalsContext = null)
     {
         var (staticPart, dynamicPart) = BuildSplit(memoryContext, workspaceContext, channelName, enabledTools, activeGoalsContext);
-        return string.IsNullOrEmpty(dynamicPart)
-            ? staticPart
-            : staticPart + "\n\n" + dynamicPart;
+        if (string.IsNullOrEmpty(dynamicPart))
+        {
+            return staticPart;
+        }
+
+        return staticPart + "\n\n" + dynamicPart;
     }
 
     /// <summary>

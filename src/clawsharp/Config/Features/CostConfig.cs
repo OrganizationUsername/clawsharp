@@ -9,10 +9,10 @@ public sealed class CostConfig
     public bool Enabled { get; init; }
 
     /// <summary>Maximum daily spend in USD. 0 disables the daily limit.</summary>
-    public double DailyLimitUsd { get; init; } = 10.0;
+    public decimal DailyLimitUsd { get; init; } = 10.0m;
 
     /// <summary>Maximum monthly spend in USD. 0 disables the monthly limit.</summary>
-    public double MonthlyLimitUsd { get; init; } = 100.0;
+    public decimal MonthlyLimitUsd { get; init; } = 100.0m;
 
     /// <summary>Percentage of limit at which to issue a warning (1-200).</summary>
     [Range(1, 200)]
@@ -30,8 +30,8 @@ public sealed class CostConfig
 public sealed class ModelPricing
 {
     /// <summary>Cost per 1M input tokens in USD.</summary>
-    public double Input { get; init; }
+    public decimal Input { get; init; }
 
     /// <summary>Cost per 1M output tokens in USD.</summary>
-    public double Output { get; init; }
+    public decimal Output { get; init; }
 }

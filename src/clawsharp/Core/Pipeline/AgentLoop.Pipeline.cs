@@ -20,6 +20,12 @@ namespace Clawsharp.Core.Pipeline;
 
 public sealed partial class AgentLoop
 {
+    private const int FlushSnippetMaxLength = 300;
+
+    private const int ConsolidateSnippetMaxLength = 200;
+
+    private const int FlushMaxMessages = 30;
+
     // ──────────────────────────────────────────────────────────────────────
     //  Pipeline stage 2: Context window guard
     // ──────────────────────────────────────────────────────────────────────
@@ -61,9 +67,15 @@ public sealed partial class AgentLoop
                 if (compConfig.PreCompactionMemoryFlush)
                 {
                     var recentStart = Math.Max(1, messages.Count - compConfig.KeepRecent);
-                    var aboutToDiscard = recentStart > 1
-                        ? messages.GetRange(1, recentStart - 1)
-                        : [];
+                    List<ChatMessage> aboutToDiscard;
+                    if (recentStart > 1)
+                    {
+                        aboutToDiscard = messages.GetRange(1, recentStart - 1);
+                    }
+                    else
+                    {
+                        aboutToDiscard = [];
+                    }
                     await FlushMemoryBeforeCompactionAsync(aboutToDiscard, ct).ConfigureAwait(false);
                 }
 
@@ -113,7 +125,7 @@ public sealed partial class AgentLoop
         // Unknown models return price (0, 0) from DefaultPricing, making the check a soft pass-through.
         var estimatedInputTokens = ContextWindowGuard.EstimateTokens(messages);
         var (inputPer1M, _) = DefaultPricing.GetPrice(actualModel);
-        var estimatedCost = estimatedInputTokens * inputPer1M / 1_000_000.0;
+        var estimatedCost = estimatedInputTokens * inputPer1M / 1_000_000m;
         var budgetCheck = await _handlers.CheckBudget.HandleAsync(
             new CheckBudget.Query(estimatedCost), ct).ConfigureAwait(false);
         if (budgetCheck.Status == BudgetStatus.Exceeded)
@@ -212,16 +224,30 @@ public sealed partial class AgentLoop
         AgentDefaults defaults)
     {
         var thinking = defaults.Thinking;
+        IReadOnlyList<ToolDefinition>? tools = null;
+        if (ctx.ToolDefinitions.Count > 0)
+        {
+            tools = ctx.ToolDefinitions;
+        }
+
+        string? staticPart = null;
+        string? dynamicPart = null;
+        if (ctx.CachingEnabled)
+        {
+            staticPart = ctx.StaticPrompt;
+            dynamicPart = ctx.DynamicPrompt;
+        }
+
         return new ChatRequest(
             Model: model,
             Messages: messages,
-            Tools: ctx.ToolDefinitions.Count > 0 ? ctx.ToolDefinitions : null,
+            Tools: tools,
             Temperature: defaults.Temperature,
-            SystemStaticPart: ctx.CachingEnabled ? ctx.StaticPrompt : null,
-            SystemDynamicPart: ctx.CachingEnabled ? ctx.DynamicPrompt : null,
+            SystemStaticPart: staticPart,
+            SystemDynamicPart: dynamicPart,
             CacheToolDefinitions: ctx.CacheToolDefs,
             ThinkingBudgetTokens: thinking?.BudgetTokens ?? 0,
-            ReasoningEffort: thinking?.ReasoningEffort,
+            ReasoningEffort: thinking?.ReasoningEffort?.Value,
             GeminiThinkingBudget: thinking?.GeminiBudgetTokens ?? 0
         );
     }
@@ -276,9 +302,15 @@ public sealed partial class AgentLoop
         finalReply = sanitizeResult.SanitizedReply;
 
         // Update session — images are not persisted to keep session files small.
-        var userTextForHistory = inbound.Images is { Count: > 0 }
-            ? $"{inbound.Text} [+{inbound.Images.Count} image(s)]".TrimStart()
-            : inbound.Text;
+        string userTextForHistory;
+        if (inbound.Images is { Count: > 0 })
+        {
+            userTextForHistory = $"{inbound.Text} [+{inbound.Images.Count} image(s)]".TrimStart();
+        }
+        else
+        {
+            userTextForHistory = inbound.Text;
+        }
         var now = DateTimeOffset.UtcNow;
         session.Messages.Add(new ChatMessage(MessageRole.User, userTextForHistory, Timestamp: now));
         session.Messages.Add(new ChatMessage(MessageRole.Assistant, finalReply, Timestamp: now));
@@ -379,9 +411,14 @@ public sealed partial class AgentLoop
                 "facts as a bullet-point list. If nothing important, output only: (nothing to save)";
 
             var sb = new StringBuilder();
-            foreach (var m in messagesToDiscard.TakeLast(30))
+            foreach (var m in messagesToDiscard.TakeLast(FlushMaxMessages))
             {
-                var snippet = m.Content is { Length: > 0 } c ? c[..Math.Min(300, c.Length)] : "";
+                var snippet = "";
+                if (m.Content is { Length: > 0 } c)
+                {
+                    snippet = c[..Math.Min(FlushSnippetMaxLength, c.Length)];
+                }
+
                 sb.AppendLine($"{m.Role.Value}: {snippet}");
             }
 
@@ -427,7 +464,12 @@ public sealed partial class AgentLoop
             var sb = new StringBuilder("Summarize the key facts and decisions from this conversation in 3-5 bullet points:\n\n");
             foreach (var m in recentMessages)
             {
-                var snippet = m.Content is { Length: > 0 } c ? c[..Math.Min(200, c.Length)] : "";
+                var snippet = "";
+                if (m.Content is { Length: > 0 } c)
+                {
+                    snippet = c[..Math.Min(ConsolidateSnippetMaxLength, c.Length)];
+                }
+
                 sb.AppendLine($"{m.Role.Value}: {snippet}");
             }
 
@@ -439,9 +481,17 @@ public sealed partial class AgentLoop
             );
 
             var summaryResp = await _provider.ChatAsync(summaryRequest, ct);
-            if (summaryResp.Content is not null)
+            if (summaryResp.Content is { Length: > 0 } summary)
             {
-                await _memory.AppendHistoryAsync(summaryResp.Content, ct);
+                // Scrub secrets from LLM summary before persisting to memory
+                var scrubResult = LeakDetector.Scan(summary, 0.5);
+                if (!scrubResult.IsClean)
+                {
+                    LogConsolidationSecretsScrubbed(scrubResult.Patterns.Count);
+                    summary = scrubResult.Redacted;
+                }
+
+                await _memory.AppendHistoryAsync(summary, ct);
             }
         }
         catch (Exception ex)

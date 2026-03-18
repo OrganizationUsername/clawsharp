@@ -7,42 +7,33 @@ namespace Clawsharp.Memory;
 ///     Embedding provider using the OpenAI-compatible /v1/embeddings endpoint.
 ///     Works with OpenAI, Azure OpenAI, OpenRouter, and any compatible API.
 /// </summary>
-public sealed class OpenAiEmbeddingProvider : IEmbeddingProvider
+public sealed class OpenAiEmbeddingProvider(
+    IHttpClientFactory httpClientFactory,
+    string apiKey,
+    string model = "text-embedding-3-small",
+    string baseUrl = ClawsharpConstants.OpenAiDefaultBaseUrl)
+    : IEmbeddingProvider
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private const int SmallModelDimensions = 1536;
+    private const int LargeModelDimensions = 3072;
+    private const int DefaultModelDimensions = 768;
 
-    private readonly string _apiKey;
+    private readonly string _baseUrl = baseUrl.TrimEnd('/');
 
-    private readonly string _model;
-
-    private readonly string _baseUrl;
-
-    public OpenAiEmbeddingProvider(
-        IHttpClientFactory httpClientFactory,
-        string apiKey,
-        string model = "text-embedding-3-small",
-        string baseUrl = ClawsharpConstants.OpenAiDefaultBaseUrl)
+    public int Dimensions => model switch
     {
-        _httpClientFactory = httpClientFactory;
-        _apiKey = apiKey;
-        _model = model;
-        _baseUrl = baseUrl.TrimEnd('/');
-    }
-
-    public int Dimensions => _model switch
-    {
-        "text-embedding-3-small" => 1536,
-        "text-embedding-3-large" => 3072,
-        _ => 768
+        "text-embedding-3-small" => SmallModelDimensions,
+        "text-embedding-3-large" => LargeModelDimensions,
+        _ => DefaultModelDimensions
     };
 
     public async Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
     {
-        var client = _httpClientFactory.CreateClient("llm");
-        var request = new EmbeddingRequest { Model = _model, Input = text };
+        var client = httpClientFactory.CreateClient("llm");
+        var request = new EmbeddingRequest { Model = model, Input = text };
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/embeddings");
-        httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
+        httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
         httpRequest.Content = JsonContent.Create(request, EmbeddingJsonContext.Default.EmbeddingRequest);
 
         using var response = await client.SendAsync(httpRequest, ct);

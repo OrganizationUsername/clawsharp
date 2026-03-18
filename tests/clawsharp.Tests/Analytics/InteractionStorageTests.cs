@@ -39,8 +39,8 @@ public sealed class InteractionStorageTests : IDisposable
         OutputTokens = 50,
         CacheReadTokens = 0,
         CacheWriteTokens = 0,
-        CostUsd = 0.001,
-        CacheSavingsUsd = 0.0,
+        CostUsd = 0.001m,
+        CacheSavingsUsd = 0.0m,
         DurationMs = 250,
         Timestamp = DateTimeOffset.UtcNow,
     };
@@ -64,7 +64,7 @@ public sealed class InteractionStorageTests : IDisposable
         results[0].Response.ShouldBe("Hi there");
         results[0].InputTokens.ShouldBe(100);
         results[0].OutputTokens.ShouldBe(50);
-        results[0].CostUsd.ShouldBe(0.001, tolerance: 0.0001);
+        results[0].CostUsd.ShouldBe(0.001m);
         results[0].DurationMs.ShouldBe(250);
     }
 
@@ -187,8 +187,8 @@ public sealed class InteractionStorageTests : IDisposable
             OutputTokens = 100,
             CacheReadTokens = 50,
             CacheWriteTokens = 10,
-            CostUsd = 0.005,
-            CacheSavingsUsd = 0.001,
+            CostUsd = 0.005m,
+            CacheSavingsUsd = 0.001m,
             DurationMs = 500,
             Timestamp = DateTimeOffset.UtcNow,
         };
@@ -204,6 +204,6 @@ public sealed class InteractionStorageTests : IDisposable
         results[0].ToolIterations.ShouldBe(1);
         results[0].CacheReadTokens.ShouldBe(50);
         results[0].CacheWriteTokens.ShouldBe(10);
-        results[0].CacheSavingsUsd.ShouldBe(0.001, tolerance: 0.0001);
+        results[0].CacheSavingsUsd.ShouldBe(0.001m);
     }
 }

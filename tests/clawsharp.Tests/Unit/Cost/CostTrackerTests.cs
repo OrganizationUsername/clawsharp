@@ -29,7 +29,7 @@ public sealed class CostTrackerTests : IDisposable
 
     private CostTracker CreateTracker(CostConfig? config = null, [System.Runtime.CompilerServices.CallerMemberName] string testName = "")
     {
-        config ??= new CostConfig { Enabled = true, DailyLimitUsd = 10.0, MonthlyLimitUsd = 100.0, WarnAtPercent = 80 };
+        config ??= new CostConfig { Enabled = true, DailyLimitUsd = 10.0m, MonthlyLimitUsd = 100.0m, WarnAtPercent = 80 };
         var storage = new CostStorage(Path.Combine(_tempDir, $"{testName}.jsonl"));
         return new CostTracker(storage, Options.Create(config), NullLogger<CostTracker>.Instance);
     }
@@ -39,7 +39,7 @@ public sealed class CostTrackerTests : IDisposable
     {
         var tracker = CreateTracker(new CostConfig { Enabled = false });
 
-        var result = await tracker.CheckBudgetAsync(estimatedCost: 9999.0);
+        var result = await tracker.CheckBudgetAsync(estimatedCost: 9999.0m);
 
         result.Status.ShouldBe(BudgetStatus.Allowed);
     }
@@ -50,18 +50,18 @@ public sealed class CostTrackerTests : IDisposable
         var tracker = CreateTracker(new CostConfig
         {
             Enabled = true,
-            DailyLimitUsd = 100.0,
-            MonthlyLimitUsd = 1000.0,
+            DailyLimitUsd = 100.0m,
+            MonthlyLimitUsd = 1000.0m,
             WarnAtPercent = 80
         });
 
         // Prime the tracker (triggers initialization on empty storage).
-        await tracker.CheckBudgetAsync(estimatedCost: 0);
+        await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         // Record a tiny amount of usage
         await tracker.RecordUsageAsync("test-session", "gpt-4o-mini", 100, 50);
 
-        var result = await tracker.CheckBudgetAsync(estimatedCost: 0);
+        var result = await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         result.Status.ShouldBe(BudgetStatus.Allowed);
     }
@@ -72,19 +72,19 @@ public sealed class CostTrackerTests : IDisposable
         var tracker = CreateTracker(new CostConfig
         {
             Enabled = true,
-            DailyLimitUsd = 0.01, // very low limit: $0.01
-            MonthlyLimitUsd = 1000.0,
+            DailyLimitUsd = 0.01m, // very low limit: $0.01
+            MonthlyLimitUsd = 1000.0m,
             WarnAtPercent = 80
         });
 
         // Prime the tracker (triggers initialization on empty storage).
-        await tracker.CheckBudgetAsync(estimatedCost: 0);
+        await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         // gpt-4o: $5/1M input, $15/1M output
         // 10000 input = $0.05 -- already over the $0.01 daily limit
         await tracker.RecordUsageAsync("test-session", "gpt-4o", 10_000, 0);
 
-        var result = await tracker.CheckBudgetAsync(estimatedCost: 0);
+        var result = await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         result.Status.ShouldBe(BudgetStatus.Exceeded);
         result.Message.ShouldNotBeNull();
@@ -97,19 +97,19 @@ public sealed class CostTrackerTests : IDisposable
         var config = new CostConfig
         {
             Enabled = true,
-            DailyLimitUsd = 1.00, // $1.00 daily limit
-            MonthlyLimitUsd = 1000.0,
+            DailyLimitUsd = 1.00m, // $1.00 daily limit
+            MonthlyLimitUsd = 1000.0m,
             WarnAtPercent = 80 // warn at $0.80
         };
         var tracker = CreateTracker(config);
 
         // Prime the tracker (triggers EnsureInitializedAsync on empty storage).
-        await tracker.CheckBudgetAsync(estimatedCost: 0);
+        await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         // gpt-4o: $5/1M input -> 180_000 tokens = $0.90 (90% of $1.00, above 80% threshold but below 100%)
         await tracker.RecordUsageAsync("test-session", "gpt-4o", 180_000, 0);
 
-        var result = await tracker.CheckBudgetAsync(estimatedCost: 0);
+        var result = await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         result.Status.ShouldBe(BudgetStatus.Warning);
         result.Message.ShouldNotBeNull();
@@ -122,7 +122,7 @@ public sealed class CostTrackerTests : IDisposable
         var tracker = CreateTracker();
 
         // Prime the tracker (triggers initialization on empty storage).
-        await tracker.CheckBudgetAsync(estimatedCost: 0);
+        await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         // Record two calls
         await tracker.RecordUsageAsync("session-a", "gpt-4o", 1000, 500);
@@ -134,10 +134,10 @@ public sealed class CostTrackerTests : IDisposable
         // Call 1: 1000*5/1M + 500*15/1M = 0.005 + 0.0075 = 0.0125
         // Call 2: 2000*5/1M + 1000*15/1M = 0.01 + 0.015 = 0.025
         // Total: 0.0375
-        summary.Daily.ShouldBe(0.0375, tolerance: 0.001);
-        summary.Monthly.ShouldBe(0.0375, tolerance: 0.001);
+        summary.Daily.ShouldBe(0.0375m);
+        summary.Monthly.ShouldBe(0.0375m);
         // Session A only: 0.0125
-        summary.Session.ShouldBe(0.0125, tolerance: 0.001);
+        summary.Session.ShouldBe(0.0125m);
     }
 
     [Test]
@@ -146,13 +146,13 @@ public sealed class CostTrackerTests : IDisposable
         var tracker = CreateTracker();
 
         // Prime the tracker (triggers initialization on empty storage).
-        await tracker.CheckBudgetAsync(estimatedCost: 0);
+        await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         // Recording with an unknown model should not throw
         await tracker.RecordUsageAsync("test-session", "totally-unknown-model", 5000, 2000);
 
         var summary = await tracker.GetSummaryAsync();
-        summary.Daily.ShouldBe(0.0);
+        summary.Daily.ShouldBe(0.0m);
     }
 
     [Test]
@@ -161,7 +161,7 @@ public sealed class CostTrackerTests : IDisposable
         var tracker = CreateTracker();
 
         // Prime the tracker (triggers initialization on empty storage).
-        await tracker.CheckBudgetAsync(estimatedCost: 0);
+        await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         // claude-sonnet-4-6: $3.00/1M input, $15.00/1M output
         // Anthropic cache: write=1.25x, read=0.10x of input price
@@ -179,10 +179,10 @@ public sealed class CostTrackerTests : IDisposable
 
         var summary = await tracker.GetSummaryAsync("session-anthropic");
 
-        summary.Daily.ShouldBe(0.006990, tolerance: 0.000001);
-        summary.DailySavings.ShouldBe(0.002010, tolerance: 0.000001);
-        summary.Session.ShouldBe(0.006990, tolerance: 0.000001);
-        summary.SessionSavings.ShouldBe(0.002010, tolerance: 0.000001);
+        summary.Daily.ShouldBe(0.006990m);
+        summary.DailySavings.ShouldBe(0.002010m);
+        summary.Session.ShouldBe(0.006990m);
+        summary.SessionSavings.ShouldBe(0.002010m);
     }
 
     [Test]
@@ -191,7 +191,7 @@ public sealed class CostTrackerTests : IDisposable
         var tracker = CreateTracker();
 
         // Prime the tracker (triggers initialization on empty storage).
-        await tracker.CheckBudgetAsync(estimatedCost: 0);
+        await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         // gpt-4o: $5.00/1M input, $15.00/1M output
         // OpenAI cache: inputTokens is total (including cached); read=0.50x
@@ -209,10 +209,10 @@ public sealed class CostTrackerTests : IDisposable
 
         var summary = await tracker.GetSummaryAsync("session-openai");
 
-        summary.Daily.ShouldBe(0.006000, tolerance: 0.000001);
-        summary.DailySavings.ShouldBe(0.002000, tolerance: 0.000001);
-        summary.Session.ShouldBe(0.006000, tolerance: 0.000001);
-        summary.SessionSavings.ShouldBe(0.002000, tolerance: 0.000001);
+        summary.Daily.ShouldBe(0.006000m);
+        summary.DailySavings.ShouldBe(0.002000m);
+        summary.Session.ShouldBe(0.006000m);
+        summary.SessionSavings.ShouldBe(0.002000m);
     }
 
     [Test]
@@ -221,7 +221,7 @@ public sealed class CostTrackerTests : IDisposable
         var tracker = CreateTracker();
 
         // Prime the tracker (triggers initialization on empty storage).
-        await tracker.CheckBudgetAsync(estimatedCost: 0);
+        await tracker.CheckBudgetAsync(estimatedCost: 0m);
 
         // Record two calls on different sessions with cache tokens.
         // Session A: Anthropic model with cache tokens
@@ -247,20 +247,20 @@ public sealed class CostTrackerTests : IDisposable
 
         // Check session-scoped summary for A only
         var summaryA = await tracker.GetSummaryAsync("session-A");
-        summaryA.Session.ShouldBe(0.003495, tolerance: 0.000001);
-        summaryA.SessionSavings.ShouldBe(0.001005, tolerance: 0.000001);
+        summaryA.Session.ShouldBe(0.003495m);
+        summaryA.SessionSavings.ShouldBe(0.001005m);
 
         // Check session-scoped summary for B only
         var summaryB = await tracker.GetSummaryAsync("session-B");
-        summaryB.Session.ShouldBe(0.010750, tolerance: 0.000001);
-        summaryB.SessionSavings.ShouldBe(0.003750, tolerance: 0.000001);
+        summaryB.Session.ShouldBe(0.010750m);
+        summaryB.SessionSavings.ShouldBe(0.003750m);
 
         // Daily and monthly totals should include both sessions
-        var expectedDailyTotal = 0.003495 + 0.010750;
-        var expectedDailySavings = 0.001005 + 0.003750;
-        summaryA.Daily.ShouldBe(expectedDailyTotal, tolerance: 0.000001);
-        summaryA.Monthly.ShouldBe(expectedDailyTotal, tolerance: 0.000001);
-        summaryA.DailySavings.ShouldBe(expectedDailySavings, tolerance: 0.000001);
-        summaryA.MonthlySavings.ShouldBe(expectedDailySavings, tolerance: 0.000001);
+        var expectedDailyTotal = 0.003495m + 0.010750m;
+        var expectedDailySavings = 0.001005m + 0.003750m;
+        summaryA.Daily.ShouldBe(expectedDailyTotal);
+        summaryA.Monthly.ShouldBe(expectedDailyTotal);
+        summaryA.DailySavings.ShouldBe(expectedDailySavings);
+        summaryA.MonthlySavings.ShouldBe(expectedDailySavings);
     }
 }

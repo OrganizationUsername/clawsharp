@@ -10,6 +10,8 @@ using Clawsharp.Core.Utilities;
 using Clawsharp.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 
 namespace Clawsharp.Channels.Signal;
 
@@ -23,6 +25,12 @@ namespace Clawsharp.Channels.Signal;
 /// </summary>
 public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
 {
+    private static readonly TimeSpan ErrorRetryDelay = TimeSpan.FromSeconds(5);
+
+    private readonly ResiliencePipeline _retryPipeline;
+
+    private static readonly TimeSpan PipelineExhaustionDelay = TimeSpan.FromMinutes(1);
+
     private readonly string _bridgeUrl = "";
 
     private readonly string _phoneNumber = "";
@@ -45,18 +53,6 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
 
     private long _rpcIdCounter;
 
-    private int _consecutiveFailures;
-
-    private int _backoffMs = 1_000;
-
-    private const int MinBackoffMs = 1_000;
-
-    private const int MaxBackoffMs = 300_000;
-
-    private const int WarnThreshold = 5;
-
-    private const int ErrorThreshold = 50;
-
     public ChannelName Name => ChannelName.Signal;
 
     public SignalChannel(
@@ -65,7 +61,8 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
         ILogger<SignalChannel> logger,
         IHttpClientFactory httpClientFactory,
         VoiceTranscriptionService voiceService,
-        ApprovedSendersStore approvedSenders)
+        ApprovedSendersStore approvedSenders,
+        ResiliencePipelineProvider<string> pipelineProvider)
     {
         _bus = bus;
         _logger = logger;
@@ -73,6 +70,7 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
         _voiceService = voiceService;
         _approvedSenders = approvedSenders;
         _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
+        _retryPipeline = pipelineProvider.GetPipeline(ChannelName.Signal.Value);
 
         var cfg = options.Value.Channels.GetValueOrDefault(ChannelName.Signal.Value);
         if (cfg is not { Enabled: true } || cfg.BridgeUrl is null || cfg.PhoneNumber is null)
@@ -108,25 +106,14 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
         {
             try
             {
-                await ConnectAndReadSseAsync(sseUrl, stoppingToken).ConfigureAwait(false);
-                _consecutiveFailures = 0;
-                _backoffMs = MinBackoffMs;
+                await _retryPipeline.ExecuteAsync(
+                    async ct => await ConnectAndReadSseAsync(sseUrl, ct).ConfigureAwait(false),
+                    stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                break;
-            }
-            catch (HttpRequestException ex)
-            {
-                LogBridgeUnreachable(_logger, ex);
-                var delay = TrackFailure();
-                await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                LogSseError(_logger, ex);
-                var delay = TrackFailure();
-                await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+                LogPipelineExhausted(_logger, ex);
+                await Task.Delay(PipelineExhaustionDelay, stoppingToken);
             }
         }
     }
@@ -140,7 +127,7 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
         if (!response.IsSuccessStatusCode)
         {
             LogBridgeError(_logger, (int)response.StatusCode);
-            await Task.Delay(5_000, ct);
+            await Task.Delay(ErrorRetryDelay, ct);
             return;
         }
 
@@ -164,7 +151,7 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
             if (shouldDispatch && dataLines.Count > 0)
             {
                 var data = string.Join('\n', dataLines);
-                if (string.Equals(eventType, "receive", StringComparison.Ordinal))
+                if (string.Equals(eventType, SignalSseEventType.Receive, StringComparison.Ordinal))
                 {
                     await HandleReceiveEventAsync(data, ct);
                 }
@@ -443,28 +430,6 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
         }
     }
 
-    /// <summary>
-    /// Tracks consecutive failures, logs warnings/errors at thresholds,
-    /// and returns the current exponential backoff delay in milliseconds.
-    /// </summary>
-    private int TrackFailure()
-    {
-        _consecutiveFailures++;
-
-        if (_consecutiveFailures == WarnThreshold)
-        {
-            LogBridgeHealthWarning(_logger, _consecutiveFailures);
-        }
-        else if (_consecutiveFailures == ErrorThreshold)
-        {
-            LogBridgeHealthError(_logger, _consecutiveFailures);
-        }
-
-        var delay = _backoffMs;
-        _backoffMs = Math.Min(_backoffMs * 2, MaxBackoffMs);
-        return delay;
-    }
-
     [LoggerMessage(EventId = 1, Level = LogLevel.Information,
         Message = "Starting SSE stream (bridge={BridgeUrl}, phone={PhoneNumber})")]
     private static partial void LogStartingSseStream(ILogger logger, string bridgeUrl, string phoneNumber);
@@ -513,15 +478,11 @@ public sealed partial class SignalChannel : LifecycleBackgroundService, IChannel
         Message = "Failed to transcribe Signal voice attachment")]
     private static partial void LogTranscribeError(ILogger logger, Exception exception);
 
-    [LoggerMessage(EventId = 13, Level = LogLevel.Warning,
-        Message = "Signal: {Count} consecutive failures -- check Signal bridge health")]
-    private static partial void LogBridgeHealthWarning(ILogger logger, int count);
-
-    [LoggerMessage(EventId = 14, Level = LogLevel.Error,
-        Message = "Signal: {Count} consecutive failures -- bridge appears down, backoff active")]
-    private static partial void LogBridgeHealthError(ILogger logger, int count);
-
     [LoggerMessage(EventId = 15, Level = LogLevel.Warning,
         Message = "Signal voice attachment exceeds size limit ({EstimatedSize} bytes estimated)")]
     private static partial void LogVoiceFileTooLarge(ILogger logger, long estimatedSize);
+
+    [LoggerMessage(EventId = 16, Level = LogLevel.Critical,
+        Message = "All retry attempts exhausted, restarting pipeline in 60s")]
+    private static partial void LogPipelineExhausted(ILogger logger, Exception exception);
 }

@@ -16,13 +16,16 @@ namespace Clawsharp.Core.Services;
 ///     The internal timer self-suspends when no enabled jobs remain and wakes up
 ///     automatically when AddJobAsync / UpdateJobAsync adds an enabled job.
 /// </summary>
-public sealed partial class CronService : LifecycleBackgroundService
+public sealed partial class CronService(ICronStore store, IMessageBus bus, IOptions<AppConfig> configOptions, ILogger<CronService> logger)
+    : LifecycleBackgroundService
 {
     private const int PollIntervalMs = 10_000;
 
-    private readonly IMessageBus _bus;
+    private const int ConfigJobNameMaxLength = 40;
 
-    private readonly AppConfig _config;
+    private const int FireJobPreviewMaxLength = 80;
+
+    private readonly AppConfig _config = configOptions.Value;
 
     private readonly TaskCompletionSource _initialized = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -30,28 +33,16 @@ public sealed partial class CronService : LifecycleBackgroundService
 
     private readonly SemaphoreSlim _jobsLock = new(1, 1);
 
-    private readonly ILogger<CronService> _logger;
-
-    private readonly ICronStore _store;
-
     // 0→1 semaphore used as a wake signal: Release() to wake, WaitAsync() to sleep
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
-
-    public CronService(ICronStore store, IMessageBus bus, IOptions<AppConfig> configOptions, ILogger<CronService> logger)
-    {
-        _store = store;
-        _bus = bus;
-        _config = configOptions.Value;
-        _logger = logger;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            await _store.InitAsync(stoppingToken);
+            await store.InitAsync(stoppingToken);
 
-            var loaded = await _store.LoadAllAsync(stoppingToken);
+            var loaded = await store.LoadAllAsync(stoppingToken);
 
             await _jobsLock.WaitAsync(stoppingToken);
             try
@@ -72,12 +63,20 @@ public sealed partial class CronService : LifecycleBackgroundService
                     var id = MakeConfigId(entry);
                     if (!_jobs.ContainsKey(id))
                     {
+                        string jobName;
+                        if (entry.Message.Length > ConfigJobNameMaxLength)
+                        {
+                            jobName = entry.Message[..ConfigJobNameMaxLength] + "…";
+                        }
+                        else
+                        {
+                            jobName = entry.Message;
+                        }
+
                         var job = new CronJob
                         {
                             Id = id,
-                            Name = entry.Message.Length > 40
-                                ? entry.Message[..40] + "…"
-                                : entry.Message,
+                            Name = jobName,
                             ScheduleKind = CronScheduleKind.Cron,
                             ScheduleExpr = entry.Schedule,
                             Channel = entry.Channel,
@@ -88,11 +87,11 @@ public sealed partial class CronService : LifecycleBackgroundService
                             Provider = entry.Provider
                         };
                         _jobs[id] = job;
-                        await _store.UpsertAsync(job, stoppingToken);
+                        await store.UpsertAsync(job, stoppingToken);
                     }
                 }
 
-                LogJobsLoaded(_logger, _jobs.Count);
+                LogJobsLoaded(logger, _jobs.Count);
             }
             finally
             {
@@ -105,7 +104,7 @@ public sealed partial class CronService : LifecycleBackgroundService
         }
         catch (Exception ex)
         {
-            LogInitializationFailed(_logger, ex);
+            LogInitializationFailed(logger, ex);
         }
         finally
         {
@@ -141,7 +140,7 @@ public sealed partial class CronService : LifecycleBackgroundService
                 return;
             }
 
-            LogTimerActive(_logger);
+            LogTimerActive(logger);
 
             // Inner loop: poll every 10 seconds while enabled jobs exist
             while (!stoppingToken.IsCancellationRequested)
@@ -167,7 +166,7 @@ public sealed partial class CronService : LifecycleBackgroundService
 
                     if (!hasEnabled)
                     {
-                        LogSuspendingTimer(_logger);
+                        LogSuspendingTimer(logger);
                         break;
                     }
 
@@ -196,14 +195,14 @@ public sealed partial class CronService : LifecycleBackgroundService
             _jobsLock.Release();
         }
 
-        await _store.UpsertAsync(job, ct);
+        await store.UpsertAsync(job, ct);
 
         if (job.Enabled)
         {
             SignalWakeUp();
         }
 
-        LogJobAdded(_logger, job.Id, job.ScheduleKind.Value, job.ScheduleExpr);
+        LogJobAdded(logger, job.Id, job.ScheduleKind.Value, job.ScheduleExpr);
         return job;
     }
 
@@ -237,8 +236,8 @@ public sealed partial class CronService : LifecycleBackgroundService
 
         if (removed)
         {
-            await _store.DeleteAsync(id, ct);
-            LogJobRemoved(_logger, id);
+            await store.DeleteAsync(id, ct);
+            LogJobRemoved(logger, id);
         }
 
         return removed;
@@ -262,7 +261,7 @@ public sealed partial class CronService : LifecycleBackgroundService
             _jobsLock.Release();
         }
 
-        await _store.UpsertAsync(job, ct);
+        await store.UpsertAsync(job, ct);
 
         if (job.Enabled)
         {
@@ -309,11 +308,11 @@ public sealed partial class CronService : LifecycleBackgroundService
         IReadOnlyList<CronJob> stored;
         try
         {
-            stored = await _store.LoadAllAsync(ct);
+            stored = await store.LoadAllAsync(ct);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            LogStoreReloadFailed(_logger, ex);
+            LogStoreReloadFailed(logger, ex);
             return; // proceed with stale in-memory data
         }
 
@@ -332,7 +331,7 @@ public sealed partial class CronService : LifecycleBackgroundService
                     // FireJobAsync updates memory first and persists best-effort.
                     if (existing.LastRunAt is not null &&
                         (storeJob.LastRunAt is null ||
-                         string.Compare(existing.LastRunAt, storeJob.LastRunAt, StringComparison.Ordinal) > 0))
+                         existing.LastRunAt > storeJob.LastRunAt))
                     {
                         storeJob.LastRunAt = existing.LastRunAt;
                         storeJob.RunCount = existing.RunCount;
@@ -385,33 +384,38 @@ public sealed partial class CronService : LifecycleBackgroundService
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
-                LogJobFireError(_logger, ex, job.Id);
+                LogJobFireError(logger, ex, job.Id);
             }
         }
     }
 
     private async Task FireJobAsync(CronJob job, CancellationToken ct)
     {
-        var preview = job.Message.Length > 80 ? job.Message[..80] + "…" : job.Message;
-        LogJobFiring(_logger, job.ScheduleKind.Value, job.ScheduleExpr, job.Channel, preview);
+        var preview = job.Message;
+        if (job.Message.Length > FireJobPreviewMaxLength)
+        {
+            preview = job.Message[..FireJobPreviewMaxLength] + "…";
+        }
+
+        LogJobFiring(logger, job.ScheduleKind.Value, job.ScheduleExpr, job.Channel, preview);
 
         if (!ChannelName.TryFromValue(job.Channel, out var channelName))
         {
-            LogInvalidChannel(_logger, job.Channel, job.Id);
+            LogInvalidChannel(logger, job.Channel, job.Id);
             return;
         }
 
-        await _bus.PublishAsync(new InboundMessage(
+        await bus.PublishAsync(new InboundMessage(
             Channel: channelName,
             SenderId: job.SenderId,
-            SenderName: "cron",
+            SenderName: CronSenderName.Cron,
             Text: job.Message,
             ArrivedAt: DateTimeOffset.UtcNow,
             ModelOverride: job.Model,
             ProviderOverride: job.Provider
         ), ct);
 
-        var nowStr = DateTimeOffset.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow;
         var newCount = job.RunCount + 1;
 
         // Update in-memory state under lock
@@ -420,7 +424,7 @@ public sealed partial class CronService : LifecycleBackgroundService
         {
             if (_jobs.TryGetValue(job.Id, out var current))
             {
-                current.LastRunAt = nowStr;
+                current.LastRunAt = now;
                 current.RunCount = newCount;
                 if (current.ScheduleKind == CronScheduleKind.At)
                 {
@@ -437,11 +441,11 @@ public sealed partial class CronService : LifecycleBackgroundService
         using var statsCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
-            await _store.UpdateRunStatsAsync(job.Id, nowStr, newCount, statsCts.Token);
+            await store.UpdateRunStatsAsync(job.Id, now, newCount, statsCts.Token);
         }
         catch (Exception ex)
         {
-            LogPersistStatsFailed(_logger, ex, job.Id);
+            LogPersistStatsFailed(logger, ex, job.Id);
         }
 
         // For "at" jobs, also persist the disabled state
@@ -463,12 +467,12 @@ public sealed partial class CronService : LifecycleBackgroundService
 
                 if (disabled is not null)
                 {
-                    await _store.UpsertAsync(disabled, atCts.Token);
+                    await store.UpsertAsync(disabled, atCts.Token);
                 }
             }
             catch (Exception ex)
             {
-                LogPersistJobFailed(_logger, ex, job.Id);
+                LogPersistJobFailed(logger, ex, job.Id);
             }
         }
     }
@@ -500,7 +504,7 @@ public sealed partial class CronService : LifecycleBackgroundService
         }
         catch (TimeZoneNotFoundException)
         {
-            LogInvalidTimezone(_logger, job.Id, job.Tz);
+            LogInvalidTimezone(logger, job.Id, job.Tz);
             return utcNow;
         }
     }
@@ -534,12 +538,7 @@ public sealed partial class CronService : LifecycleBackgroundService
             return false;
         }
 
-        if (job.LastRunAt is null)
-        {
-            return true;
-        }
-
-        if (!DateTimeOffset.TryParse(job.LastRunAt, null, DateTimeStyles.RoundtripKind, out var lastRun))
+        if (job.LastRunAt is not { } lastRun)
         {
             return true;
         }
@@ -555,12 +554,7 @@ public sealed partial class CronService : LifecycleBackgroundService
             return false;
         }
 
-        if (job.LastRunAt is null)
-        {
-            return true;
-        }
-
-        if (!DateTimeOffset.TryParse(job.LastRunAt, null, DateTimeStyles.RoundtripKind, out var lastRun))
+        if (job.LastRunAt is not { } lastRun)
         {
             return true;
         }

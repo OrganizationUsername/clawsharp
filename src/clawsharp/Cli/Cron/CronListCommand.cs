@@ -36,7 +36,12 @@ public sealed class CronListCommand : AsyncCommand
 
         foreach (var job in jobs)
         {
-            var id = job.Id.Length > 8 ? job.Id[..8] : job.Id;
+            var id = job.Id;
+            if (job.Id.Length > 8)
+            {
+                id = job.Id[..8];
+            }
+
             var enabled = job.Enabled ? "[green]yes[/]" : "[grey]no[/]";
             table.AddRow(
                 id,
@@ -45,7 +50,7 @@ public sealed class CronListCommand : AsyncCommand
                 Markup.Escape(Truncate(job.ScheduleExpr, 24)),
                 Markup.Escape(Truncate(job.Channel, 10)),
                 enabled,
-                Markup.Escape(Truncate(job.LastRunAt ?? "-", 22)),
+                Markup.Escape(Truncate(job.LastRunAt?.ToString("O") ?? "-", 22)),
                 job.RunCount.ToString());
         }
 
@@ -54,6 +59,13 @@ public sealed class CronListCommand : AsyncCommand
         return 0;
     }
 
-    private static string Truncate(string value, int maxLen) =>
-        value.Length > maxLen ? string.Concat(value.AsSpan(0, maxLen - 1), "~") : value;
+    private static string Truncate(string value, int maxLen)
+    {
+        if (value.Length > maxLen)
+        {
+            return string.Concat(value.AsSpan(0, maxLen - 1), "~");
+        }
+
+        return value;
+    }
 }

@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Options;
 using Clawsharp.Config.Agent;
 
@@ -20,7 +21,7 @@ public sealed class RateLimiter : IDisposable
     ///     Separate bucket dictionary for IP-based rate limiting.
     ///     Each dictionary instance serves as its own lock object.
     /// </summary>
-    private readonly Dictionary<string, Queue<DateTimeOffset>> _ipBuckets = new();
+    private readonly Dictionary<IPAddress, Queue<DateTimeOffset>> _ipBuckets = new();
 
     private readonly int _maxRequests;
 
@@ -40,9 +41,17 @@ public sealed class RateLimiter : IDisposable
     public RateLimiter(IOptions<AgentDefaults> defaultsOptions)
     {
         var defaults = defaultsOptions.Value;
-        _maxRequests = defaults.RateLimitRequests > 0 ? defaults.RateLimitRequests : 20;
+        _maxRequests = 20;
+        if (defaults.RateLimitRequests > 0)
+        {
+            _maxRequests = defaults.RateLimitRequests;
+        }
+
         _maxIpRequests = _maxRequests * IpLimitMultiplier;
-        _window = TimeSpan.FromSeconds(defaults.RateLimitWindowSeconds > 0 ? defaults.RateLimitWindowSeconds : 60);
+
+        _window = defaults.RateLimitWindow > TimeSpan.Zero
+            ? defaults.RateLimitWindow
+            : TimeSpan.FromSeconds(60);
 
         // Scavenge stale buckets every 5 minutes to prevent unbounded memory growth
         // from transient IPs or sessions that never return.
@@ -62,7 +71,7 @@ public sealed class RateLimiter : IDisposable
     ///     <c>false</c> if the IP has exceeded the aggregate limit (5x per-session limit).
     ///     When <paramref name="ipAddress"/> is <c>null</c> (e.g. CLI channel), returns <c>true</c>.
     /// </summary>
-    public bool TryAcquireByIp(string? ipAddress)
+    public bool TryAcquireByIp(IPAddress? ipAddress)
     {
         if (ipAddress is null)
         {
@@ -75,7 +84,8 @@ public sealed class RateLimiter : IDisposable
     /// <summary>
     ///     Core sliding-window algorithm shared by both per-session and per-IP checks.
     /// </summary>
-    private bool TryAcquireCore(Dictionary<string, Queue<DateTimeOffset>> buckets, string key, int maxRequests)
+    private bool TryAcquireCore<TKey>(Dictionary<TKey, Queue<DateTimeOffset>> buckets, TKey key, int maxRequests)
+        where TKey : notnull
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -118,19 +128,20 @@ public sealed class RateLimiter : IDisposable
     /// </summary>
     private void Scavenge()
     {
-        ScavengeBuckets(_buckets);
-        ScavengeBuckets(_ipBuckets);
+        ScavengeBuckets(_buckets, _window);
+        ScavengeBuckets(_ipBuckets, _window);
     }
 
-    private void ScavengeBuckets(Dictionary<string, Queue<DateTimeOffset>> buckets)
+    private static void ScavengeBuckets<TKey>(Dictionary<TKey, Queue<DateTimeOffset>> buckets, TimeSpan window)
+        where TKey : notnull
     {
         var now = DateTimeOffset.UtcNow;
         lock (buckets)
         {
-            var stale = new List<string>();
+            var stale = new List<TKey>();
             foreach (var (key, queue) in buckets)
             {
-                while (queue.Count > 0 && now - queue.Peek() > _window)
+                while (queue.Count > 0 && now - queue.Peek() > window)
                 {
                     queue.Dequeue();
                 }

@@ -191,4 +191,143 @@ public sealed class PostgresMemoryTests
         var result = await memory.GetContextAsync();
         result.ShouldBeNull();
     }
+
+    [Test]
+    public async Task AppendFactAsync_FactPersistedInDatabase()
+    {
+        var memory = CreateMemory();
+
+        await memory.AppendFactAsync("user prefers vim keybindings");
+
+        // Query the Facts table directly via DbContext
+        var options = new DbContextOptionsBuilder<PostgresMemoryContext>()
+                      .UseNpgsql(_connectionString)
+                      .Options;
+        await using var ctx = new PostgresMemoryContext(options);
+        var facts = await ctx.Facts.ToListAsync();
+
+        facts.Count.ShouldBe(1);
+        facts[0].Content.ShouldBe("user prefers vim keybindings");
+        facts[0].CreatedAt.ShouldNotBe(default);
+        facts[0].AccessCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task AppendHistoryAsync_HistoryPersistedInDatabase()
+    {
+        var memory = CreateMemory();
+
+        await memory.AppendHistoryAsync("User discussed deployment strategies");
+
+        var options = new DbContextOptionsBuilder<PostgresMemoryContext>()
+                      .UseNpgsql(_connectionString)
+                      .Options;
+        await using var ctx = new PostgresMemoryContext(options);
+        var history = await ctx.History.ToListAsync();
+
+        history.Count.ShouldBe(1);
+        history[0].Summary.ShouldBe("User discussed deployment strategies");
+        history[0].Ts.ShouldNotBe(default);
+    }
+
+    [Test]
+    public async Task AppendFactAsync_MultipleFacts_AllHaveUniqueIds()
+    {
+        var memory = CreateMemory();
+        await memory.AppendFactAsync("fact one");
+        await memory.AppendFactAsync("fact two");
+        await memory.AppendFactAsync("fact three");
+
+        var options = new DbContextOptionsBuilder<PostgresMemoryContext>()
+                      .UseNpgsql(_connectionString)
+                      .Options;
+        await using var ctx = new PostgresMemoryContext(options);
+        var facts = await ctx.Facts.OrderBy(f => f.Id).ToListAsync();
+
+        facts.Count.ShouldBe(3);
+        facts.Select(f => f.Id).Distinct().Count().ShouldBe(3);
+        // Auto-increment PKs should be sequential
+        facts[1].Id.ShouldBeGreaterThan(facts[0].Id);
+        facts[2].Id.ShouldBeGreaterThan(facts[1].Id);
+    }
+
+    [Test]
+    public async Task ListFactsAsync_ReturnsFacts_WithCorrectFields()
+    {
+        var memory = CreateMemory();
+        await memory.AppendFactAsync("the sky is blue");
+        await memory.AppendFactAsync("water is wet");
+
+        var facts = await memory.ListFactsAsync();
+
+        facts.Count.ShouldBe(2);
+        foreach (var fact in facts)
+        {
+            fact.Id.ShouldBeGreaterThan(0);
+            fact.Content.ShouldNotBeNullOrWhiteSpace();
+            fact.CreatedAt.ShouldNotBe(default);
+        }
+
+        facts.ShouldContain(f => f.Content == "the sky is blue");
+        facts.ShouldContain(f => f.Content == "water is wet");
+    }
+
+    [Test]
+    public async Task SearchAsync_TsQuerySearch_FindsRelevantFacts()
+    {
+        var memory = CreateMemory();
+        await memory.AppendFactAsync("the quick brown fox jumps over the lazy dog");
+        await memory.AppendFactAsync("cats are independent animals");
+        await memory.AppendFactAsync("the fox is a clever creature");
+
+        // tsquery should match "fox" via full-text search
+        var results = await memory.SearchAsync("fox");
+
+        results.ShouldNotBeEmpty();
+        results.ShouldAllBe(r => r.Contains("fox", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Test]
+    public async Task ClearAsync_RemovesAllFacts_PreservesHistory()
+    {
+        var memory = CreateMemory();
+        await memory.AppendFactAsync("fact to delete");
+        await memory.AppendFactAsync("another fact to delete");
+        await memory.AppendHistoryAsync("history entry preserved");
+
+        await memory.ClearAsync();
+
+        var options = new DbContextOptionsBuilder<PostgresMemoryContext>()
+                      .UseNpgsql(_connectionString)
+                      .Options;
+        await using var ctx = new PostgresMemoryContext(options);
+        var facts = await ctx.Facts.ToListAsync();
+        var history = await ctx.History.ToListAsync();
+
+        facts.ShouldBeEmpty();
+        // History is WORM — preserved across clears
+        history.Count.ShouldBe(1);
+        history[0].Summary.ShouldBe("history entry preserved");
+    }
+
+    [Test]
+    public async Task AppendHistoryAsync_MultipleEntries_AllPreservedAcrossClear()
+    {
+        var memory = CreateMemory();
+        await memory.AppendHistoryAsync("first summary");
+        await memory.AppendHistoryAsync("second summary");
+
+        // Clear should not affect history (WORM semantics)
+        await memory.ClearAsync();
+
+        var options = new DbContextOptionsBuilder<PostgresMemoryContext>()
+                      .UseNpgsql(_connectionString)
+                      .Options;
+        await using var ctx = new PostgresMemoryContext(options);
+        var history = await ctx.History.OrderBy(h => h.Id).ToListAsync();
+
+        history.Count.ShouldBe(2);
+        history[0].Summary.ShouldBe("first summary");
+        history[1].Summary.ShouldBe("second summary");
+    }
 }

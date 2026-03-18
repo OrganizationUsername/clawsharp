@@ -1,3 +1,4 @@
+using System.Net;
 using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Core;
@@ -27,5 +28,5 @@ public sealed record InboundMessage(
     /// <summary>Optional provider override for this request (e.g. from a cron job). Overrides the default provider.</summary>
     string? ProviderOverride = null,
     /// <summary>Remote IP address of the sender, when available. Used for per-IP rate limiting.</summary>
-    string? SenderIp = null
+    IPAddress? SenderIp = null
 );

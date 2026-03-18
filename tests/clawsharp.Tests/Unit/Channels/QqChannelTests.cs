@@ -6,6 +6,8 @@ using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 using Clawsharp.Config.Channels;
 
 namespace Clawsharp.Tests.Unit.Channels;
@@ -19,6 +21,8 @@ public sealed class QqChannelTests : IDisposable
 
     private readonly ApprovedSendersStore _approvedSenders;
 
+    private readonly ResiliencePipelineProvider<string> _pipelineProvider;
+
     private readonly string _tempDir;
 
     public QqChannelTests()
@@ -26,6 +30,10 @@ public sealed class QqChannelTests : IDisposable
         _tempDir = Path.Combine(Path.GetTempPath(), "qq-test-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _approvedSenders = new ApprovedSendersStore(NullLogger<ApprovedSendersStore>.Instance);
+
+        var registry = new ResiliencePipelineRegistry<string>();
+        registry.TryAddBuilder("qq", (builder, _) => { });
+        _pipelineProvider = registry;
     }
 
     public void Dispose()
@@ -249,7 +257,8 @@ public sealed class QqChannelTests : IDisposable
             _bus,
             NullLogger<QqChannel>.Instance,
             _httpFactory,
-            _approvedSenders);
+            _approvedSenders,
+            _pipelineProvider);
     }
 }
 
@@ -313,23 +322,14 @@ internal sealed class FakeHttpClientFactory : IHttpClientFactory
 /// <summary>
 /// HTTP handler that captures requests and returns a configurable response.
 /// </summary>
-internal sealed class CapturingHttpHandler : HttpMessageHandler
+internal sealed class CapturingHttpHandler(
+    System.Net.HttpStatusCode statusCode = System.Net.HttpStatusCode.OK,
+    string responseBody = "{\"status\":\"ok\",\"retcode\":0,\"data\":{\"message_id\":1}}")
+    : HttpMessageHandler
 {
-    private readonly System.Net.HttpStatusCode _statusCode;
-
-    private readonly string _responseBody;
-
     private readonly List<HttpRequestMessage> _requests = [];
 
     public IReadOnlyList<HttpRequestMessage> Requests => _requests;
-
-    public CapturingHttpHandler(
-        System.Net.HttpStatusCode statusCode = System.Net.HttpStatusCode.OK,
-        string responseBody = "{\"status\":\"ok\",\"retcode\":0,\"data\":{\"message_id\":1}}")
-    {
-        _statusCode = statusCode;
-        _responseBody = responseBody;
-    }
 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
@@ -337,9 +337,9 @@ internal sealed class CapturingHttpHandler : HttpMessageHandler
         // Clone the content so it can be read later in assertions
         _requests.Add(CloneRequest(request));
 
-        var response = new HttpResponseMessage(_statusCode)
+        var response = new HttpResponseMessage(statusCode)
         {
-            Content = new StringContent(_responseBody, System.Text.Encoding.UTF8, "application/json")
+            Content = new StringContent(responseBody, System.Text.Encoding.UTF8, "application/json")
         };
         return Task.FromResult(response);
     }

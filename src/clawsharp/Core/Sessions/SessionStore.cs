@@ -5,13 +5,17 @@ using Microsoft.Extensions.Logging;
 
 namespace Clawsharp.Core.Sessions;
 
-public sealed partial class SessionManager
+public sealed partial class SessionStore
 {
+    private const int MaxEncodedSessionIdLength = 200;
+
+    private const int SessionIdHashLength = 16;
+
     private readonly string _dir;
 
-    private readonly ILogger<SessionManager> _logger;
+    private readonly ILogger<SessionStore> _logger;
 
-    public SessionManager(ILogger<SessionManager> logger)
+    public SessionStore(ILogger<SessionStore> logger)
     {
         _logger = logger;
         var root = Config.ConfigLoader.ExpandHome("~/.clawsharp");
@@ -21,9 +25,9 @@ public sealed partial class SessionManager
     }
 
     /// <summary>Test-only constructor with custom sessions directory.</summary>
-    internal SessionManager(string sessionsDir, ILogger<SessionManager>? logger = null)
+    internal SessionStore(string sessionsDir, ILogger<SessionStore> logger)
     {
-        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<SessionManager>.Instance;
+        _logger = logger;
         Directory.CreateDirectory(sessionsDir);
         _dir = sessionsDir;
     }
@@ -87,9 +91,9 @@ public sealed partial class SessionManager
     {
         var encoded = Uri.EscapeDataString(sessionId);
 
-        if (encoded.Length > 200)
+        if (encoded.Length > MaxEncodedSessionIdLength)
         {
-            encoded = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sessionId)))[..16];
+            encoded = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sessionId)))[..SessionIdHashLength];
         }
 
         return Path.Combine(_dir, encoded + ".json");

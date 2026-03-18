@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Clawsharp.Config;
 using Clawsharp.Core.Utilities;
 using Clawsharp.Security;
@@ -22,7 +23,12 @@ namespace Clawsharp.Tools.Browser;
 /// this tool will need to be conditionally excluded or the Playwright team will need to
 /// ship an AOT-compatible driver. See: https://github.com/microsoft/playwright-dotnet/issues/2770
 /// </summary>
-public sealed partial class BrowserTool : Tool
+public sealed partial class BrowserTool(
+    BrowserSessionCache sessions,
+    IOptions<AppConfig> configOptions,
+    AuditLogger? auditLogger,
+    ILogger<BrowserTool> logger)
+    : Tool
 {
     private const int NavigationTimeoutMs = 30_000;
 
@@ -67,30 +73,12 @@ public sealed partial class BrowserTool : Tool
         "setInterval(",
     ];
 
-    private readonly BrowserSessionManager _sessions;
-
-    private readonly BrowserConfig _config;
-
-    private readonly AuditLogger? _auditLogger;
-
-    private readonly ILogger<BrowserTool> _logger;
+    private readonly BrowserConfig _config = configOptions.Value.Tools.Browser;
 
     /// <summary>Session ID read from the per-async-flow AsyncLocal in ToolRegistry.</summary>
     public string? SessionId => ToolRegistry.CurrentSessionId;
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
-
-    public BrowserTool(
-        BrowserSessionManager sessions,
-        IOptions<AppConfig> configOptions,
-        AuditLogger? auditLogger,
-        ILogger<BrowserTool> logger)
-    {
-        _sessions = sessions;
-        _config = configOptions.Value.Tools.Browser;
-        _auditLogger = auditLogger;
-        _logger = logger;
-    }
 
     public override string Name => "browser";
 
@@ -176,7 +164,7 @@ public sealed partial class BrowserTool : Tool
         }
         catch (PlaywrightException ex)
         {
-            LogPlaywrightError(_logger, ex, action);
+            LogPlaywrightError(logger, ex, action);
             return "Error: browser operation failed.";
         }
         catch (TimeoutException)
@@ -185,7 +173,7 @@ public sealed partial class BrowserTool : Tool
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            LogUnexpectedBrowserError(_logger, ex, action);
+            LogUnexpectedBrowserError(logger, ex, action);
             return "Error: operation failed.";
         }
     }
@@ -207,11 +195,11 @@ public sealed partial class BrowserTool : Tool
         var ssrfError = await SsrfGuard.CheckAsync(uri, ct).ConfigureAwait(false);
         if (ssrfError is not null)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogPolicyViolationAsync(
+                _ = auditLogger.LogPolicyViolationAsync(
                                     $"SSRF blocked browser navigation: {url}", ChannelName, ssrfBlocked: true, ct: ct)
-                                .LogExceptions(_logger, "audit:browser_ssrf");
+                                .LogExceptions(logger, "audit:browser_ssrf");
             }
 
             return ssrfError;
@@ -225,13 +213,13 @@ public sealed partial class BrowserTool : Tool
         }
 
         // Audit log
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogFileAccessAsync(url, "browser_navigate", ChannelName, success: true, ct: ct)
-                            .LogExceptions(_logger, "audit:browser_navigate");
+            _ = auditLogger.LogFileAccessAsync(url, "browser_navigate", ChannelName, success: true, ct: ct)
+                            .LogExceptions(logger, "audit:browser_navigate");
         }
 
-        var session = _sessions.GetOrCreate(sessionId);
+        var session = sessions.GetOrCreate(sessionId);
         var page = await session.GetPageAsync(ct).ConfigureAwait(false);
         var response = await page.GotoAsync(url, new PageGotoOptions
         {
@@ -249,7 +237,7 @@ public sealed partial class BrowserTool : Tool
     {
         var selector = args.TryGetProperty("selector", out var s) ? s.GetString() ?? "body" : "body";
 
-        var session = _sessions.GetOrCreate(sessionId);
+        var session = sessions.GetOrCreate(sessionId);
         var page = await session.GetPageAsync(ct).ConfigureAwait(false);
 
         // Inject ref annotations into interactive elements and capture an ARIA snapshot
@@ -283,7 +271,7 @@ public sealed partial class BrowserTool : Tool
             return refError;
         }
 
-        var session = _sessions.GetOrCreate(sessionId);
+        var session = sessions.GetOrCreate(sessionId);
         var page = await session.GetPageAsync(ct).ConfigureAwait(false);
         var locator = page.Locator($"[data-pw-ref='{refId}']");
 
@@ -317,7 +305,7 @@ public sealed partial class BrowserTool : Tool
             return "Error: 'text' is required for the 'type' action.";
         }
 
-        var session = _sessions.GetOrCreate(sessionId);
+        var session = sessions.GetOrCreate(sessionId);
         var page = await session.GetPageAsync(ct).ConfigureAwait(false);
         var locator = page.Locator($"[data-pw-ref='{refId}']");
 
@@ -363,7 +351,7 @@ public sealed partial class BrowserTool : Tool
             return "Error: 'values' array is required and must contain at least one option.";
         }
 
-        var session = _sessions.GetOrCreate(sessionId);
+        var session = sessions.GetOrCreate(sessionId);
         var page = await session.GetPageAsync(ct).ConfigureAwait(false);
         var locator = page.Locator($"[data-pw-ref='{refId}']");
 
@@ -381,7 +369,7 @@ public sealed partial class BrowserTool : Tool
     {
         var fullPage = args.TryGetProperty("fullPage", out var fp) && fp.GetBoolean();
 
-        var session = _sessions.GetOrCreate(sessionId);
+        var session = sessions.GetOrCreate(sessionId);
         var page = await session.GetPageAsync(ct).ConfigureAwait(false);
 
         var bytes = await page.ScreenshotAsync(new PageScreenshotOptions
@@ -420,12 +408,12 @@ public sealed partial class BrowserTool : Tool
         {
             if (expression.Contains(blocked, StringComparison.OrdinalIgnoreCase))
             {
-                if (_auditLogger is not null)
+                if (auditLogger is not null)
                 {
-                    _ = _auditLogger.LogPolicyViolationAsync(
+                    _ = auditLogger.LogPolicyViolationAsync(
                                         $"Blocked JS API in browser evaluate: '{blocked}' in expression: {expression}",
                                         ChannelName, ssrfBlocked: false, ct: ct)
-                                    .LogExceptions(_logger, "audit:browser_evaluate_blocked");
+                                    .LogExceptions(logger, "audit:browser_evaluate_blocked");
                 }
 
                 return $"Error: JavaScript expression contains blocked API '{blocked}'. " +
@@ -434,15 +422,15 @@ public sealed partial class BrowserTool : Tool
         }
 
         // Audit log JS evaluation — log the full expression for forensic review
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogCommandAsync(
+            _ = auditLogger.LogCommandAsync(
                                 $"browser_evaluate: {expression}", ChannelName, userId: null,
                                 allowed: true, success: true, ct: ct)
-                            .LogExceptions(_logger, "audit:browser_evaluate");
+                            .LogExceptions(logger, "audit:browser_evaluate");
         }
 
-        var session = _sessions.GetOrCreate(sessionId);
+        var session = sessions.GetOrCreate(sessionId);
         var page = await session.GetPageAsync(ct).ConfigureAwait(false);
 
         var result = await page.EvaluateAsync<JsonElement>(expression).ConfigureAwait(false);
@@ -459,7 +447,7 @@ public sealed partial class BrowserTool : Tool
 
     private async Task<string> CloseAsync(string sessionId)
     {
-        await _sessions.CloseSessionAsync(sessionId).ConfigureAwait(false);
+        await sessions.CloseSessionAsync(sessionId).ConfigureAwait(false);
         return "Browser session closed.";
     }
 
@@ -555,17 +543,22 @@ public sealed partial class BrowserTool : Tool
     }
 
     /// <summary>Validates that a refId matches the expected format (e.g. "e5", "e123") to prevent CSS selector injection.</summary>
-    private static string? ValidateRefId(string refId) =>
-        System.Text.RegularExpressions.Regex.IsMatch(refId, @"^e\d+$")
-            ? null
-            : $"Error: invalid refId format '{refId}'. Expected format: e1, e2, e3, ...";
+    private static string? ValidateRefId(string refId)
+    {
+        if (RefIdRegex().IsMatch(refId))
+        {
+            return null;
+        }
 
-    private static string Truncate(string value, int maxLength) =>
-        value.Length <= maxLength ? value : value[..maxLength] + "...";
+        return $"Error: invalid refId format '{refId}'. Expected format: e1, e2, e3, ...";
+    }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Playwright error during '{Action}' action")]
     private static partial void LogPlaywrightError(ILogger logger, Exception exception, string action);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Unexpected error during browser '{Action}' action")]
     private static partial void LogUnexpectedBrowserError(ILogger logger, Exception exception, string action);
+    
+    [GeneratedRegex(@"^e\d+$", RegexOptions.None, 200)]
+    private static partial Regex RefIdRegex();
 }

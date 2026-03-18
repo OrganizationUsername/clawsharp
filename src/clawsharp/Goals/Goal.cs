@@ -32,9 +32,9 @@ public sealed class Goal
 
     public List<GoalStep> Steps { get; set; } = [];
 
-    public string CreatedAt { get; init; } = DateTimeOffset.UtcNow.ToString("O");
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
-    public string UpdatedAt { get; set; } = DateTimeOffset.UtcNow.ToString("O");
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Valid state transitions for goal status. Completed and Deleted are terminal states.

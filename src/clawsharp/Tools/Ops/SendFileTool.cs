@@ -8,20 +8,12 @@ namespace Clawsharp.Tools.Ops;
 /// via the active channel. The file is enqueued in <see cref="PendingFileStore"/>
 /// and delivered by AgentLoop after the tool-call batch completes.
 /// </summary>
-internal sealed class SendFileTool : Tool
+internal sealed class SendFileTool(string workspace, AuditLogger? auditLogger = null) : Tool
 {
-    private readonly string _workspace;
-
-    private readonly AuditLogger? _auditLogger;
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     /// <summary>Maximum file size that can be sent (8 MB — safe limit for most platforms).</summary>
     private const long MaxFileSizeBytes = 8 * 1024 * 1024;
-
-    public SendFileTool(string workspace, AuditLogger? auditLogger = null)
-    {
-        _workspace = Path.GetFullPath(workspace);
-        _auditLogger = auditLogger;
-    }
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
@@ -62,9 +54,9 @@ internal sealed class SendFileTool : Tool
         }
         catch (InvalidOperationException ex)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(rel, "send_file", ChannelName, success: false,
+                _ = auditLogger.LogFileAccessAsync(rel, "send_file", ChannelName, success: false,
                     error: ex.Message, ct: ct);
             }
 
@@ -80,9 +72,9 @@ internal sealed class SendFileTool : Tool
         var fileInfo = new FileInfo(fullPath);
         if (fileInfo.Length > MaxFileSizeBytes)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(rel, "send_file", ChannelName, success: false,
+                _ = auditLogger.LogFileAccessAsync(rel, "send_file", ChannelName, success: false,
                     error: $"File too large: {fileInfo.Length:N0} bytes (max {MaxFileSizeBytes:N0})", ct: ct);
             }
 
@@ -102,9 +94,9 @@ internal sealed class SendFileTool : Tool
         }
         catch (Exception ex)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(rel, "send_file", ChannelName, success: false,
+                _ = auditLogger.LogFileAccessAsync(rel, "send_file", ChannelName, success: false,
                     error: ex.Message, ct: ct);
             }
 
@@ -116,9 +108,9 @@ internal sealed class SendFileTool : Tool
         // Enqueue the file for delivery by AgentLoop
         PendingFileStore.Enqueue(new PendingFile(filename, bytes, message));
 
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogFileAccessAsync(rel, "send_file", ChannelName, success: true, ct: ct);
+            _ = auditLogger.LogFileAccessAsync(rel, "send_file", ChannelName, success: true, ct: ct);
         }
 
         return $"File queued for delivery: {filename} ({bytes.Length:N0} bytes). " +

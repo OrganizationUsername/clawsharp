@@ -12,9 +12,6 @@ public static class ClawsharpConstants
     /// <summary>Default config file name.</summary>
     public const string DefaultConfigFileName = "config.json";
 
-    /// <summary>HTTP provider request timeout in seconds.</summary>
-    public const int ProviderTimeoutSeconds = 120;
-
     /// <summary>Maximum Telegram message length in characters.</summary>
     public const int TelegramMaxMessageLength = 4096;
 

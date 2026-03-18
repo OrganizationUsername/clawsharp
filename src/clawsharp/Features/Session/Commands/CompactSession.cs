@@ -25,7 +25,7 @@ public static partial class CompactSession
     private static async ValueTask<IReadOnlyList<ChatMessage>> HandleAsync(
         Command command,
         CompactionService compactionService,
-        SessionManager sessionManager,
+        SessionStore sessionManager,
         CancellationToken ct)
     {
         var compacted = await compactionService.CompactAsync(

@@ -26,7 +26,7 @@ public sealed class ConfigShowCommand : AsyncCommand
         AnsiConsole.MarkupLine($"[cyan]Max tool iters[/]   : {d.MaxToolIterations}");
         AnsiConsole.MarkupLine($"[cyan]Max context msgs[/] : {d.MaxContextMessages}");
         AnsiConsole.MarkupLine($"[cyan]Consolidate every[/]: {d.ConsolidateEvery}");
-        AnsiConsole.MarkupLine($"[cyan]Rate limit[/]       : {d.RateLimitRequests} / {d.RateLimitWindowSeconds}s");
+        AnsiConsole.MarkupLine($"[cyan]Rate limit[/]       : {d.RateLimitRequests} / {d.RateLimitWindow.TotalSeconds}s");
         AnsiConsole.WriteLine();
 
         // Providers

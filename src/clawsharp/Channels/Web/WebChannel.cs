@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
@@ -45,6 +46,12 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
     private readonly bool _tls;
 
     private const int MaxWebSocketMessageBytes = 1 * 1024 * 1024; // 1 MB
+
+    private const int WebSocketReceiveBufferSize = 16384;
+
+    private const int AuthFrameBufferSize = 4096;
+
+    private static readonly TimeSpan WebSocketKeepAlive = TimeSpan.FromSeconds(30);
 
     private readonly ConcurrentDictionary<string, WebSocket> _wsClients = new();
 
@@ -112,7 +119,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
 
         var wsOptions = new WebSocketOptions
         {
-            KeepAliveInterval = TimeSpan.FromSeconds(30)
+            KeepAliveInterval = WebSocketKeepAlive
         };
         _app.UseWebSockets(wsOptions);
 
@@ -314,7 +321,12 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             return null;
         }
 
-        return ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip;
+        if (ip.IsIPv4MappedToIPv6)
+        {
+            return ip.MapToIPv4();
+        }
+
+        return ip;
     }
 
     /// <summary>Apply CORS headers — fail-closed when AllowedOrigins is not configured.</summary>
@@ -394,14 +406,21 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             return;
         }
 
-        var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var clientIp = NormalizeIp(context.Connection.RemoteIpAddress);
         var token = _pairingService.TryPair(clientIp, code);
 
         if (token is null)
         {
-            var error = _pairingService.PairingCode is null && !_pairingService.HasPairedClients
-                ? "no_active_pairing_code"
-                : "invalid_code_or_locked_out";
+            string error;
+            if (_pairingService.PairingCode is null && !_pairingService.HasPairedClients)
+            {
+                error = "no_active_pairing_code";
+            }
+            else
+            {
+                error = "invalid_code_or_locked_out";
+            }
+
 
             await WriteJsonAsync(context, StatusCodes.Status403Forbidden,
                 new WebPairResponse { Error = error },
@@ -409,7 +428,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             return;
         }
 
-        LogNewClientPaired(_logger, clientIp);
+        LogNewClientPaired(_logger, clientIp?.ToString() ?? "unknown");
         await WriteJsonAsync(context, StatusCodes.Status200OK,
             new WebPairResponse
             {
@@ -466,18 +485,24 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
     }
 
     /// <summary>
-    /// Derive a deterministic session ID from the Bearer token on the request.
-    /// Uses SHA-256 of the raw token to bind sessions to the authenticated identity,
-    /// preventing session ID injection while maintaining conversation continuity.
+    /// Derives a deterministic session ID from a raw Bearer token via SHA-256,
+    /// binding sessions to the authenticated identity and preventing session ID injection.
+    /// </summary>
+    private static string DeriveSessionId(string token)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        return $"web:{Convert.ToHexStringLower(hash[..16])}";
+    }
+
+    /// <summary>
+    /// Extracts the Bearer token from an HTTP request and derives a session ID.
     /// </summary>
     private static string DeriveSessionIdFromToken(HttpRequest request)
     {
         var authHeader = request.Headers.Authorization.ToString();
         if (authHeader.StartsWith("Bearer ", StringComparison.Ordinal))
         {
-            var token = authHeader["Bearer ".Length..];
-            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-            return $"web:{Convert.ToHexStringLower(hash[..16])}";
+            return DeriveSessionId(authHeader["Bearer ".Length..]);
         }
 
         // Fallback — should not be reachable since IsAuthorized() already validated the token.
@@ -518,7 +543,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
                 SenderId: sessionId,
                 SenderName: "WebUser",
                 Text: req.Message,
-                SenderIp: clientIp?.ToString()
+                SenderIp: clientIp
             ), ct);
 
             var reply = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(120), ct);
@@ -597,8 +622,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
 
             // HIGH-02: Derive session ID from the authenticated token via SHA-256,
             // binding the WebSocket session to the same identity as the HTTP path.
-            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-            var sessionId = $"web:{Convert.ToHexStringLower(hash[..16])}";
+            var sessionId = DeriveSessionId(token);
 
             // Auth succeeded — send confirmation
             var okFrame = JsonSerializer.Serialize(
@@ -622,7 +646,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
     private async Task RunWebSocketMessageLoopAsync(WebSocket ws, string sessionId, IPAddress? remoteIp, CancellationToken ct)
     {
         _wsClients[sessionId] = ws;
-        var buffer = new byte[16384];
+        var buffer = ArrayPool<byte>.Shared.Rent(WebSocketReceiveBufferSize);
         try
         {
             while (!ct.IsCancellationRequested && ws.State == WebSocketState.Open)
@@ -655,7 +679,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
                     SenderId: sessionId,
                     SenderName: "WebUser",
                     Text: text,
-                    SenderIp: remoteIp?.ToString()
+                    SenderIp: remoteIp
                 ), ct);
             }
         }
@@ -665,6 +689,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
         }
         finally
         {
+            ArrayPool<byte>.Shared.Return(buffer);
             _wsClients.TryRemove(sessionId, out _);
         }
     }
@@ -674,26 +699,33 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
     /// <summary>Read a single complete text message from the WebSocket with an 8 KB size limit.</summary>
     private static async Task<string?> ReceiveTextAsync(WebSocket ws, CancellationToken ct)
     {
-        var buffer = new byte[4096];
-        using var ms = new MemoryStream();
-        WebSocketReceiveResult result;
-        do
+        var buffer = ArrayPool<byte>.Shared.Rent(AuthFrameBufferSize);
+        try
         {
-            result = await ws.ReceiveAsync(buffer, ct);
-            ms.Write(buffer, 0, result.Count);
-            if (ms.Length > MaxAuthFrameBytes)
+            using var ms = new MemoryStream();
+            WebSocketReceiveResult result;
+            do
             {
-                await ws.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Auth frame too large", ct);
+                result = await ws.ReceiveAsync(buffer, ct);
+                ms.Write(buffer, 0, result.Count);
+                if (ms.Length > MaxAuthFrameBytes)
+                {
+                    await ws.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Auth frame too large", ct);
+                    return null;
+                }
+            } while (!result.EndOfMessage);
+
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
                 return null;
             }
-        } while (!result.EndOfMessage);
 
-        if (result.MessageType == WebSocketMessageType.Close)
-        {
-            return null;
+            return Encoding.UTF8.GetString(ms.GetBuffer().AsSpan(0, (int)ms.Length));
         }
-
-        return Encoding.UTF8.GetString(ms.GetBuffer().AsSpan(0, (int)ms.Length));
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 
     /// <summary>Send an auth response frame and close the WebSocket.</summary>
@@ -744,9 +776,14 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
             // (Assembly.Location returns "" in single-file/AOT apps; AppContext.BaseDirectory is always valid)
             var dir = AppContext.BaseDirectory;
             var path = Path.Combine(dir, "index.html");
-            html = File.Exists(path)
-                ? await File.ReadAllTextAsync(path, ct).ConfigureAwait(false)
-                : "<h1>UI not found</h1>";
+            if (File.Exists(path))
+            {
+                html = await File.ReadAllTextAsync(path, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                html = "<h1>UI not found</h1>";
+            }
         }
 
         // Inject nonce into all <script> tags so they pass the CSP check.

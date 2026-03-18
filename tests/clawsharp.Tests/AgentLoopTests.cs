@@ -37,7 +37,7 @@ internal sealed class AgentLoopTestHarness : IDisposable
 
     private readonly AgentLoop _loop;
 
-    private readonly SessionManager _sessionManager;
+    private readonly SessionStore _sessionManager;
 
     public FakeStreamingProvider Provider { get; }
 
@@ -49,12 +49,12 @@ internal sealed class AgentLoopTestHarness : IDisposable
 
     public AgentDefaults Defaults { get; }
 
-    public SessionManager Sessions => _sessionManager;
+    public SessionStore Sessions => _sessionManager;
 
     public IInteractionStore InteractionStore { get; }
 
     public AgentLoopTestHarness(
-        Action<AgentDefaults>? configureDefaults = null,
+        AgentDefaults? overrideDefaults = null,
         AnalyticsConfig? analyticsConfig = null,
         IInteractionStore? interactionStore = null)
     {
@@ -66,20 +66,20 @@ internal sealed class AgentLoopTestHarness : IDisposable
         Tools = new FakeToolRegistry();
         Memory = new FakeMemory();
 
+        var d = overrideDefaults;
         Defaults = new AgentDefaults
         {
-            Provider = "fake-streaming",
-            Model = "test-model",
-            ConsolidateEvery = 0,
-            RateLimitRequests = 100,
-            RateLimitWindowSeconds = 60,
-            PromptInjectionGuard = false,
-            MaxToolIterations = 5,
-            MaxContextMessages = 200,
-            Temperature = 0.7f,
+            Provider = d?.Provider ?? "fake-streaming",
+            Model = d?.Model ?? "test-model",
+            ConsolidateEvery = d?.ConsolidateEvery ?? 0,
+            RateLimitRequests = d?.RateLimitRequests ?? 100,
+            RateLimitWindow = d?.RateLimitWindow ?? TimeSpan.FromSeconds(60),
+            PromptInjectionGuard = d?.PromptInjectionGuard ?? false,
+            MaxToolIterations = d?.MaxToolIterations ?? 5,
+            MaxContextMessages = d?.MaxContextMessages ?? 200,
+            Temperature = d?.Temperature ?? 0.7f,
+            HealthCheck = d?.HealthCheck,
         };
-
-        configureDefaults?.Invoke(Defaults);
 
         var appConfig = new AppConfig
         {
@@ -92,7 +92,7 @@ internal sealed class AgentLoopTestHarness : IDisposable
 
         // Use temp directory for sessions to avoid polluting ~/.clawsharp/sessions/.
         _sessionsDir = Path.Combine(_workspaceDir, "sessions");
-        _sessionManager = new SessionManager(_sessionsDir);
+        _sessionManager = new SessionStore(_sessionsDir, NullLogger<SessionStore>.Instance);
         var sessionManager = _sessionManager;
 
         // CostTracker with tracking disabled
@@ -429,10 +429,10 @@ public sealed class AgentLoopTests
     [Test]
     public async Task ProcessMessage_RateLimited_RejectsWithoutCallingProvider()
     {
-        using var harness = new AgentLoopTestHarness(d =>
+        using var harness = new AgentLoopTestHarness(new AgentDefaults
         {
-            d.RateLimitRequests = 1;
-            d.RateLimitWindowSeconds = 60;
+            RateLimitRequests = 1,
+            RateLimitWindow = TimeSpan.FromSeconds(60),
         });
         var senderId = AgentLoopTestHarness.GetUniqueSenderId();
 
@@ -493,7 +493,7 @@ public sealed class AgentLoopTests
     [Test]
     public async Task ProcessMessage_MaxToolIterations_ReturnsCapMessage()
     {
-        using var harness = new AgentLoopTestHarness(d => d.MaxToolIterations = 2);
+        using var harness = new AgentLoopTestHarness(new AgentDefaults { MaxToolIterations = 2 });
         var senderId = AgentLoopTestHarness.GetUniqueSenderId();
 
         harness.Tools.AddDefinition("looper", "infinite loop tool");
@@ -521,10 +521,10 @@ public sealed class AgentLoopTests
     [Test]
     public async Task ProcessMessage_Heartbeat_BypassesRateLimit()
     {
-        using var harness = new AgentLoopTestHarness(d =>
+        using var harness = new AgentLoopTestHarness(new AgentDefaults
         {
-            d.RateLimitRequests = 1;
-            d.RateLimitWindowSeconds = 60;
+            RateLimitRequests = 1,
+            RateLimitWindow = TimeSpan.FromSeconds(60),
         });
         var senderId = AgentLoopTestHarness.GetUniqueSenderId();
 
@@ -553,7 +553,7 @@ public sealed class AgentLoopTests
     [Test]
     public async Task ProcessMessage_PromptGuardEnabled_WrapsUserMessage()
     {
-        using var harness = new AgentLoopTestHarness(d => d.PromptInjectionGuard = true);
+        using var harness = new AgentLoopTestHarness(new AgentDefaults { PromptInjectionGuard = true });
         var senderId = AgentLoopTestHarness.GetUniqueSenderId();
 
         harness.Provider.EnqueueTextStream("Guarded response");

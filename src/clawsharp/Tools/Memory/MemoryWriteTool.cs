@@ -4,15 +4,8 @@ using Clawsharp.Security;
 
 namespace Clawsharp.Tools.Memory;
 
-public sealed class MemoryWriteTool : Tool
+public sealed class MemoryWriteTool(IMemory memory) : Tool
 {
-    private readonly IMemory _memory;
-
-    public MemoryWriteTool(IMemory memory)
-    {
-        _memory = memory;
-    }
-
     public override string Name => "memory_write";
 
     public override string Description => "Save an important fact to persistent memory for future conversations.";
@@ -42,7 +35,7 @@ public sealed class MemoryWriteTool : Tool
             fact = scrubResult.Redacted;
         }
 
-        await _memory.AppendFactAsync(fact, ct);
+        await memory.AppendFactAsync(fact, ct);
         return $"Saved: {fact}";
     }
 }

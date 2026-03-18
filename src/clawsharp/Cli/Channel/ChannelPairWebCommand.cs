@@ -74,11 +74,11 @@ public sealed class ChannelPairWebCommand : AsyncCommand
 
             if (resp?.Error is { } err)
             {
-                if (string.Equals(err, "auth_failed", StringComparison.Ordinal))
+                if (string.Equals(err, IpcError.AuthFailed, StringComparison.Ordinal))
                 {
                     AnsiConsole.MarkupLine("[red]Authentication failed.[/] The gateway may have restarted -- try again.");
                 }
-                else if (string.Equals(err, "too_many_connections", StringComparison.Ordinal))
+                else if (string.Equals(err, IpcError.TooManyConnections, StringComparison.Ordinal))
                 {
                     AnsiConsole.MarkupLine("[red]Gateway is busy.[/] Too many concurrent IPC connections -- try again shortly.");
                 }
@@ -127,7 +127,12 @@ public sealed class ChannelPairWebCommand : AsyncCommand
             }
 
             var token = File.ReadAllText(path).Trim();
-            return token.Length > 0 ? token : null;
+            if (token.Length > 0)
+            {
+                return token;
+            }
+
+            return null;
         }
         catch
         {

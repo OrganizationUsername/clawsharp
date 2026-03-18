@@ -132,7 +132,7 @@ public sealed partial class AgentLoop
                 foreach (var g in goals.Where(g => g.Status == GoalStatus.Active || g.Status == GoalStatus.Paused))
                 {
                     g.Status = GoalStatus.Deleted;
-                    g.UpdatedAt = DateTimeOffset.UtcNow.ToString("O");
+                    g.UpdatedAt = DateTimeOffset.UtcNow;
                     cleared++;
                 }
 

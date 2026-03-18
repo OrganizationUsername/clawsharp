@@ -6,27 +6,17 @@ using Clawsharp.Core;
 
 namespace Clawsharp.Providers.OpenAi;
 
-public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheckableProvider
+public sealed class OpenAiProvider(
+    IHttpClientFactory httpClientFactory,
+    string baseUrl,
+    string apiKey,
+    string name = "openai",
+    string? authHeader = null)
+    : IProvider, IStreamingProvider, IHealthCheckableProvider
 {
-    private readonly string _baseUrl;
+    private readonly string _baseUrl = baseUrl.TrimEnd('/');
 
-    private readonly IHttpClientFactory _httpFactory;
-
-    private readonly string _apiKey;
-
-    private readonly string? _authHeader;
-
-    public OpenAiProvider(IHttpClientFactory httpClientFactory, string baseUrl, string apiKey, string name = "openai",
-                          string? authHeader = null)
-    {
-        Name = name;
-        _baseUrl = baseUrl.TrimEnd('/');
-        _apiKey = apiKey;
-        _httpFactory = httpClientFactory;
-        _authHeader = authHeader;
-    }
-
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <inheritdoc />
     public bool SupportsVision => true;
@@ -36,8 +26,8 @@ public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheck
         var url = $"{_baseUrl}/chat/completions";
         var oaiReq = BuildChatCompletionRequest(request, false, url);
 
-        var oaiResp = await ProviderHttpHelper.ExecuteAsync(
-                          _httpFactory, oaiReq, ConfigureHeaders, "OpenAI API", ct).ConfigureAwait(false)
+        var oaiResp = await ProviderRequestHandler.ExecuteAsync(
+                          httpClientFactory, oaiReq, ConfigureHeaders, "OpenAI API", ct).ConfigureAwait(false)
                       ?? throw new InvalidOperationException("Empty response from OpenAI API.");
 
         var choice = oaiResp.Choices.FirstOrDefault()
@@ -90,8 +80,8 @@ public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheck
         var thinkFilter = TagStripFilter.CreateThinkingFilter();
         var toolTagFilter = TagStripFilter.CreateStreamingFilter();
 
-        var (http, resp, body) = await ProviderHttpHelper.SendStreamingAsync(
-            _httpFactory, url, jsonBytes, ConfigureHeaders, "OpenAI API stream", ct).ConfigureAwait(false);
+        var (http, resp, body) = await ProviderRequestHandler.SendStreamingAsync(
+            httpClientFactory, url, jsonBytes, ConfigureHeaders, "OpenAI API stream", ct).ConfigureAwait(false);
 
         using var _ = http;
         using var __ = resp;
@@ -208,16 +198,19 @@ public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheck
         var sw = Stopwatch.StartNew();
         try
         {
-            using var http = _httpFactory.CreateClient("llm");
+            using var http = httpClientFactory.CreateClient("llm");
             using var req = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/models");
             ConfigureHeaders(req);
 
             using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             sw.Stop();
 
-            return resp.IsSuccessStatusCode
-                ? new HealthCheckResult(true, $"HTTP {(int)resp.StatusCode}", sw.Elapsed)
-                : new HealthCheckResult(false, $"HTTP {(int)resp.StatusCode} {resp.ReasonPhrase}", sw.Elapsed);
+            if (resp.IsSuccessStatusCode)
+            {
+                return new HealthCheckResult(true, $"HTTP {(int)resp.StatusCode}", sw.Elapsed);
+            }
+
+            return new HealthCheckResult(false, $"HTTP {(int)resp.StatusCode} {resp.ReasonPhrase}", sw.Elapsed);
         }
         catch (Exception ex)
         {
@@ -229,35 +222,35 @@ public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheck
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Adds authentication to an outgoing HTTP request. When <see cref="_authHeader"/> is set,
+    /// Adds authentication to an outgoing HTTP request. When <see cref="authHeader"/> is set,
     /// the API key is sent as a custom header (e.g. <c>api-key</c> for Azure OpenAI);
     /// otherwise falls back to standard <c>Authorization: Bearer</c>.
     /// Skipped entirely when the API key is empty (local providers like Ollama / LM Studio).
     /// </summary>
     private void ConfigureHeaders(HttpRequestMessage req)
     {
-        if (string.IsNullOrEmpty(_apiKey))
+        if (string.IsNullOrEmpty(apiKey))
         {
             return;
         }
 
-        if (_authHeader is not null)
+        if (authHeader is not null)
         {
-            req.Headers.TryAddWithoutValidation(_authHeader, _apiKey);
+            req.Headers.TryAddWithoutValidation(authHeader, apiKey);
         }
         else
         {
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         }
     }
 
     /// <summary>
     /// Sanitizes a raw API error body by truncating and stripping secret patterns.
-    /// Delegates to <see cref="ProviderHttpHelper.SanitizeErrorBody"/> for consistent handling.
+    /// Delegates to <see cref="ProviderRequestHandler.SanitizeErrorBody"/> for consistent handling.
     /// Kept as a forwarding method for backward compatibility with callers that reference
     /// <c>OpenAiProvider.Sanitize</c> (e.g. Bedrock error paths).
     /// </summary>
-    internal static string Sanitize(string raw) => ProviderHttpHelper.SanitizeErrorBody(raw);
+    internal static string Sanitize(string raw) => ProviderRequestHandler.SanitizeErrorBody(raw);
 
     private static MessageContent BuildContent(string? text, IReadOnlyList<ImageAttachment>? images)
     {
@@ -310,10 +303,16 @@ public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheck
                 }
             }
 
+            MessageContent? content = null;
+            if (m.Content is not null || m.Images is not null)
+            {
+                content = BuildContent(m.Content, m.Images);
+            }
+
             oaiMessages.Add(new CompletionMessage
             {
                 Role = m.Role.Value,
-                Content = m.Content is null && m.Images is null ? null : BuildContent(m.Content, m.Images),
+                Content = content,
                 ToolCallId = m.ToolCallId,
                 Name = m.Name,
                 ToolCalls = toolCalls
@@ -338,6 +337,18 @@ public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheck
             }).ToList();
         }
 
+        StreamOptions? streamOptions = null;
+        if (stream)
+        {
+            streamOptions = new StreamOptions { IncludeUsage = true };
+        }
+
+        string? toolChoice = null;
+        if (oaiTools is { Count: > 0 })
+        {
+            toolChoice = "auto";
+        }
+
         return new ChatCompletionRequest
         {
             Model = request.Model,
@@ -345,10 +356,10 @@ public sealed class OpenAiProvider : IProvider, IStreamingProvider, IHealthCheck
             Temperature = request.Temperature,
             MaxTokens = request.MaxTokens,
             Tools = oaiTools,
-            ToolChoice = oaiTools?.Count > 0 ? "auto" : null,
+            ToolChoice = toolChoice,
             ReasoningEffort = request.ReasoningEffort,
             Stream = stream,
-            StreamOptions = stream ? new StreamOptions { IncludeUsage = true } : null,
+            StreamOptions = streamOptions,
             Url = url
         };
     }

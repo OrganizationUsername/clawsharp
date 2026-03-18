@@ -45,9 +45,11 @@ public static partial class ExtractFacts
             "Only include factual information. If nothing important, output only: (nothing to save)";
 
         // Truncate conversation text to prevent excessive token usage.
-        var text = command.ConversationText.Length > MaxExtractionChars
-            ? command.ConversationText[..MaxExtractionChars]
-            : command.ConversationText;
+        var text = command.ConversationText;
+        if (text.Length > MaxExtractionChars)
+        {
+            text = text[..MaxExtractionChars];
+        }
 
         var request = new ChatRequest(
             Model: defaultsOptions.Value.Model,

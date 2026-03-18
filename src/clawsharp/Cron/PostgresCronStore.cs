@@ -2,18 +2,11 @@ using Npgsql;
 
 namespace Clawsharp.Cron;
 
-public sealed class PostgresCronStore : ICronStore
+public sealed class PostgresCronStore(string connectionString) : ICronStore
 {
-    private readonly string _connectionString;
-
-    public PostgresCronStore(string connectionString)
-    {
-        _connectionString = connectionString;
-    }
-
     public async Task InitAsync(CancellationToken ct = default)
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
@@ -48,7 +41,7 @@ public sealed class PostgresCronStore : ICronStore
 
     public async Task<IReadOnlyList<CronJob>> LoadAllAsync(CancellationToken ct = default)
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
@@ -68,8 +61,8 @@ public sealed class PostgresCronStore : ICronStore
                 Message = reader.GetString(6),
                 SenderId = reader.GetString(7),
                 Enabled = reader.GetBoolean(8),
-                CreatedAt = reader.GetString(9),
-                LastRunAt = reader.IsDBNull(10) ? null : reader.GetString(10),
+                CreatedAt = DateTimeOffset.Parse(reader.GetString(9), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                LastRunAt = reader.IsDBNull(10) ? null : DateTimeOffset.Parse(reader.GetString(10), null, System.Globalization.DateTimeStyles.RoundtripKind),
                 RunCount = reader.GetInt32(11),
                 Source = CronSource.FromValue(reader.GetString(12)),
                 Model = reader.IsDBNull(13) ? null : reader.GetString(13),
@@ -82,7 +75,7 @@ public sealed class PostgresCronStore : ICronStore
 
     public async Task UpsertAsync(CronJob job, CancellationToken ct = default)
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
@@ -105,8 +98,8 @@ public sealed class PostgresCronStore : ICronStore
         cmd.Parameters.AddWithValue("@msg", job.Message);
         cmd.Parameters.AddWithValue("@sid", job.SenderId);
         cmd.Parameters.AddWithValue("@en", job.Enabled);
-        cmd.Parameters.AddWithValue("@ca", job.CreatedAt);
-        cmd.Parameters.AddWithValue("@lra", (object?)job.LastRunAt ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ca", job.CreatedAt.ToString("O"));
+        cmd.Parameters.AddWithValue("@lra", (object?)job.LastRunAt?.ToString("O") ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@rc", job.RunCount);
         cmd.Parameters.AddWithValue("@src", job.Source.Value);
         cmd.Parameters.AddWithValue("@model", (object?)job.Model ?? DBNull.Value);
@@ -116,7 +109,7 @@ public sealed class PostgresCronStore : ICronStore
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM cron_jobs WHERE id = @id";
@@ -124,13 +117,13 @@ public sealed class PostgresCronStore : ICronStore
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task UpdateRunStatsAsync(string id, string lastRunAt, int runCount, CancellationToken ct = default)
+    public async Task UpdateRunStatsAsync(string id, DateTimeOffset lastRunAt, int runCount, CancellationToken ct = default)
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE cron_jobs SET last_run_at=@lra, run_count=@rc WHERE id=@id";
-        cmd.Parameters.AddWithValue("@lra", lastRunAt);
+        cmd.Parameters.AddWithValue("@lra", lastRunAt.ToString("O"));
         cmd.Parameters.AddWithValue("@rc", runCount);
         cmd.Parameters.AddWithValue("@id", id);
         await cmd.ExecuteNonQueryAsync(ct);

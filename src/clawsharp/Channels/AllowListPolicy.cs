@@ -55,9 +55,15 @@ public sealed class AllowListPolicy
             return;
         }
 
-        var entries = transform is not null
-            ? allowFrom.Select(transform)
-            : allowFrom;
+        IEnumerable<string> entries;
+        if (transform is not null)
+        {
+            entries = allowFrom.Select(transform);
+        }
+        else
+        {
+            entries = allowFrom;
+        }
 
         _allowed = new HashSet<string>(entries, comparer ?? StringComparer.OrdinalIgnoreCase);
     }

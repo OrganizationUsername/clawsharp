@@ -4,17 +4,9 @@ using Clawsharp.Security;
 
 namespace Clawsharp.Tools.Browser;
 
-public sealed class ScreenshotTool : Tool
+public sealed class ScreenshotTool(string workspace, AuditLogger? auditLogger = null) : Tool
 {
-    private readonly string _workspace;
-
-    private readonly AuditLogger? _auditLogger;
-
-    public ScreenshotTool(string workspace, AuditLogger? auditLogger = null)
-    {
-        _workspace = Path.GetFullPath(workspace);
-        _auditLogger = auditLogger;
-    }
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
@@ -43,9 +35,15 @@ public sealed class ScreenshotTool : Tool
         var screenshotsDir = Path.Combine(_workspace, "screenshots");
         Directory.CreateDirectory(screenshotsDir);
 
-        var filename = args.TryGetProperty("filename", out var fnEl) && fnEl.GetString() is { Length: > 0 } fn
-            ? fn
-            : $"screenshot-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}";
+        string filename;
+        if (args.TryGetProperty("filename", out var fnEl) && fnEl.GetString() is { Length: > 0 } fn)
+        {
+            filename = fn;
+        }
+        else
+        {
+            filename = $"screenshot-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}";
+        }
 
         // Sanitize filename: strip path separators
         filename = string.Concat(filename.Where(c => c != '/' && c != '\\' && c != ':'));
@@ -99,9 +97,9 @@ public sealed class ScreenshotTool : Tool
 
             var fileSize = new FileInfo(outputPath).Length;
 
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(outputPath, "screenshot", ChannelName, success: true, ct: ct);
+                _ = auditLogger.LogFileAccessAsync(outputPath, "screenshot", ChannelName, success: true, ct: ct);
             }
 
             return $"Screenshot saved: {outputPath} ({fileSize / 1024} KB)";

@@ -9,38 +9,96 @@ namespace Clawsharp.Analytics;
 /// EF Core-backed interaction store. Works with any analytics DbContext
 /// (SQLite, PostgreSQL, MS SQL). Runs migrations on first use.
 /// </summary>
-public sealed partial class EfInteractionStore<TContext> : IInteractionStore
+public sealed partial class EfInteractionStore<TContext>(
+    IDbContextFactory<TContext> contextFactory,
+    ILogger<EfInteractionStore<TContext>> logger,
+    bool skipMigration = false)
+    : IInteractionStore
     where TContext : DbContext
 {
-    private readonly IDbContextFactory<TContext> _contextFactory;
-    private readonly ILogger _logger;
+    private readonly ILogger _logger = logger;
     private readonly SemaphoreSlim _initLock = new(1, 1);
-    private bool _initialized;
-
-    public EfInteractionStore(
-        IDbContextFactory<TContext> contextFactory,
-        ILogger<EfInteractionStore<TContext>> logger,
-        bool skipMigration = false)
-    {
-        _contextFactory = contextFactory;
-        _logger = logger;
-        _initialized = skipMigration;
-    }
+    private bool _initialized = skipMigration;
 
     public async Task AppendAsync(InteractionRecord record, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var db = await _contextFactory.CreateDbContextAsync(ct);
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        // Get or create conversation thread for this session
+        var thread = await db.Set<ConversationThread>()
+            .FirstOrDefaultAsync(t => t.SessionId == record.SessionId, ct);
+
+        if (thread is null)
+        {
+            thread = new ConversationThread
+            {
+                SessionId = record.SessionId,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Set<ConversationThread>().Add(thread);
+
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                // Concurrent insert won the race — reload the existing thread
+                db.ChangeTracker.Clear();
+                thread = await db.Set<ConversationThread>()
+                    .FirstAsync(t => t.SessionId == record.SessionId, ct);
+            }
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         var entity = ToEntity(record);
+        entity.ConversationThreadId = thread.Id;
         db.Set<InteractionEntity>().Add(entity);
         await db.SaveChangesAsync(ct);
+
+        // Insert per-message rows
+        var now = record.Timestamp;
+
+        db.Set<InteractionMessageEntity>().Add(new InteractionMessageEntity
+        {
+            InteractionId = entity.Id,
+            MessageType = MessageType.Sent,
+            Content = record.UserPrompt,
+            SequenceNumber = 0,
+            Timestamp = now,
+        });
+
+        if (!string.IsNullOrEmpty(record.Thinking))
+        {
+            db.Set<InteractionMessageEntity>().Add(new InteractionMessageEntity
+            {
+                InteractionId = entity.Id,
+                MessageType = MessageType.Thinking,
+                Content = record.Thinking,
+                SequenceNumber = 1,
+                Timestamp = now,
+            });
+        }
+
+        db.Set<InteractionMessageEntity>().Add(new InteractionMessageEntity
+        {
+            InteractionId = entity.Id,
+            MessageType = MessageType.Received,
+            Content = record.Response,
+            SequenceNumber = string.IsNullOrEmpty(record.Thinking) ? 1 : 2,
+            Timestamp = now,
+        });
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
 
     public async Task<IReadOnlyList<InteractionRecord>> ReadAllAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var db = await _contextFactory.CreateDbContextAsync(ct);
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
 
         var entities = await db.Set<InteractionEntity>()
                                .AsNoTracking()
@@ -65,7 +123,7 @@ public sealed partial class EfInteractionStore<TContext> : IInteractionStore
                 return;
             }
 
-            await using var db = await _contextFactory.CreateDbContextAsync(ct);
+            await using var db = await contextFactory.CreateDbContextAsync(ct);
             await db.Database.MigrateAsync(ct);
             _initialized = true;
             LogDatabaseInitialized(typeof(TContext).Name);

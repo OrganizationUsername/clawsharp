@@ -18,7 +18,8 @@ namespace Clawsharp.Ipc;
 ///     <c>~/.clawsharp/ipc.token</c> with owner-only permissions. Clients must include
 ///     the token in every <see cref="IpcRequest"/>. The token is deleted on shutdown.
 /// </remarks>
-public sealed partial class GatewayIpcService : LifecycleBackgroundService
+public sealed partial class GatewayIpcService(WebPairingService pairingService, ILogger<GatewayIpcService> logger)
+    : LifecycleBackgroundService
 {
     /// <summary>User-scoped pipe name -- avoids conflicts when multiple users share a machine.</summary>
     internal static string PipeName => $"clawsharp-{Environment.UserName}";
@@ -31,12 +32,10 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
     /// <summary>Maximum number of concurrent IPC connections.</summary>
     private const int MaxConcurrentConnections = 5;
 
+    private const int DrainDelayMs = 50;
+
     /// <summary>Grace period for active connections to finish during shutdown.</summary>
     private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(3);
-
-    private readonly WebPairingService _pairingService;
-
-    private readonly ILogger<GatewayIpcService> _logger;
 
     private readonly SemaphoreSlim _connectionSemaphore = new(MaxConcurrentConnections, MaxConcurrentConnections);
 
@@ -44,16 +43,10 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
 
     private int _activeConnections;
 
-    public GatewayIpcService(WebPairingService pairingService, ILogger<GatewayIpcService> logger)
-    {
-        _pairingService = pairingService;
-        _logger = logger;
-    }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _authToken = GenerateAndPersistToken();
-        LogStarting(_logger, PipeName);
+        LogStarting(logger, PipeName);
 
         try
         {
@@ -89,7 +82,7 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
             }
             catch (Exception ex)
             {
-                LogTokenPermissionWarning(_logger, ex);
+                LogTokenPermissionWarning(logger, ex);
             }
         }
 
@@ -109,7 +102,7 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
         }
         catch (Exception ex)
         {
-            LogTokenCleanupWarning(_logger, ex);
+            LogTokenCleanupWarning(logger, ex);
         }
     }
 
@@ -136,14 +129,14 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
             catch (Exception ex)
             {
                 await pipe.DisposeAsync();
-                LogAcceptError(_logger, ex);
+                LogAcceptError(logger, ex);
                 continue;
             }
 
             // Enforce connection limit -- if we can't acquire, reject immediately.
             if (!_connectionSemaphore.Wait(0))
             {
-                LogConnectionLimitReached(_logger);
+                LogConnectionLimitReached(logger);
                 await RejectAndDisposeAsync(pipe);
                 continue;
             }
@@ -163,7 +156,7 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
             try
             {
                 await using var writer = new StreamWriter(pipe, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
-                var resp = new IpcResponse(null, "too_many_connections", false);
+                var resp = new IpcResponse(null, IpcError.TooManyConnections, false);
                 var json = JsonSerializer.Serialize(resp, IpcJsonContext.Default.IpcResponse);
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                 await writer.WriteLineAsync(json.AsMemory(), cts.Token);
@@ -183,19 +176,19 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
             return;
         }
 
-        LogDraining(_logger, Volatile.Read(ref _activeConnections));
+        LogDraining(logger, Volatile.Read(ref _activeConnections));
 
         using var drainCts = new CancellationTokenSource(DrainTimeout);
         try
         {
             while (Volatile.Read(ref _activeConnections) > 0 && !drainCts.IsCancellationRequested)
             {
-                await Task.Delay(50, drainCts.Token);
+                await Task.Delay(DrainDelayMs, drainCts.Token);
             }
         }
         catch (OperationCanceledException)
         {
-            LogDrainTimeout(_logger, Volatile.Read(ref _activeConnections));
+            LogDrainTimeout(logger, Volatile.Read(ref _activeConnections));
         }
     }
 
@@ -236,8 +229,8 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
                     }
                     else if (!ValidateToken(req.Token))
                     {
-                        LogAuthFailure(_logger);
-                        resp = new IpcResponse(null, "auth_failed", false);
+                        LogAuthFailure(logger);
+                        resp = new IpcResponse(null, IpcError.AuthFailed, false);
                     }
                     else
                     {
@@ -257,7 +250,7 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
                 }
                 catch (Exception ex)
                 {
-                    LogConnectionError(_logger, ex);
+                    LogConnectionError(logger, ex);
                 }
             }
         }
@@ -286,12 +279,12 @@ public sealed partial class GatewayIpcService : LifecycleBackgroundService
 
     private IpcResponse PairWeb()
     {
-        if (!_pairingService.IsEnabled)
+        if (!pairingService.IsEnabled)
         {
             return new IpcResponse(null, "web_pairing_not_enabled", false);
         }
 
-        var code = _pairingService.Regenerate();
+        var code = pairingService.Regenerate();
         return new IpcResponse(code, null, false);
     }
 

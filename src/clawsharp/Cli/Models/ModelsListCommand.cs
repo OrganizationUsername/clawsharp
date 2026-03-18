@@ -148,8 +148,11 @@ public sealed class ModelsListCommand : AsyncCommand
         HttpClient http, string name, ProviderConfig providerCfg,
         LlmProviderType providerType, CancellationToken ct)
     {
-        var baseUrl = providerCfg.BaseUrl
-                      ?? (ClawsharpConstants.DefaultProviderBaseUrls.TryGetValue(providerType, out var def) ? def : null);
+        var baseUrl = providerCfg.BaseUrl;
+        if (baseUrl is null)
+        {
+            ClawsharpConstants.DefaultProviderBaseUrls.TryGetValue(providerType, out baseUrl);
+        }
 
         if (baseUrl is null)
         {

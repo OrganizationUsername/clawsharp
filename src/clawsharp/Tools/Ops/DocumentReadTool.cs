@@ -7,7 +7,7 @@ using UglyToad.PdfPig;
 
 namespace Clawsharp.Tools.Ops;
 
-public sealed class DocumentReadTool : Tool
+public sealed class DocumentReadTool(string workspace, AuditLogger? auditLogger = null) : Tool
 {
     private const int MaxFileSizeBytes = 50 * 1024 * 1024; // 50 MB
 
@@ -15,15 +15,7 @@ public sealed class DocumentReadTool : Tool
 
     private const int HardMaxChars = 200_000;
 
-    private readonly string _workspace;
-
-    private readonly AuditLogger? _auditLogger;
-
-    public DocumentReadTool(string workspace, AuditLogger? auditLogger = null)
-    {
-        _workspace = Path.GetFullPath(workspace);
-        _auditLogger = auditLogger;
-    }
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
@@ -65,9 +57,9 @@ public sealed class DocumentReadTool : Tool
         }
         catch (InvalidOperationException ex)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(inputPath, "document_read", ChannelName, success: false, error: ex.Message, ct: ct);
+                _ = auditLogger.LogFileAccessAsync(inputPath, "document_read", ChannelName, success: false, error: ex.Message, ct: ct);
             }
 
             return "Error: path is outside the workspace.";
@@ -118,12 +110,17 @@ public sealed class DocumentReadTool : Tool
             text = text[..maxChars] + $"\n...[truncated at {maxChars:N0} chars of {text.Length:N0} total]";
         }
 
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogFileAccessAsync(resolvedPath, "document_read", ChannelName, success: true, ct: ct);
+            _ = auditLogger.LogFileAccessAsync(resolvedPath, "document_read", ChannelName, success: true, ct: ct);
         }
 
-        return text.Length > 0 ? text : "(document appears to be empty or contains no extractable text)";
+        if (text.Length > 0)
+        {
+            return text;
+        }
+
+        return "(document appears to be empty or contains no extractable text)";
     }
 
     private static Task<string> ExtractPdfAsync(string path, CancellationToken ct) =>

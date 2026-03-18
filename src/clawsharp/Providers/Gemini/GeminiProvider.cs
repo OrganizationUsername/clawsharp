@@ -6,22 +6,12 @@ using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers.Gemini;
 
-public sealed class GeminiProvider : IProvider, IStreamingProvider, IHealthCheckableProvider
+public sealed class GeminiProvider(IHttpClientFactory httpClientFactory, string apiKey, string name = "gemini")
+    : IProvider, IStreamingProvider, IHealthCheckableProvider
 {
     private const string BaseUrl = ClawsharpConstants.GeminiDefaultBaseUrl + "/models";
 
-    private readonly IHttpClientFactory _httpFactory;
-
-    private readonly string _apiKey;
-
-    public GeminiProvider(IHttpClientFactory httpClientFactory, string apiKey, string name = "gemini")
-    {
-        Name = name;
-        _apiKey = apiKey;
-        _httpFactory = httpClientFactory;
-    }
-
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <inheritdoc />
     public bool SupportsVision => true;
@@ -31,13 +21,13 @@ public sealed class GeminiProvider : IProvider, IStreamingProvider, IHealthCheck
         var url = $"{BaseUrl}/{request.Model}:generateContent";
         var gemReq = BuildGeminiRequest(request, url);
 
-        var gemResp = await ProviderHttpHelper.ExecuteAsync(
-                          _httpFactory, gemReq, ConfigureHeaders, "Gemini API", ct).ConfigureAwait(false)
+        var gemResp = await ProviderRequestHandler.ExecuteAsync(
+                          httpClientFactory, gemReq, ConfigureHeaders, "Gemini API", ct).ConfigureAwait(false)
                       ?? throw new InvalidOperationException("Empty response from Gemini API.");
 
         if (gemResp.Error is { } err)
         {
-            throw new HttpRequestException($"Gemini API error {err.Code}: {ProviderHttpHelper.SanitizeErrorBody(err.Message)}");
+            throw new HttpRequestException($"Gemini API error {err.Code}: {ProviderRequestHandler.SanitizeErrorBody(err.Message)}");
         }
 
         var candidate = gemResp.Candidates.FirstOrDefault()
@@ -62,13 +52,27 @@ public sealed class GeminiProvider : IProvider, IStreamingProvider, IHealthCheck
 
         var finishReason = MapFinishReason(candidate.FinishReason);
 
-        var cacheRead = gemResp.UsageMetadata?.CachedContentTokenCount is > 0
-            ? gemResp.UsageMetadata.CachedContentTokenCount
-            : (int?)null;
+        int? cacheRead = null;
+        if (gemResp.UsageMetadata?.CachedContentTokenCount is > 0)
+        {
+            cacheRead = gemResp.UsageMetadata.CachedContentTokenCount;
+        }
+
+        string? textContent = null;
+        if (textParts.Count > 0)
+        {
+            textContent = string.Join("\n", textParts);
+        }
+
+        List<ToolCall>? finalToolCalls = null;
+        if (toolCalls.Count > 0)
+        {
+            finalToolCalls = toolCalls;
+        }
 
         return new ChatResponse(
-            textParts.Count > 0 ? string.Join("\n", textParts) : null,
-            toolCalls.Count > 0 ? toolCalls : null,
+            textContent,
+            finalToolCalls,
             finishReason,
             gemResp.UsageMetadata?.PromptTokenCount,
             gemResp.UsageMetadata?.CandidatesTokenCount,
@@ -82,8 +86,8 @@ public sealed class GeminiProvider : IProvider, IStreamingProvider, IHealthCheck
         var gemReq = BuildGeminiRequest(request, url);
         var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(gemReq, GeminiJsonContext.Default.GenerateContentRequest);
 
-        var (http, resp, body) = await ProviderHttpHelper.SendStreamingAsync(
-            _httpFactory, url, jsonBytes, ConfigureHeaders, "Gemini streaming API", ct).ConfigureAwait(false);
+        var (http, resp, body) = await ProviderRequestHandler.SendStreamingAsync(
+            httpClientFactory, url, jsonBytes, ConfigureHeaders, "Gemini streaming API", ct).ConfigureAwait(false);
 
         using var _ = http;
         using var __ = resp;
@@ -115,7 +119,7 @@ public sealed class GeminiProvider : IProvider, IStreamingProvider, IHealthCheck
                 doneEmitted = true;
                 yield return new StreamDoneChunk();
                 throw new HttpRequestException(
-                    $"Gemini streaming error {streamErr.Code}: {ProviderHttpHelper.SanitizeErrorBody(streamErr.Message)}");
+                    $"Gemini streaming error {streamErr.Code}: {ProviderRequestHandler.SanitizeErrorBody(streamErr.Message)}");
             }
 
             if (gemResp.UsageMetadata is { } usageMeta)
@@ -163,15 +167,18 @@ public sealed class GeminiProvider : IProvider, IStreamingProvider, IHealthCheck
         var sw = Stopwatch.StartNew();
         try
         {
-            using var http = _httpFactory.CreateClient("llm");
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}?key={_apiKey}");
+            using var http = httpClientFactory.CreateClient("llm");
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}?key={apiKey}");
 
             using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             sw.Stop();
 
-            return resp.IsSuccessStatusCode
-                ? new HealthCheckResult(true, $"HTTP {(int)resp.StatusCode}", sw.Elapsed)
-                : new HealthCheckResult(false, $"HTTP {(int)resp.StatusCode} {resp.ReasonPhrase}", sw.Elapsed);
+            if (resp.IsSuccessStatusCode)
+            {
+                return new HealthCheckResult(true, $"HTTP {(int)resp.StatusCode}", sw.Elapsed);
+            }
+
+            return new HealthCheckResult(false, $"HTTP {(int)resp.StatusCode} {resp.ReasonPhrase}", sw.Elapsed);
         }
         catch (Exception ex)
         {
@@ -326,7 +333,7 @@ public sealed class GeminiProvider : IProvider, IStreamingProvider, IHealthCheck
     /// </summary>
     private void ConfigureHeaders(HttpRequestMessage req)
     {
-        req.Headers.Add("x-goog-api-key", _apiKey);
+        req.Headers.Add("x-goog-api-key", apiKey);
     }
 
     private static FinishReason MapFinishReason(string? geminiReason) => geminiReason switch

@@ -12,7 +12,7 @@ namespace Clawsharp.Memory.Sqlite;
 /// the interceptor sets <see cref="VecExtensionLoaded"/> to <c>false</c> and all
 /// ANN queries fall back to the existing FTS5 + in-process cosine path.
 /// </summary>
-internal sealed partial class SqliteVecConnectionInterceptor : DbConnectionInterceptor
+internal sealed partial class SqliteVecConnectionInterceptor(ILogger logger) : DbConnectionInterceptor
 {
     private static readonly string? ExtensionPath = FindExtensionPath();
 
@@ -23,13 +23,6 @@ internal sealed partial class SqliteVecConnectionInterceptor : DbConnectionInter
     /// Thread-safe: set once per application lifetime after the first connection attempt.
     /// </summary>
     public static volatile bool VecExtensionLoaded;
-
-    private readonly ILogger? _logger;
-
-    public SqliteVecConnectionInterceptor(ILogger? logger = null)
-    {
-        _logger = logger;
-    }
 
     public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
     {
@@ -50,10 +43,7 @@ internal sealed partial class SqliteVecConnectionInterceptor : DbConnectionInter
             if (!_logged)
             {
                 _logged = true;
-                if (_logger is not null)
-                {
-                    LogVecBinaryNotFound(_logger);
-                }
+                LogVecBinaryNotFound(logger);
             }
 
             return;
@@ -69,10 +59,7 @@ internal sealed partial class SqliteVecConnectionInterceptor : DbConnectionInter
             if (!_logged)
             {
                 _logged = true;
-                if (_logger is not null)
-                {
-                    LogVecLoadFailed(_logger, ex, ExtensionPath!);
-                }
+                LogVecLoadFailed(logger, ex, ExtensionPath!);
             }
         }
     }

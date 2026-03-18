@@ -4,19 +4,11 @@ using Clawsharp.Security;
 
 namespace Clawsharp.Tools.Files;
 
-public sealed class FileWriteTool : Tool
+public sealed class FileWriteTool(string workspace, AuditLogger? auditLogger = null) : Tool
 {
     private const int MaxWriteBytes = 10 * 1024 * 1024; // 10 MB
 
-    private readonly string _workspace;
-
-    private readonly AuditLogger? _auditLogger;
-
-    public FileWriteTool(string workspace, AuditLogger? auditLogger = null)
-    {
-        _workspace = Path.GetFullPath(workspace);
-        _auditLogger = auditLogger;
-    }
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
@@ -61,9 +53,9 @@ public sealed class FileWriteTool : Tool
         }
         catch (InvalidOperationException ex)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(rel, "write", ChannelName, success: false, error: ex.Message, ct: ct);
+                _ = auditLogger.LogFileAccessAsync(rel, "write", ChannelName, success: false, error: ex.Message, ct: ct);
             }
 
             return "Error: path is outside the workspace.";
@@ -99,9 +91,9 @@ public sealed class FileWriteTool : Tool
             await writer.WriteAsync(content.AsMemory(), ct);
         }
 
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogFileAccessAsync(rel, append ? "append" : "write", ChannelName, success: true, ct: ct);
+            _ = auditLogger.LogFileAccessAsync(rel, append ? "append" : "write", ChannelName, success: true, ct: ct);
         }
 
         return $"Written {content.Length} chars to {rel}";

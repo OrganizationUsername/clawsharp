@@ -70,7 +70,7 @@ public sealed class CronAddCommand : AsyncCommand<CronAddCommand.Settings>
             SenderId = "cron",
             Enabled = true,
             Source = CronSource.Agent,
-            CreatedAt = DateTimeOffset.UtcNow.ToString("O"),
+            CreatedAt = DateTimeOffset.UtcNow,
         };
 
         var config = ClawsharpConfiguration.GetAppConfig();

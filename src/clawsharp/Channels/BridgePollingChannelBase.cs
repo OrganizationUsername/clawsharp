@@ -9,15 +9,17 @@ using Clawsharp.Core.Utilities;
 using Clawsharp.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 using Clawsharp.Config.Channels;
 
 namespace Clawsharp.Channels;
 
 /// <summary>
 /// Abstract base for bridge-polling channels (WhatsApp, BlueBubbles, WeChat).
-/// Encapsulates: bridge URL validation, SSRF check, poll loop with exponential backoff,
+/// Encapsulates: bridge URL validation, SSRF check, poll loop with Polly resilience,
 /// JSON deserialization, message filtering via AllowListPolicy + ApprovedSendersStore,
-/// MessageBus publish, consecutive failure tracking with health warnings, and POST-based send.
+/// MessageBus publish, and POST-based send.
 /// </summary>
 /// <typeparam name="TIncoming">The deserialized incoming message type from the bridge.</typeparam>
 /// <typeparam name="TSend">The send request body type for outbound messages.</typeparam>
@@ -25,26 +27,16 @@ public abstract partial class BridgePollingChannelBase<TIncoming, TSend> : Lifec
     where TIncoming : class
     where TSend : class
 {
-    /// <summary>Number of consecutive poll failures before logging a health warning.</summary>
-    private const int WarnAfterFailures = 5;
+    /// <summary>Normal polling interval between successful poll iterations.</summary>
+    private static readonly TimeSpan NormalPollInterval = TimeSpan.FromSeconds(3);
 
-    /// <summary>Maximum consecutive poll failures before the channel stops retrying.</summary>
-    private const int MaxConsecutiveFailures = 50;
-
-    /// <summary>Normal polling interval in milliseconds.</summary>
-    private const int NormalPollIntervalMs = 3000;
-
-    /// <summary>Delay after a non-HTTP error in milliseconds (starting backoff).</summary>
-    private const int ErrorDelayMs = 5000;
-
-    /// <summary>Maximum backoff delay in milliseconds (5 minutes).</summary>
-    private const int MaxBackoffMs = 300_000;
+    private static readonly TimeSpan PipelineExhaustionDelay = TimeSpan.FromMinutes(1);
 
     private readonly AllowListPolicy _allowPolicy;
 
     private readonly ApprovedSendersStore _approvedSenders;
 
-    private int _consecutiveFailures;
+    private readonly ResiliencePipeline _retryPipeline;
 
     /// <summary>The message bus for publishing inbound messages to the AgentLoop.</summary>
     protected IMessageBus Bus { get; }
@@ -138,6 +130,7 @@ public abstract partial class BridgePollingChannelBase<TIncoming, TSend> : Lifec
     /// <param name="bus">The inbound message bus.</param>
     /// <param name="httpClientFactory">HTTP client factory for creating named clients.</param>
     /// <param name="approvedSenders">Dynamic approved senders store.</param>
+    /// <param name="pipelineProvider">Polly resilience pipeline provider (keyed by channel name).</param>
     /// <param name="httpClientName">Named HTTP client identifier (e.g., "whatsapp", "bluebubbles", "wechat").</param>
     /// <param name="channelConfigKey">The config dictionary key (e.g., "whatsapp", "bluebubbles", "wechat").</param>
     /// <param name="bridgeConfigCheck">
@@ -150,6 +143,7 @@ public abstract partial class BridgePollingChannelBase<TIncoming, TSend> : Lifec
         IMessageBus bus,
         IHttpClientFactory httpClientFactory,
         ApprovedSendersStore approvedSenders,
+        ResiliencePipelineProvider<string> pipelineProvider,
         string httpClientName,
         string channelConfigKey,
         Func<ChannelConfig, bool>? bridgeConfigCheck = null)
@@ -157,6 +151,7 @@ public abstract partial class BridgePollingChannelBase<TIncoming, TSend> : Lifec
         Bus = bus;
         Http = httpClientFactory.CreateClient(httpClientName);
         _approvedSenders = approvedSenders;
+        _retryPipeline = pipelineProvider.GetPipeline(channelConfigKey);
 
         bridgeConfigCheck ??= static cfg => cfg.BridgeUrl is not null;
 
@@ -195,97 +190,61 @@ public abstract partial class BridgePollingChannelBase<TIncoming, TSend> : Lifec
         await OnBeforePollLoopAsync(stoppingToken).ConfigureAwait(false);
         LogStartingPollLoop(Logger, Name.Value, BridgeUrl);
 
-        var currentBackoffMs = ErrorDelayMs;
-
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                using var resp = await Http.GetAsync(GetPollUrl(), stoppingToken).ConfigureAwait(false);
-
-                if (!resp.IsSuccessStatusCode)
-                {
-                    LogBridgeError(Logger, Name.Value, (int)resp.StatusCode);
-                    TrackFailure(ref currentBackoffMs);
-                    if (_consecutiveFailures >= MaxConsecutiveFailures)
-                    {
-                        LogMaxFailuresReached(Logger, Name.Value, MaxConsecutiveFailures, BridgeUrl);
-                        return;
-                    }
-
-                    await Task.Delay(currentBackoffMs, stoppingToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                // Reset backoff on any successful HTTP response
-                _consecutiveFailures = 0;
-                currentBackoffMs = ErrorDelayMs;
-
-                await using var stream = await resp.Content.ReadAsStreamAsync(stoppingToken).ConfigureAwait(false);
-                var messages = await DeserializePollResponseAsync(stream, stoppingToken).ConfigureAwait(false);
-
-                if (messages is null || messages.Count == 0)
-                {
-                    await Task.Delay(NormalPollIntervalMs, stoppingToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                foreach (var msg in messages)
-                {
-                    var senderId = GetSenderId(msg);
-                    if (string.IsNullOrEmpty(senderId))
-                    {
-                        continue;
-                    }
-
-                    // Static AllowFrom + dynamic approved senders
-                    if (!_allowPolicy.IsAllowed(senderId) &&
-                        !await _approvedSenders.IsApprovedAsync(Name.Value, senderId).ConfigureAwait(false))
-                    {
-                        LogBlockedSender(Logger, Name.Value, senderId);
-                        continue;
-                    }
-
-                    var inbound = await MapIncomingAsync(msg, stoppingToken).ConfigureAwait(false);
-                    if (inbound is null)
-                    {
-                        continue;
-                    }
-
-                    await Bus.PublishAsync(inbound, stoppingToken).ConfigureAwait(false);
-                }
-
-                OnPollSuccess();
+                await _retryPipeline.ExecuteAsync(async ct => await PollOnceAsync(ct).ConfigureAwait(false), stoppingToken);
+                await Task.Delay(NormalPollInterval, stoppingToken).ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                break;
-            }
-            catch (HttpRequestException ex)
-            {
-                LogBridgeUnreachable(Logger, Name.Value, ex);
-                TrackFailure(ref currentBackoffMs);
-                if (_consecutiveFailures >= MaxConsecutiveFailures)
-                {
-                    LogMaxFailuresReached(Logger, Name.Value, MaxConsecutiveFailures, BridgeUrl);
-                    return;
-                }
-
-                await Task.Delay(Math.Min(currentBackoffMs, MaxBackoffMs), stoppingToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                LogPollError(Logger, Name.Value, ex);
-                TrackFailure(ref currentBackoffMs);
-                if (_consecutiveFailures >= MaxConsecutiveFailures)
-                {
-                    LogMaxFailuresReached(Logger, Name.Value, MaxConsecutiveFailures, BridgeUrl);
-                    return;
-                }
-
-                await Task.Delay(currentBackoffMs, stoppingToken).ConfigureAwait(false);
+                LogPipelineExhausted(Logger, Name.Value, ex);
+                await Task.Delay(PipelineExhaustionDelay, stoppingToken).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>Executes a single poll iteration: GET → deserialize → filter → publish.</summary>
+    private async Task PollOnceAsync(CancellationToken ct)
+    {
+        using var resp = await Http.GetAsync(GetPollUrl(), ct).ConfigureAwait(false);
+        resp.EnsureSuccessStatusCode();
+
+        await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        var messages = await DeserializePollResponseAsync(stream, ct).ConfigureAwait(false);
+
+        if (messages is null || messages.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var msg in messages)
+        {
+            var senderId = GetSenderId(msg);
+            if (string.IsNullOrEmpty(senderId))
+            {
+                continue;
+            }
+
+            // Static AllowFrom + dynamic approved senders
+            if (!_allowPolicy.IsAllowed(senderId) &&
+                !await _approvedSenders.IsApprovedAsync(Name.Value, senderId).ConfigureAwait(false))
+            {
+                LogBlockedSender(Logger, Name.Value, senderId);
+                continue;
+            }
+
+            var inbound = await MapIncomingAsync(msg, ct).ConfigureAwait(false);
+            if (inbound is null)
+            {
+                continue;
+            }
+
+            await Bus.PublishAsync(inbound, ct).ConfigureAwait(false);
+        }
+
+        OnPollSuccess();
     }
 
     // ─── SendAsync (POST to bridge) ──────────────────────────────────────
@@ -317,46 +276,15 @@ public abstract partial class BridgePollingChannelBase<TIncoming, TSend> : Lifec
         }
     }
 
-    // ─── Failure tracking ────────────────────────────────────────────────
-
-    private void TrackFailure(ref int currentBackoffMs)
-    {
-        _consecutiveFailures++;
-
-        if (_consecutiveFailures == WarnAfterFailures)
-        {
-            LogBridgeHealthWarning(Logger, Name.Value, _consecutiveFailures, BridgeUrl);
-        }
-        else if (_consecutiveFailures > WarnAfterFailures && _consecutiveFailures % 10 == 0)
-        {
-            LogBridgeHealthError(Logger, Name.Value, _consecutiveFailures, BridgeUrl);
-        }
-
-        // Exponential backoff: double each failure, cap at MaxBackoffMs
-        currentBackoffMs = Math.Min(currentBackoffMs * 2, MaxBackoffMs);
-    }
-
     // ─── LoggerMessage definitions (shared across all bridge-polling channels) ──
 
     [LoggerMessage(EventId = 100, Level = LogLevel.Information,
         Message = "[{Channel}] Starting poll loop (bridge={BridgeUrl})")]
     private static partial void LogStartingPollLoop(ILogger logger, string channel, string bridgeUrl);
 
-    [LoggerMessage(EventId = 101, Level = LogLevel.Warning,
-        Message = "[{Channel}] Bridge returned {StatusCode}, retrying")]
-    private static partial void LogBridgeError(ILogger logger, string channel, int statusCode);
-
     [LoggerMessage(EventId = 102, Level = LogLevel.Warning,
         Message = "[{Channel}] Blocked sender {Sender}")]
     private static partial void LogBlockedSender(ILogger logger, string channel, string sender);
-
-    [LoggerMessage(EventId = 103, Level = LogLevel.Error,
-        Message = "[{Channel}] Bridge unreachable")]
-    private static partial void LogBridgeUnreachable(ILogger logger, string channel, Exception exception);
-
-    [LoggerMessage(EventId = 104, Level = LogLevel.Error,
-        Message = "[{Channel}] Poll error")]
-    private static partial void LogPollError(ILogger logger, string channel, Exception exception);
 
     [LoggerMessage(EventId = 105, Level = LogLevel.Error,
         Message = "[{Channel}] Send error: {ResponseBody}")]
@@ -370,16 +298,7 @@ public abstract partial class BridgePollingChannelBase<TIncoming, TSend> : Lifec
         Message = "[{Channel}] Bridge URL {BridgeUrl} blocked by SSRF guard: {Reason}")]
     private static partial void LogBridgeUrlBlocked(ILogger logger, string channel, string bridgeUrl, string reason);
 
-    [LoggerMessage(EventId = 108, Level = LogLevel.Warning,
-        Message =
-            "[{Channel}] Bridge appears unreachable after {FailureCount} consecutive failures (bridge={BridgeUrl}); channel will keep retrying")]
-    private static partial void LogBridgeHealthWarning(ILogger logger, string channel, int failureCount, string bridgeUrl);
-
-    [LoggerMessage(EventId = 109, Level = LogLevel.Error,
-        Message = "[{Channel}] Bridge still unreachable after {FailureCount} consecutive failures (bridge={BridgeUrl})")]
-    private static partial void LogBridgeHealthError(ILogger logger, string channel, int failureCount, string bridgeUrl);
-
-    [LoggerMessage(EventId = 110, Level = LogLevel.Critical,
-        Message = "[{Channel}] Bridge exceeded maximum consecutive failures ({MaxFailures}) (bridge={BridgeUrl}); stopping channel")]
-    private static partial void LogMaxFailuresReached(ILogger logger, string channel, int maxFailures, string bridgeUrl);
+    [LoggerMessage(EventId = 108, Level = LogLevel.Critical,
+        Message = "[{Channel}] All retry attempts exhausted, restarting pipeline in 60s")]
+    private static partial void LogPipelineExhausted(ILogger logger, string channel, Exception exception);
 }

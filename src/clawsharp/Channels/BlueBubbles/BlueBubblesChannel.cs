@@ -7,6 +7,7 @@ using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly.Registry;
 
 namespace Clawsharp.Channels.BlueBubbles;
 
@@ -36,8 +37,9 @@ internal sealed partial class BlueBubblesChannel : BridgePollingChannelBase<Blue
         IMessageBus bus,
         ILogger<BlueBubblesChannel> logger,
         IHttpClientFactory httpClientFactory,
-        ApprovedSendersStore approvedSenders)
-        : base(options, bus, httpClientFactory, approvedSenders, "bluebubbles",
+        ApprovedSendersStore approvedSenders,
+        ResiliencePipelineProvider<string> pipelineProvider)
+        : base(options, bus, httpClientFactory, approvedSenders, pipelineProvider, "bluebubbles",
             ChannelName.BlueBubbles.Value,
             bridgeConfigCheck: static cfg => cfg.BridgeUrl is not null && cfg.Password is not null)
     {

@@ -35,9 +35,14 @@ public sealed partial class HeartbeatService : LifecycleBackgroundService
         _bus = bus;
         _heartbeatConfig = configOptions.Value.Agents.Defaults.Heartbeat
                            ?? throw new InvalidOperationException("HeartbeatService registered but Heartbeat config is null.");
-        _channelName = ChannelName.TryFromValue(_heartbeatConfig.Channel, out var cn)
-            ? cn
-            : ChannelName.Cli;
+        if (ChannelName.TryFromValue(_heartbeatConfig.Channel, out var cn))
+        {
+            _channelName = cn;
+        }
+        else
+        {
+            _channelName = ChannelName.Cli;
+        }
         _logger = logger;
     }
 

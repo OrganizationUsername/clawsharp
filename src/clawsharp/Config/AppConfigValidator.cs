@@ -12,8 +12,11 @@ internal sealed class AppConfigValidator : IValidateOptions<AppConfig>
     public ValidateOptionsResult Validate(string? name, AppConfig options)
     {
         var errors = ConfigValidator.Validate(options);
-        return errors.Count > 0
-            ? ValidateOptionsResult.Fail(errors)
-            : ValidateOptionsResult.Success;
+        if (errors.Count > 0)
+        {
+            return ValidateOptionsResult.Fail(errors);
+        }
+
+        return ValidateOptionsResult.Success;
     }
 }

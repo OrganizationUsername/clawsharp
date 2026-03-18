@@ -13,6 +13,9 @@ public sealed class InteractionEntity
 
     public long Id { get; set; }
 
+    /// <summary>FK to <see cref="ConversationThread"/>. Nullable for pre-existing rows without threads.</summary>
+    public long? ConversationThreadId { get; set; }
+
     /// <summary>External GUID identifier (hex, 32 chars).</summary>
     public string ExternalId { get; init; } = "";
 
@@ -41,9 +44,9 @@ public sealed class InteractionEntity
 
     public long CacheWriteTokens { get; init; }
 
-    public double CostUsd { get; init; }
+    public decimal CostUsd { get; init; }
 
-    public double CacheSavingsUsd { get; init; }
+    public decimal CacheSavingsUsd { get; init; }
 
     public long DurationMs { get; init; }
 
@@ -61,10 +64,19 @@ public sealed class InteractionEntity
             builder.Property(e => e.Model).IsRequired().HasMaxLength(256);
             builder.Property(e => e.UserPrompt).IsRequired();
             builder.Property(e => e.Response).IsRequired();
+            builder.Property(e => e.CostUsd).HasPrecision(18, 6);
+            builder.Property(e => e.CacheSavingsUsd).HasPrecision(18, 6);
             builder.HasIndex(e => e.Timestamp);
+            builder.HasIndex(e => e.ConversationThreadId);
             builder.HasIndex(e => e.SessionId);
             builder.HasIndex(e => e.Model);
             builder.HasIndex(e => e.Channel);
+
+            builder.HasOne<ConversationThread>()
+                .WithMany()
+                .HasForeignKey(e => e.ConversationThreadId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

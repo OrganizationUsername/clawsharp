@@ -141,12 +141,12 @@ public sealed partial class LineChannel : WebhookListenerBase, IChannel
     /// </summary>
     private async Task ProcessMessageEventAsync(LineEvent evt, CancellationToken ct)
     {
-        if (!string.Equals(evt.Type, "message", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(evt.Type, LineEventType.Message, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        if (!string.Equals(evt.Message?.Type, "text", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(evt.Message?.Type, LineMessageType.Text, StringComparison.OrdinalIgnoreCase))
         {
             // LINE supports audio messages (type "audio") with a content endpoint at
             // GET https://api-data.line.me/v2/bot/message/{messageId}/content.

@@ -21,18 +21,6 @@ public enum InjectionAction
 }
 
 /// <summary>
-/// Mode constants for prompt injection handling.
-/// </summary>
-internal static class PromptGuardModes
-{
-    public const string Block = "block";
-
-    public const string Warn = "warn";
-
-    public const string Sanitize = "sanitize";
-}
-
-/// <summary>
 /// Wraps untrusted content in XML-style delimiters before injecting into LLM context
 /// and heuristically scans for adversarial directive phrases.
 /// </summary>
@@ -55,12 +43,17 @@ internal static partial class PromptGuard
     /// Prevents delimiter breakout via &lt;/user_message&gt; or similar injection.
     /// </summary>
     internal static string EscapeDelimiterContent(string content)
-        => content.AsSpan().IndexOfAny("&<>") < 0
-            ? content
-            : content
-              .Replace("&", "&amp;")
-              .Replace("<", "&lt;")
-              .Replace(">", "&gt;");
+    {
+        if (content.AsSpan().IndexOfAny("&<>") < 0)
+        {
+            return content;
+        }
+
+        return content
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;");
+    }
 
     /// <summary>
     /// Sanitizes a string for use as an XML tag name or attribute value.
@@ -78,7 +71,12 @@ internal static partial class PromptGuard
             }
         }
 
-        return pos == name.Length ? name : new string(buf[..pos]);
+        if (pos == name.Length)
+        {
+            return name;
+        }
+
+        return new string(buf[..pos]);
     }
 
     // Raw strings used both for the [GeneratedRegex] alternation and for building
@@ -107,7 +105,7 @@ internal static partial class PromptGuard
         "forget previous instructions|you are now|act as if|pretend you are|" +
         "new persona|system prompt|override instructions|jailbreak|" +
         "dan mode|developer mode|ignore your instructions",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 200)]
     private static partial Regex BuiltInPatternRegex();
 
     // Set at startup when custom patterns are configured; null means use BuiltInPatternRegex().
@@ -126,7 +124,8 @@ internal static partial class PromptGuard
             var combined = string.Join("|", escapedBuiltIns.Concat(escapedCustom));
             _customRegex = new Regex(
                 combined,
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+                TimeSpan.FromMilliseconds(200));
         }
         else
         {
@@ -141,7 +140,7 @@ internal static partial class PromptGuard
     /// Strips zero-width and invisible Unicode characters that could be inserted between letters
     /// to evade pattern matching (e.g. "ignore\u200Bprevious" bypassing "ignore previous").
     /// </summary>
-    [GeneratedRegex(@"[\u200B\u200C\u200D\u200E\u200F\uFEFF\u00AD\u2060\u2061\u2062\u2063\u2064\u180E]")]
+    [GeneratedRegex(@"[\u200B\u200C\u200D\u200E\u200F\uFEFF\u00AD\u2060\u2061\u2062\u2063\u2064\u180E]", RegexOptions.None, 200)]
     private static partial Regex InvisibleCharsRegex();
 
     /// <summary>
@@ -177,7 +176,7 @@ internal static partial class PromptGuard
     public static InjectionAction ScanAndApply(
         ref string content,
         string source,
-        string mode,
+        PromptGuardMode mode,
         AuditLogger? auditLogger,
         string? channel = null,
         string? userId = null,
@@ -198,17 +197,17 @@ internal static partial class PromptGuard
                 channel, userId, ct);
         }
 
-        if (string.Equals(mode, PromptGuardModes.Block, StringComparison.OrdinalIgnoreCase))
+        if (mode == PromptGuardMode.Block)
         {
             return InjectionAction.Block;
         }
 
-        if (string.Equals(mode, PromptGuardModes.Sanitize, StringComparison.OrdinalIgnoreCase))
+        if (mode == PromptGuardMode.Sanitize)
         {
             return SanitizeContent(ref content);
         }
 
-        return InjectionAction.Warn; // "warn" or any unknown value
+        return InjectionAction.Warn; // warn or any unknown value
     }
 
     private static InjectionAction SanitizeContent(ref string content)
@@ -236,7 +235,7 @@ internal static partial class PromptGuard
         @"(?:when\s+(?:you|the\s+(?:ai|assistant)))\s+(?:see|read|encounter)\s+this" + "|" +
         @"(?:hidden|secret|embedded)\s+(?:instruction|directive|command|message)" + "|" +
         @"(?:do\s+not\s+(?:mention|reveal|disclose|tell))\s+(?:this|these)\s+(?:instruction|directive)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Multiline)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Multiline, 200)]
     private static partial Regex IndirectInjectionRegex();
 
     /// <summary>
@@ -248,7 +247,7 @@ internal static partial class PromptGuard
     public static InjectionAction ScanToolResult(
         ref string content,
         string toolName,
-        string mode,
+        PromptGuardMode mode,
         AuditLogger? auditLogger,
         string? channel = null,
         string? userId = null,
@@ -276,12 +275,12 @@ internal static partial class PromptGuard
                 channel, userId, ct);
         }
 
-        if (string.Equals(mode, PromptGuardModes.Block, StringComparison.OrdinalIgnoreCase))
+        if (mode == PromptGuardMode.Block)
         {
             return InjectionAction.Block;
         }
 
-        if (string.Equals(mode, PromptGuardModes.Sanitize, StringComparison.OrdinalIgnoreCase))
+        if (mode == PromptGuardMode.Sanitize)
         {
             content = NormalizeForScanning(content);
             content = IndirectInjectionRegex().Replace(content, "[FILTERED]");
@@ -313,7 +312,7 @@ internal static partial class PromptGuard
         @"<<SYS>>|<</SYS>>|" +
         @"\[INST\]|\[/INST\]|" +
         @"CSSEC-[0-9A-Fa-f]+",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 200)]
     private static partial Regex MetadataSentinelRegex();
 
     // ── Backward-compatible scan ────────────────────────────────────

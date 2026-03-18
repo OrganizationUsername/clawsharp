@@ -19,10 +19,10 @@ public sealed class HealthCheckConfigTests
     }
 
     [Test]
-    public void HealthCheckConfig_DefaultIntervalSeconds_Is300()
+    public void HealthCheckConfig_DefaultInterval_Is5Minutes()
     {
         var cfg = new HealthCheckConfig();
-        cfg.IntervalSeconds.ShouldBe(300);
+        cfg.Interval.ShouldBe(TimeSpan.FromMinutes(5));
     }
 
     [Test]
@@ -40,12 +40,12 @@ public sealed class HealthCheckConfigTests
         var cfg = new HealthCheckConfig
         {
             Enabled = false,
-            IntervalSeconds = 60,
+            Interval = TimeSpan.FromSeconds(60),
             CheckOnStartup = false
         };
 
         cfg.Enabled.ShouldBeFalse();
-        cfg.IntervalSeconds.ShouldBe(60);
+        cfg.Interval.ShouldBe(TimeSpan.FromSeconds(60));
         cfg.CheckOnStartup.ShouldBeFalse();
     }
 
@@ -66,14 +66,14 @@ public sealed class HealthCheckConfigTests
             HealthCheck = new HealthCheckConfig
             {
                 Enabled = true,
-                IntervalSeconds = 120,
+                Interval = TimeSpan.FromSeconds(120),
                 CheckOnStartup = false
             }
         };
 
         defaults.HealthCheck.ShouldNotBeNull();
         defaults.HealthCheck!.Enabled.ShouldBeTrue();
-        defaults.HealthCheck.IntervalSeconds.ShouldBe(120);
+        defaults.HealthCheck.Interval.ShouldBe(TimeSpan.FromSeconds(120));
         defaults.HealthCheck.CheckOnStartup.ShouldBeFalse();
     }
 
@@ -87,7 +87,7 @@ public sealed class HealthCheckConfigTests
 
         defaults.HealthCheck!.Enabled.ShouldBeFalse();
         // Other defaults still apply
-        defaults.HealthCheck.IntervalSeconds.ShouldBe(300);
+        defaults.HealthCheck.Interval.ShouldBe(TimeSpan.FromMinutes(5));
         defaults.HealthCheck.CheckOnStartup.ShouldBeTrue();
     }
 }

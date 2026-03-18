@@ -61,7 +61,7 @@ public static partial class BuildChatRequest
         var goalsContext = await BuildGoalsContextAsync(goalStorage, ct);
 
         // Set tool context and get filtered definitions for this message.
-        toolRegistry.SetChannelContext(inbound.Channel.Value, inbound.SpawnDepth,
+        toolRegistry.SetChannelContext(inbound.Channel, inbound.SpawnDepth,
             sessionId: $"{inbound.Channel.Value}:{inbound.SenderId}");
         var toolDefs = toolRegistry.GetFilteredDefinitions(inbound.Text);
 
@@ -77,9 +77,15 @@ public static partial class BuildChatRequest
             enabledTools: toolDefs.Select(t => t.Name).ToList(),
             activeGoalsContext: goalsContext);
 
-        var systemPrompt = string.IsNullOrEmpty(dynamicPrompt)
-            ? staticPrompt
-            : staticPrompt + "\n\n" + dynamicPrompt;
+        string systemPrompt;
+        if (string.IsNullOrEmpty(dynamicPrompt))
+        {
+            systemPrompt = staticPrompt;
+        }
+        else
+        {
+            systemPrompt = staticPrompt + "\n\n" + dynamicPrompt;
+        }
 
         var cwEnabled = cfg.ContextWindow is { Enabled: true };
 

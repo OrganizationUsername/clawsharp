@@ -6,24 +6,13 @@ namespace Clawsharp.Tools.Mcp;
 /// Adapts an MCP server tool as a clawsharp <see cref="Tool"/>.
 /// Delegates execution to the owning <see cref="McpClient"/>.
 /// </summary>
-public sealed class McpToolAdapter : Tool
+public sealed class McpToolAdapter(McpClient client, McpToolSchema schema) : Tool
 {
-    private readonly McpClient _client;
+    public override string Name => schema.Name;
 
-    private readonly McpToolSchema _schema;
+    public override string Description => schema.Description ?? "";
 
-    public McpToolAdapter(McpClient client, McpToolSchema schema)
-    {
-        _client = client;
-        _schema = schema;
-        ParametersSchemaJson = schema.InputSchema.GetRawText();
-    }
-
-    public override string Name => _schema.Name;
-
-    public override string Description => _schema.Description ?? "";
-
-    public override string ParametersSchemaJson { get; }
+    public override string ParametersSchemaJson { get; } = schema.InputSchema.GetRawText();
 
     // NOTE: MCP tool inputs are passed through unvalidated. The MCP server is responsible
     // for input validation. Schema is available via tool definition but not enforced client-side.
@@ -32,7 +21,7 @@ public sealed class McpToolAdapter : Tool
         var argumentsJson = arguments.GetRawText();
         try
         {
-            return await _client.CallToolAsync(Name, argumentsJson, ct).ConfigureAwait(false);
+            return await client.CallToolAsync(Name, argumentsJson, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

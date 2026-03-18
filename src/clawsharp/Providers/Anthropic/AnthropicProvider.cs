@@ -5,20 +5,10 @@ using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers.Anthropic;
 
-public sealed class AnthropicProvider : IProvider, IStreamingProvider
+public sealed class AnthropicProvider(IHttpClientFactory httpClientFactory, string apiKey, string name = "anthropic")
+    : IProvider, IStreamingProvider
 {
-    private readonly IHttpClientFactory _httpFactory;
-
-    private readonly string _apiKey;
-
-    public AnthropicProvider(IHttpClientFactory httpClientFactory, string apiKey, string name = "anthropic")
-    {
-        Name = name;
-        _apiKey = apiKey;
-        _httpFactory = httpClientFactory;
-    }
-
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <inheritdoc />
     public bool SupportsVision => true;
@@ -27,8 +17,8 @@ public sealed class AnthropicProvider : IProvider, IStreamingProvider
     {
         var anthReq = BuildMessagesRequest(request, false);
 
-        var anthResp = await ProviderHttpHelper.ExecuteAsync(
-                           _httpFactory, anthReq, ConfigureHeaders, "Anthropic API", ct).ConfigureAwait(false)
+        var anthResp = await ProviderRequestHandler.ExecuteAsync(
+                           httpClientFactory, anthReq, ConfigureHeaders, "Anthropic API", ct).ConfigureAwait(false)
                        ?? throw new InvalidOperationException("Empty response from Anthropic API.");
 
         var textParts = new List<string>();
@@ -56,9 +46,11 @@ public sealed class AnthropicProvider : IProvider, IStreamingProvider
             {
                 var id = block.TryGetProperty("id", out var idP) ? idP.GetString() ?? "" : "";
                 var name = block.TryGetProperty("name", out var nameP) ? nameP.GetString() ?? "" : "";
-                var inputJson = block.TryGetProperty("input", out var inputP)
-                    ? inputP.GetRawText()
-                    : "{}";
+                var inputJson = "{}";
+                if (block.TryGetProperty("input", out var inputP))
+                {
+                    inputJson = inputP.GetRawText();
+                }
                 toolCalls.Add(new ToolCall(id, name, inputJson));
             }
         }
@@ -71,13 +63,31 @@ public sealed class AnthropicProvider : IProvider, IStreamingProvider
             _ => FinishReason.Stop
         };
 
+        string? textContent = null;
+        if (textParts.Count > 0)
+        {
+            textContent = string.Join("\n", textParts);
+        }
+
+        List<ToolCall>? finalToolCalls = null;
+        if (toolCalls.Count > 0)
+        {
+            finalToolCalls = toolCalls;
+        }
+
+        string? thinkingContent = null;
+        if (thinkingParts.Count > 0)
+        {
+            thinkingContent = string.Join("\n", thinkingParts);
+        }
+
         return new ChatResponse(
-            textParts.Count > 0 ? string.Join("\n", textParts) : null,
-            toolCalls.Count > 0 ? toolCalls : null,
+            textContent,
+            finalToolCalls,
             finishReason,
             anthResp.Usage?.InputTokens,
             anthResp.Usage?.OutputTokens,
-            thinkingParts.Count > 0 ? string.Join("\n", thinkingParts) : null,
+            thinkingContent,
             CacheReadTokens: anthResp.Usage?.CacheReadInputTokens,
             CacheWriteTokens: anthResp.Usage?.CacheCreationInputTokens
         );
@@ -90,8 +100,8 @@ public sealed class AnthropicProvider : IProvider, IStreamingProvider
         var anthReq = BuildMessagesRequest(request, true);
         var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(anthReq, AnthropicJsonContext.Default.MessagesRequest);
 
-        var (http, resp, body) = await ProviderHttpHelper.SendStreamingAsync(
-            _httpFactory, anthReq.Url, jsonBytes, ConfigureHeaders, "Anthropic API stream", ct).ConfigureAwait(false);
+        var (http, resp, body) = await ProviderRequestHandler.SendStreamingAsync(
+            httpClientFactory, anthReq.Url, jsonBytes, ConfigureHeaders, "Anthropic API stream", ct).ConfigureAwait(false);
 
         using var _ = http;
         using var __ = resp;
@@ -216,13 +226,13 @@ public sealed class AnthropicProvider : IProvider, IStreamingProvider
     /// </summary>
     private void ConfigureHeaders(HttpRequestMessage req)
     {
-        if (_apiKey.StartsWith("sk-ant-oat01-", StringComparison.Ordinal))
+        if (apiKey.StartsWith("sk-ant-oat01-", StringComparison.Ordinal))
         {
-            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
         }
         else
         {
-            req.Headers.Add("x-api-key", _apiKey);
+            req.Headers.Add("x-api-key", apiKey);
         }
 
         req.Headers.Add(ClawsharpConstants.HttpHeaders.AnthropicApiVersion, ClawsharpConstants.AnthropicVersion);

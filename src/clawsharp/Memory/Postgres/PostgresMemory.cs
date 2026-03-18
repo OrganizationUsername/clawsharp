@@ -16,7 +16,12 @@ namespace Clawsharp.Memory.Postgres;
 ///     Vector search uses pgvector HNSW index for native ANN cosine distance queries,
 ///     eliminating the need to load 500 candidates into process memory for scoring.
 /// </summary>
-public sealed partial class PostgresMemory : IMemory
+public sealed partial class PostgresMemory(
+    IDbContextFactory<PostgresMemoryContext> contextFactory,
+    ILogger<PostgresMemory> logger,
+    IEmbeddingProvider? embeddingProvider = null,
+    IOptions<MemoryConfig>? memoryConfig = null)
+    : IMemory
 {
     private const int CandidateLimit = 500;
 
@@ -28,25 +33,16 @@ public sealed partial class PostgresMemory : IMemory
 
     private const float KeywordWeight = 0.4f;
 
-    private readonly IDbContextFactory<PostgresMemoryContext> _contextFactory;
+    private readonly double _halfLifeDays = memoryConfig?.Value.Decay?.HalfLifeDays ?? 0;
 
-    private readonly IEmbeddingProvider? _embeddingProvider;
-
-    private readonly double _halfLifeDays;
-
-    private readonly int _embeddingDimension;
+    private readonly int _embeddingDimension = memoryConfig?.Value.EmbeddingDimension ?? 1536;
 
     private volatile Task? _initTask;
 
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
-    private readonly ILogger<PostgresMemory> _logger;
-
     /// <summary>Whether the pgvector extension is available. Set during schema init.</summary>
     private bool _pgvectorAvailable;
-
-    // Compiled queries — pre-compiled LINQ expression trees for frequently-called read paths.
-    // Thread-safe: the compiled delegate is a pure function; context instance is passed at call time.
 
     private static readonly Func<PostgresMemoryContext, IAsyncEnumerable<string>>
         GetRecentContentQuery = EF.CompileAsyncQuery((PostgresMemoryContext db) =>
@@ -87,23 +83,10 @@ public sealed partial class PostgresMemory : IMemory
               .OrderByDescending(f => f.Id)
               .Select(f => f));
 
-    public PostgresMemory(
-        IDbContextFactory<PostgresMemoryContext> contextFactory,
-        ILogger<PostgresMemory> logger,
-        IEmbeddingProvider? embeddingProvider = null,
-        IOptions<MemoryConfig>? memoryConfig = null)
-    {
-        _contextFactory = contextFactory;
-        _logger = logger;
-        _embeddingProvider = embeddingProvider;
-        _halfLifeDays = memoryConfig?.Value.Decay?.HalfLifeDays ?? 0;
-        _embeddingDimension = memoryConfig?.Value.EmbeddingDimension ?? 1536;
-    }
-
     public async Task<string?> GetContextAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var facts = new List<string>();
         await foreach (var content in GetRecentContentQuery(context).WithCancellation(ct))
         {
@@ -116,27 +99,31 @@ public sealed partial class PostgresMemory : IMemory
     public async Task AppendFactAsync(string fact, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
-        // Compute embedding before constructing entity so init-only Embedding can be set in the initializer
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         float[]? embedding = null;
-        if (_embeddingProvider is not null)
+        if (embeddingProvider is not null)
         {
             try
             {
-                embedding = await _embeddingProvider.EmbedAsync(fact, ct);
+                embedding = await embeddingProvider.EmbedAsync(fact, ct);
             }
             catch (Exception ex)
             {
-                // Embedding failure is non-fatal — fact will be saved without a vector
-                LogMemoryOperationFailed(_logger, ex, ex.Message);
+                LogMemoryOperationFailed(logger, ex, ex.Message);
             }
+        }
+
+        Vector? embeddingVector = null;
+        if (embedding is not null && _pgvectorAvailable)
+        {
+            embeddingVector = new Vector(embedding);
         }
 
         var entity = new Fact
         {
             Content = fact,
             CreatedAt = DateTimeOffset.UtcNow,
-            Embedding = embedding is not null && _pgvectorAvailable ? new Vector(embedding) : null
+            Embedding = embeddingVector
         };
 
         context.Facts.Add(entity);
@@ -154,7 +141,7 @@ public sealed partial class PostgresMemory : IMemory
             }
             catch (Exception ex)
             {
-                LogMemoryOperationFailed(_logger, ex, ex.Message);
+                LogMemoryOperationFailed(logger, ex, ex.Message);
             }
         }
     }
@@ -162,7 +149,7 @@ public sealed partial class PostgresMemory : IMemory
     public async Task AppendHistoryAsync(string summary, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         context.History.Add(new HistoryEntry(summary, DateTimeOffset.UtcNow));
         await context.SaveChangesAsync(ct);
     }
@@ -170,15 +157,18 @@ public sealed partial class PostgresMemory : IMemory
     public async Task<IReadOnlyList<string>> SearchAsync(string query, int n = 5, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
+
+        const string sql =
+            $$"""
+            SELECT "{{Fact.ContentColumn}}" AS "Value" FROM "{{Fact.TableName}}"
+            WHERE content_tsv @@ websearch_to_tsquery('simple', {0})
+            ORDER BY ts_rank(content_tsv, websearch_to_tsquery('simple', {1})) DESC
+            LIMIT {2}
+            """;
 
         var results = await context.Database
-                                   .SqlQueryRaw<string>($$"""
-                                                          SELECT "{{Fact.ContentColumn}}" AS "Value" FROM "{{Fact.TableName}}"
-                                                          WHERE content_tsv @@ websearch_to_tsquery('simple', {0})
-                                                          ORDER BY ts_rank(content_tsv, websearch_to_tsquery('simple', {1})) DESC
-                                                          LIMIT {2}
-                                                          """, query, query, n)
+                                   .SqlQueryRaw<string>(sql, query, query, n)
                                    .ToListAsync(ct);
 
         if (results.Count == 0)
@@ -197,7 +187,7 @@ public sealed partial class PostgresMemory : IMemory
                                                              CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
 
         // If no query embedding, fall back to ILIKE search returning Fact objects
         if (queryEmbedding is null || queryEmbedding.Length == 0)
@@ -233,18 +223,21 @@ public sealed partial class PostgresMemory : IMemory
         List<long> candidateIds;
         try
         {
+            var sql =
+                $$"""
+                SELECT "Id" AS "Value" FROM "{{Fact.TableName}}"
+                WHERE content_tsv @@ websearch_to_tsquery('simple', {0})
+                ORDER BY ts_rank(content_tsv, websearch_to_tsquery('simple', {1})) DESC
+                LIMIT {{CandidateLimit}}
+                """;
+
             candidateIds = await context.Database
-                                        .SqlQueryRaw<long>($$"""
-                                                             SELECT "Id" AS "Value" FROM "{{Fact.TableName}}"
-                                                             WHERE content_tsv @@ websearch_to_tsquery('simple', {0})
-                                                             ORDER BY ts_rank(content_tsv, websearch_to_tsquery('simple', {1})) DESC
-                                                             LIMIT {CandidateLimit}
-                                                             """, query, query)
+                                        .SqlQueryRaw<long>(sql, query, query)
                                         .ToListAsync(ct);
         }
         catch (Exception ex)
         {
-            LogMemoryOperationFailed(_logger, ex, ex.Message);
+            LogMemoryOperationFailed(logger, ex, ex.Message);
             candidateIds = [];
         }
 
@@ -290,9 +283,11 @@ public sealed partial class PostgresMemory : IMemory
                                            {
                                                // Convert pgvector cosine distance [0, 2] to similarity [-1, 1], clamped to [0, 1]
                                                float vecScore = Math.Clamp(1f - (float)c.Distance, 0f, 1f);
-                                               float keywordScore = c.Fact.Content.Contains(query, StringComparison.OrdinalIgnoreCase)
-                                                   ? 1f
-                                                   : 0f;
+                                               float keywordScore = 0f;
+                                               if (c.Fact.Content.Contains(query, StringComparison.OrdinalIgnoreCase))
+                                               {
+                                                   keywordScore = 1f;
+                                               }
                                                float hybrid = vecScore * VectorWeight + keywordScore * KeywordWeight;
 
                                                if (_halfLifeDays > 0)
@@ -326,40 +321,49 @@ public sealed partial class PostgresMemory : IMemory
         List<FactWithEmbedding> rows;
         try
         {
+            var tsquerySql =
+                $$"""
+                SELECT "Id", "Content", "CreatedAt",
+                       "{{Fact.AccessCountColumn}}" AS "AccessCount", "{{Fact.LastAccessedAtColumn}}" AS "LastAccessedAt",
+                       embedding AS "EmbeddingJson"
+                FROM "{{Fact.TableName}}"
+                WHERE content_tsv @@ websearch_to_tsquery('simple', {0})
+                ORDER BY ts_rank(content_tsv, websearch_to_tsquery('simple', {1})) DESC
+                LIMIT {{CandidateLimit}}
+                """;
+
             rows = await context.Database
-                                .SqlQueryRaw<FactWithEmbedding>($$"""
-                                                                  SELECT "Id", "Content", "CreatedAt",
-                                                                         "{{Fact.AccessCountColumn}}" AS "AccessCount", "{{Fact.LastAccessedAtColumn}}" AS "LastAccessedAt",
-                                                                         embedding AS "EmbeddingJson"
-                                                                  FROM "{{Fact.TableName}}"
-                                                                  WHERE content_tsv @@ websearch_to_tsquery('simple', {0})
-                                                                  ORDER BY ts_rank(content_tsv, websearch_to_tsquery('simple', {1})) DESC
-                                                                  LIMIT {{CandidateLimit}}
-                                                                  """, query, query)
+                                .SqlQueryRaw<FactWithEmbedding>(tsquerySql, query, query)
                                 .ToListAsync(ct);
 
             if (rows.Count == 0)
             {
+                FormattableString fallbackSql =
+                    $"""
+                    SELECT "Id", "Content", "CreatedAt",
+                           "{Fact.AccessCountColumn}" AS "AccessCount", "{Fact.LastAccessedAtColumn}" AS "LastAccessedAt",
+                           embedding AS "EmbeddingJson"
+                    FROM "{Fact.TableName}" ORDER BY "Id" DESC LIMIT {CandidateLimit}
+                    """;
+
                 rows = await context.Database
-                                    .SqlQuery<FactWithEmbedding>($"""
-                                                                  SELECT "Id", "Content", "CreatedAt",
-                                                                         "{Fact.AccessCountColumn}" AS "AccessCount", "{Fact.LastAccessedAtColumn}" AS "LastAccessedAt",
-                                                                         embedding AS "EmbeddingJson"
-                                                                  FROM "{Fact.TableName}" ORDER BY "Id" DESC LIMIT {CandidateLimit}
-                                                                  """)
+                                    .SqlQuery<FactWithEmbedding>(fallbackSql)
                                     .ToListAsync(ct);
             }
         }
         catch (Exception ex)
         {
-            LogMemoryOperationFailed(_logger, ex, ex.Message);
+            LogMemoryOperationFailed(logger, ex, ex.Message);
+            var fallbackSql =
+                $"""
+                SELECT "Id", "Content", "CreatedAt",
+                       "{Fact.AccessCountColumn}" AS "AccessCount", "{Fact.LastAccessedAtColumn}" AS "LastAccessedAt",
+                       embedding AS "EmbeddingJson"
+                FROM "{Fact.TableName}" ORDER BY "Id" DESC LIMIT {CandidateLimit}
+                """;
+
             rows = await context.Database
-                                .SqlQueryRaw<FactWithEmbedding>($"""
-                                                                 SELECT "Id", "Content", "CreatedAt",
-                                                                        "{Fact.AccessCountColumn}" AS "AccessCount", "{Fact.LastAccessedAtColumn}" AS "LastAccessedAt",
-                                                                        embedding AS "EmbeddingJson"
-                                                                 FROM "{Fact.TableName}" ORDER BY "Id" DESC LIMIT {CandidateLimit}
-                                                                 """)
+                                .SqlQueryRaw<FactWithEmbedding>(fallbackSql)
                                 .ToListAsync(ct);
         }
 
@@ -407,7 +411,7 @@ public sealed partial class PostgresMemory : IMemory
     public async Task<IReadOnlyList<Fact>> ListFactsAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var facts = new List<Fact>();
         await foreach (var fact in ListAllFactsQuery(context).WithCancellation(ct))
         {
@@ -420,43 +424,37 @@ public sealed partial class PostgresMemory : IMemory
     public async Task ClearAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
-        // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         await context.Database.ExecuteSqlRawAsync($"TRUNCATE TABLE \"{Fact.TableName}\"", ct);
-        // History entries are WORM (write-once read-many) — never deleted.
-        // They represent immutable compaction snapshots and are preserved across clears.
     }
 
     public async Task<int> PruneExpiredFactsAsync(TimeSpan maxAge, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var cutoff = DateTimeOffset.UtcNow - maxAge;
 
-        // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
-        // Use raw SQL for cross-provider consistency and to avoid LINQ translation issues
-        var deleted = await context.Database.ExecuteSqlRawAsync(
-            $"DELETE FROM \"{Fact.TableName}\" WHERE \"CreatedAt\" < {{0}}", new object[] { cutoff }, ct);
-
-        return deleted;
+        return await context.Facts
+                            .Where(f => f.CreatedAt < cutoff)
+                            .ExecuteDeleteAsync(ct);
     }
 
     private async Task UpdateAccessCountsAsync(List<long> ids, CancellationToken ct = default)
     {
         try
         {
-            await using var ctx = await _contextFactory.CreateDbContextAsync(ct);
+            await using var ctx = await contextFactory.CreateDbContextAsync(ct);
             var now = DateTimeOffset.UtcNow;
-            // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
-            // Batch update — use PostgreSQL ANY() with array parameter
-            await ctx.Database.ExecuteSqlRawAsync(
-                $"UPDATE \"{Fact.TableName}\" SET \"{Fact.AccessCountColumn}\" = \"{Fact.AccessCountColumn}\" + 1, \"{Fact.LastAccessedAtColumn}\" = {{0}} WHERE \"Id\" = ANY({{1}})",
-                new object[] { now, ids.ToArray() }, ct);
+            await ctx.Facts
+                     .Where(f => ids.Contains(f.Id))
+                     .ExecuteUpdateAsync(s => s
+                         .SetProperty(f => f.AccessCount, f => f.AccessCount + 1)
+                         .SetProperty(f => f.LastAccessedAt, now), ct);
         }
         catch (Exception ex)
         {
             // Non-fatal — access tracking failure does not affect search results
-            LogMemoryOperationFailed(_logger, ex, ex.Message);
+            LogMemoryOperationFailed(logger, ex, ex.Message);
         }
     }
 
@@ -498,7 +496,7 @@ public sealed partial class PostgresMemory : IMemory
         "EF Core MigrateAsync builds the design-time model at runtime. Not compatible with NativeAOT; use migration bundles for AOT deployment.")]
     private async Task InitSchemaAsync(CancellationToken ct)
     {
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         // MigrateAsync applies pending migrations. For existing databases originally created via
         // EnsureCreated, the __EFMigrationsHistory table will be created and the initial migration
         // marked as applied if the schema already matches.
@@ -507,54 +505,63 @@ public sealed partial class PostgresMemory : IMemory
         await context.Database.MigrateAsync(migrationCts.Token);
 
         // Add content_tsv generated column + GIN index if not already present
-        await context.Database.ExecuteSqlRawAsync($"""
-                                                   DO $$
-                                                   BEGIN
-                                                       IF NOT EXISTS (
-                                                           SELECT 1 FROM information_schema.columns
-                                                           WHERE table_name = '{Fact.TableName}' AND column_name = 'content_tsv'
-                                                       ) THEN
-                                                           ALTER TABLE "{Fact.TableName}"
-                                                               ADD COLUMN content_tsv tsvector
-                                                                   GENERATED ALWAYS AS (to_tsvector('simple', "{Fact.ContentColumn}")) STORED;
-                                                           CREATE INDEX IF NOT EXISTS facts_tsv_idx ON "{Fact.TableName}" USING GIN(content_tsv);
-                                                       END IF;
-                                                   END $$;
-                                                   """);
+        const string contentTsvSql =
+            $"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = '{Fact.TableName}' AND column_name = 'content_tsv'
+                ) THEN
+                    ALTER TABLE "{Fact.TableName}"
+                        ADD COLUMN content_tsv tsvector
+                            GENERATED ALWAYS AS (to_tsvector('simple', "{Fact.ContentColumn}")) STORED;
+                    CREATE INDEX IF NOT EXISTS facts_tsv_idx ON "{Fact.TableName}" USING GIN(content_tsv);
+                END IF;
+            END $$;
+            """;
+
+        await context.Database.ExecuteSqlRawAsync(contentTsvSql);
 
         // Add legacy TEXT embedding column if not already present (backward compatibility)
-        await context.Database.ExecuteSqlRawAsync($"""
-                                                   DO $$
-                                                   BEGIN
-                                                       IF NOT EXISTS (
-                                                           SELECT 1 FROM information_schema.columns
-                                                           WHERE table_name = '{Fact.TableName}' AND column_name = 'embedding'
-                                                       ) THEN
-                                                           ALTER TABLE "{Fact.TableName}" ADD COLUMN embedding TEXT;
-                                                       END IF;
-                                                   END $$;
-                                                   """);
+        const string embeddingColumnSql =
+            $"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = '{Fact.TableName}' AND column_name = 'embedding'
+                ) THEN
+                    ALTER TABLE "{Fact.TableName}" ADD COLUMN embedding TEXT;
+                END IF;
+            END $$;
+            """;
+
+        await context.Database.ExecuteSqlRawAsync(embeddingColumnSql);
 
         // Add access tracking columns if not already present
-        await context.Database.ExecuteSqlRawAsync($"""
-                                                   DO $$
-                                                   BEGIN
-                                                       IF NOT EXISTS (
-                                                           SELECT 1 FROM information_schema.columns
-                                                           WHERE table_name = '{Fact.TableName}' AND column_name = '{Fact.AccessCountColumn}'
-                                                       ) THEN
-                                                           ALTER TABLE "{Fact.TableName}" ADD COLUMN "{Fact.AccessCountColumn}" INTEGER NOT NULL DEFAULT 0;
-                                                           ALTER TABLE "{Fact.TableName}" ADD COLUMN "{Fact.LastAccessedAtColumn}" TIMESTAMPTZ;
-                                                       END IF;
-                                                   END $$;
-                                                   """);
+        const string accessTrackingSql =
+            $"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = '{Fact.TableName}' AND column_name = '{Fact.AccessCountColumn}'
+                ) THEN
+                    ALTER TABLE "{Fact.TableName}" ADD COLUMN "{Fact.AccessCountColumn}" INTEGER NOT NULL DEFAULT 0;
+                    ALTER TABLE "{Fact.TableName}" ADD COLUMN "{Fact.LastAccessedAtColumn}" TIMESTAMPTZ;
+                END IF;
+            END $$;
+            """;
+
+        await context.Database.ExecuteSqlRawAsync(accessTrackingSql, cancellationToken: migrationCts.Token);
 
         // pgvector: install extension + add vector column + HNSW index
         var dim = _embeddingDimension;
         try
         {
-            await context.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS vector");
-            // DDL: column type definition cannot be parameterized; dim is a trusted int from config
+            await context.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS vector", cancellationToken: migrationCts.Token);
+            
             var pgvecDdl = string.Create(null, stackalloc char[512],
                 $"""
                  DO $$
@@ -570,14 +577,15 @@ public sealed partial class PostgresMemory : IMemory
                      END IF;
                  END $$;
                  """);
-            await context.Database.ExecuteSqlRawAsync(pgvecDdl);
+            
+            await context.Database.ExecuteSqlRawAsync(pgvecDdl, cancellationToken: migrationCts.Token);
             _pgvectorAvailable = true;
-            LogPgvectorLoaded(_logger, dim);
+            LogPgvectorLoaded(logger, dim);
         }
         catch (Exception ex)
         {
             _pgvectorAvailable = false;
-            LogPgvectorNotAvailable(_logger, ex, ex.Message);
+            LogPgvectorNotAvailable(logger, ex, ex.Message);
         }
     }
 

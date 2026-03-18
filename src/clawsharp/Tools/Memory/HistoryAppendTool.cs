@@ -3,15 +3,8 @@ using Clawsharp.Memory;
 
 namespace Clawsharp.Tools.Memory;
 
-public sealed class HistoryAppendTool : Tool
+public sealed class HistoryAppendTool(IMemory memory) : Tool
 {
-    private readonly IMemory _memory;
-
-    public HistoryAppendTool(IMemory memory)
-    {
-        _memory = memory;
-    }
-
     public override string Name => "history_append";
 
     public override string Description => "Append a summary of this conversation to the long-term history log.";
@@ -34,7 +27,7 @@ public sealed class HistoryAppendTool : Tool
             return "Error: summary is required.";
         }
 
-        await _memory.AppendHistoryAsync(summary, ct);
+        await memory.AppendHistoryAsync(summary, ct);
         return "History updated.";
     }
 }

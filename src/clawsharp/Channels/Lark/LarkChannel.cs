@@ -128,7 +128,7 @@ public sealed partial class LarkChannel : WebhookListenerBase, IChannel
         }
 
         // Handle url_verification challenge
-        if (string.Equals(webhookEvent.Type, "url_verification", StringComparison.Ordinal))
+        if (string.Equals(webhookEvent.Type, LarkWebhookType.UrlVerification, StringComparison.Ordinal))
         {
             if (_verificationToken.Length > 0 &&
                 !string.Equals(webhookEvent.Token, _verificationToken, StringComparison.Ordinal))
@@ -166,7 +166,7 @@ public sealed partial class LarkChannel : WebhookListenerBase, IChannel
         }
 
         // Handle im.message.receive_v1
-        if (string.Equals(webhookEvent.Header?.EventType, "im.message.receive_v1", StringComparison.Ordinal))
+        if (string.Equals(webhookEvent.Header?.EventType, LarkEventType.ImMessageReceiveV1, StringComparison.Ordinal))
         {
             await HandleMessageEventAsync(webhookEvent, ct).ConfigureAwait(false);
         }
@@ -198,7 +198,7 @@ public sealed partial class LarkChannel : WebhookListenerBase, IChannel
         // (GET /open-apis/im/v1/messages/{message_id}/resources/{file_key}?type=file)
         // with a tenant access token. Wire VoiceTranscriptionService here once the download
         // endpoint is implemented.
-        if (!string.Equals(msg.MessageType, "text", StringComparison.Ordinal))
+        if (!string.Equals(msg.MessageType, LarkMessageType.Text, StringComparison.Ordinal))
         {
             return;
         }
@@ -300,7 +300,7 @@ public sealed partial class LarkChannel : WebhookListenerBase, IChannel
         {
             ReceiveId = message.RecipientId,
             Content = contentJson,
-            MsgType = "text"
+            MsgType = LarkMessageType.Text
         };
 
         var json = JsonSerializer.Serialize(sendReq, LarkJsonContext.Default.LarkSendMessageRequest);

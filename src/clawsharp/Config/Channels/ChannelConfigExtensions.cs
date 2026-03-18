@@ -38,16 +38,26 @@ public static class ChannelConfigExtensions
         cfg is { Enabled: true, AccessToken: { } tok } ? new(cfg.Homeserver ?? "", tok, cfg.AllowRooms) : null;
 
     /// <summary>Returns typed Email config, or null if the channel is disabled or misconfigured.</summary>
-    public static EmailConfig? GetEmail(this ChannelConfig? cfg) =>
-        cfg is { Enabled: true, ImapHost: { } imap, SmtpHost: { } smtp, Username: { } user, Password: { } pass }
-            ? new(imap, cfg.ImapPort, smtp, cfg.SmtpPort, user, pass)
-            : null;
+    public static EmailConfig? GetEmail(this ChannelConfig? cfg)
+    {
+        if (cfg is { Enabled: true, ImapHost: { } imap, SmtpHost: { } smtp, Username: { } user, Password: { } pass })
+        {
+            return new(imap, cfg.ImapPort, smtp, cfg.SmtpPort, user, pass);
+        }
+
+        return null;
+    }
 
     /// <summary>Returns typed IRC config, or null if the channel is disabled or misconfigured.</summary>
-    public static IrcConfig? GetIrc(this ChannelConfig? cfg) =>
-        cfg is { Enabled: true, Host: { } host, Nick: { } nick }
-            ? new(host, cfg.Port, nick, cfg.Channels, cfg.NickServPassword)
-            : null;
+    public static IrcConfig? GetIrc(this ChannelConfig? cfg)
+    {
+        if (cfg is { Enabled: true, Host: { } host, Nick: { } nick })
+        {
+            return new(host, cfg.Port, nick, cfg.Channels, cfg.NickServPassword);
+        }
+
+        return null;
+    }
 
     /// <summary>Typed config for the Signal channel.</summary>
     public sealed record SignalConfig(string BridgeUrl, string PhoneNumber, List<string>? AllowFrom);
@@ -65,32 +75,57 @@ public static class ChannelConfigExtensions
     public sealed record WeChatConfig(string? BridgeUrl, string? WebhookKey, List<string>? AllowFrom);
 
     /// <summary>Returns typed Signal config, or null if the channel is disabled or misconfigured.</summary>
-    public static SignalConfig? GetSignal(this ChannelConfig? cfg) =>
-        cfg is { Enabled: true, BridgeUrl: { } url, PhoneNumber: { } phone }
-            ? new(url, phone, cfg.AllowFrom)
-            : null;
+    public static SignalConfig? GetSignal(this ChannelConfig? cfg)
+    {
+        if (cfg is { Enabled: true, BridgeUrl: { } url, PhoneNumber: { } phone })
+        {
+            return new(url, phone, cfg.AllowFrom);
+        }
+
+        return null;
+    }
 
     /// <summary>Returns typed WhatsApp config, or null if the channel is disabled or misconfigured.</summary>
-    public static WhatsAppConfig? GetWhatsApp(this ChannelConfig? cfg) =>
-        cfg is { Enabled: true, BridgeUrl: { } url }
-            ? new(url, cfg.AllowFrom)
-            : null;
+    public static WhatsAppConfig? GetWhatsApp(this ChannelConfig? cfg)
+    {
+        if (cfg is { Enabled: true, BridgeUrl: { } url })
+        {
+            return new(url, cfg.AllowFrom);
+        }
+
+        return null;
+    }
 
     /// <summary>Returns typed BlueBubbles config, or null if the channel is disabled or misconfigured.</summary>
-    public static BlueBubblesConfig? GetBlueBubbles(this ChannelConfig? cfg) =>
-        cfg is { Enabled: true, BridgeUrl: { } url, Password: { } pw }
-            ? new(url, pw, cfg.AllowFrom)
-            : null;
+    public static BlueBubblesConfig? GetBlueBubbles(this ChannelConfig? cfg)
+    {
+        if (cfg is { Enabled: true, BridgeUrl: { } url, Password: { } pw })
+        {
+            return new(url, pw, cfg.AllowFrom);
+        }
+
+        return null;
+    }
 
     /// <summary>Returns typed LINE config, or null if the channel is disabled or misconfigured.</summary>
-    public static LineConfig? GetLine(this ChannelConfig? cfg) =>
-        cfg is { Enabled: true, Token: { } tok, Secret: { } secret }
-            ? new(tok, secret, cfg.LineWebhookPort, cfg.AllowFrom)
-            : null;
+    public static LineConfig? GetLine(this ChannelConfig? cfg)
+    {
+        if (cfg is { Enabled: true, Token: { } tok, Secret: { } secret })
+        {
+            return new(tok, secret, cfg.LineWebhookPort, cfg.AllowFrom);
+        }
+
+        return null;
+    }
 
     /// <summary>Returns typed WeChat config, or null if the channel is disabled or misconfigured.</summary>
-    public static WeChatConfig? GetWeChat(this ChannelConfig? cfg) =>
-        cfg is { Enabled: true } && (cfg.BridgeUrl is not null || cfg.WebhookKey is not null)
-            ? new(cfg.BridgeUrl, cfg.WebhookKey, cfg.AllowFrom)
-            : null;
+    public static WeChatConfig? GetWeChat(this ChannelConfig? cfg)
+    {
+        if (cfg is { Enabled: true } && (cfg.BridgeUrl is not null || cfg.WebhookKey is not null))
+        {
+            return new(cfg.BridgeUrl, cfg.WebhookKey, cfg.AllowFrom);
+        }
+
+        return null;
+    }
 }

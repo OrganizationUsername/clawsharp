@@ -13,7 +13,7 @@ public static partial class LoadSession
 
     private static async ValueTask<Core.Sessions.Session> HandleAsync(
         Query query,
-        SessionManager sessionManager,
+        SessionStore sessionManager,
         CancellationToken ct)
     {
         return await sessionManager.LoadOrCreateAsync(query.SessionId, ct);

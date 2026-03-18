@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Clawsharp.Config.Agent;
 using Clawsharp.Config.Channels;
 using Clawsharp.Config.Features;
@@ -11,18 +10,18 @@ namespace Clawsharp.Config;
 
 public static partial class ConfigLoader
 {
-    public static async Task<AppConfig> LoadAsync(ILogger? logger = null, CancellationToken ct = default)
+    public static async Task<AppConfig> LoadAsync(ILogger logger, CancellationToken ct = default)
     {
-        var log = logger ?? NullLogger.Instance;
         var path = ResolvePath();
         if (path is null || !File.Exists(path))
         {
-            LogNoConfigFile(log);
+            LogNoConfigFile(logger);
             return DefaultConfig();
         }
 
-        LogLoadingConfig(log, path);
+        LogLoadingConfig(logger, path);
         var json = await File.ReadAllTextAsync(path, ct);
+        json = ConfigMigrator.MigrateLegacyKeys(json, logger);
 
         try
         {

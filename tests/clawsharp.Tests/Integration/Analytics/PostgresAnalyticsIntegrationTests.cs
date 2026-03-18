@@ -106,8 +106,8 @@ public sealed class PostgresAnalyticsIntegrationTests
             OutputTokens = 800,
             CacheReadTokens = 300,
             CacheWriteTokens = 150,
-            CostUsd = 0.042,
-            CacheSavingsUsd = 0.008,
+            CostUsd = 0.042m,
+            CacheSavingsUsd = 0.008m,
             DurationMs = 3200,
             Timestamp = timestamp,
         };
@@ -130,8 +130,8 @@ public sealed class PostgresAnalyticsIntegrationTests
         r.OutputTokens.ShouldBe(800);
         r.CacheReadTokens.ShouldBe(300);
         r.CacheWriteTokens.ShouldBe(150);
-        r.CostUsd.ShouldBe(0.042, tolerance: 0.0001);
-        r.CacheSavingsUsd.ShouldBe(0.008, tolerance: 0.0001);
+        r.CostUsd.ShouldBe(0.042m);
+        r.CacheSavingsUsd.ShouldBe(0.008m);
         r.DurationMs.ShouldBe(3200);
         r.Timestamp.ShouldBe(timestamp);
 
@@ -186,7 +186,7 @@ public sealed class PostgresAnalyticsIntegrationTests
             ToolIterations = 3,
             InputTokens = 3000,
             OutputTokens = 1200,
-            CostUsd = 0.05,
+            CostUsd = 0.05m,
             DurationMs = 5000,
             Timestamp = DateTimeOffset.UtcNow,
         };
@@ -258,6 +258,119 @@ public sealed class PostgresAnalyticsIntegrationTests
         results.ShouldBeEmpty();
     }
 
+    // ── ConversationThread & InteractionMessage tests ──
+
+    [Test]
+    public async Task AppendAsync_CreatesConversationThread_InPostgres()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(MakeRecord("pg-thread-1"));
+
+        var options = new DbContextOptionsBuilder<PostgresAnalyticsContext>()
+            .UseNpgsql(_connectionString)
+            .Options;
+        await using var ctx = new PostgresAnalyticsContext(options);
+        var threads = await ctx.ConversationThreads.ToListAsync();
+
+        threads.Count.ShouldBe(1);
+        threads[0].SessionId.ShouldBe("session-a");
+    }
+
+    [Test]
+    public async Task AppendAsync_SameSession_ReusesSameThread_InPostgres()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(MakeRecord("pg-reuse-1"));
+        await store.AppendAsync(MakeRecord("pg-reuse-2"));
+
+        var options = new DbContextOptionsBuilder<PostgresAnalyticsContext>()
+            .UseNpgsql(_connectionString)
+            .Options;
+        await using var ctx = new PostgresAnalyticsContext(options);
+        var threads = await ctx.ConversationThreads.ToListAsync();
+
+        threads.Count.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task AppendAsync_CreatesInteractionMessages_InPostgres()
+    {
+        var store = CreateStore();
+
+        var record = new InteractionRecord
+        {
+            Id = "pg-msg-rows",
+            SessionId = "session-msg",
+            Channel = "cli",
+            Model = "gpt-4o",
+            UserPrompt = "Hello",
+            Thinking = "Let me think...",
+            Response = "Hi there",
+            InputTokens = 100,
+            OutputTokens = 50,
+            DurationMs = 250,
+            Timestamp = DateTimeOffset.UtcNow,
+        };
+        await store.AppendAsync(record);
+
+        var options = new DbContextOptionsBuilder<PostgresAnalyticsContext>()
+            .UseNpgsql(_connectionString)
+            .Options;
+        await using var ctx = new PostgresAnalyticsContext(options);
+        var messages = await ctx.InteractionMessages.ToListAsync();
+
+        messages.Count.ShouldBe(3);
+    }
+
+    [Test]
+    public async Task AppendAsync_MessageTypes_MatchExpected_InPostgres()
+    {
+        var store = CreateStore();
+
+        var record = new InteractionRecord
+        {
+            Id = "pg-msg-types",
+            SessionId = "session-types",
+            Channel = "cli",
+            Model = "gpt-4o",
+            UserPrompt = "Q",
+            Thinking = "T",
+            Response = "A",
+            InputTokens = 10,
+            OutputTokens = 5,
+            DurationMs = 100,
+            Timestamp = DateTimeOffset.UtcNow,
+        };
+        await store.AppendAsync(record);
+
+        var options = new DbContextOptionsBuilder<PostgresAnalyticsContext>()
+            .UseNpgsql(_connectionString)
+            .Options;
+        await using var ctx = new PostgresAnalyticsContext(options);
+        var messages = await ctx.InteractionMessages.OrderBy(m => m.SequenceNumber).ToListAsync();
+
+        messages[0].MessageType.ShouldBe(MessageType.Sent);
+        messages[1].MessageType.ShouldBe(MessageType.Thinking);
+        messages[2].MessageType.ShouldBe(MessageType.Received);
+    }
+
+    [Test]
+    public async Task AppendAsync_ConversationThreadId_IsSetCorrectly_InPostgres()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(MakeRecord("pg-fk-check"));
+
+        var options = new DbContextOptionsBuilder<PostgresAnalyticsContext>()
+            .UseNpgsql(_connectionString)
+            .Options;
+        await using var ctx = new PostgresAnalyticsContext(options);
+        var thread = await ctx.ConversationThreads.SingleAsync();
+        var interaction = await ctx.Set<Clawsharp.Analytics.Entities.InteractionEntity>().SingleAsync();
+
+        interaction.ConversationThreadId.ShouldBe(thread.Id);
+        thread.Id.ShouldBeGreaterThan(0);
+    }
+
     // ── Helpers ──
 
     private static InteractionRecord MakeRecord(string id = "pg-001", string model = "gpt-4o") => new()
@@ -272,8 +385,8 @@ public sealed class PostgresAnalyticsIntegrationTests
         OutputTokens = 50,
         CacheReadTokens = 0,
         CacheWriteTokens = 0,
-        CostUsd = 0.001,
-        CacheSavingsUsd = 0.0,
+        CostUsd = 0.001m,
+        CacheSavingsUsd = 0.0m,
         DurationMs = 250,
         Timestamp = DateTimeOffset.UtcNow,
     };

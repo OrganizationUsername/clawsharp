@@ -74,7 +74,7 @@ public sealed class PromptGuardConfig
     /// "warn": log and allow through. "block": reject with error reply.
     /// "sanitize": replace matched text with [FILTERED] and forward.
     /// </summary>
-    public string Mode { get; init; } = "warn";
+    public PromptGuardMode Mode { get; set; } = PromptGuardMode.Warn;
 
     /// <summary>Custom patterns to scan for (appended to built-in patterns).</summary>
     public List<string>? CustomPatterns { get; init; }

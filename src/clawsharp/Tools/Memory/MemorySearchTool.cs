@@ -3,15 +3,8 @@ using Clawsharp.Memory;
 
 namespace Clawsharp.Tools.Memory;
 
-public sealed class MemorySearchTool : Tool
+public sealed class MemorySearchTool(IMemory memory) : Tool
 {
-    private readonly IMemory _memory;
-
-    public MemorySearchTool(IMemory memory)
-    {
-        _memory = memory;
-    }
-
     public override string Name => "memory_search";
 
     public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
@@ -38,7 +31,12 @@ public sealed class MemorySearchTool : Tool
             return "Error: query is required.";
         }
 
-        var results = await _memory.SearchAsync(query, n, ct);
-        return results.Count > 0 ? string.Join("\n", results) : "No matching facts found.";
+        var results = await memory.SearchAsync(query, n, ct);
+        if (results.Count > 0)
+        {
+            return string.Join("\n", results);
+        }
+
+        return "No matching facts found.";
     }
 }

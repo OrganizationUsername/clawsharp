@@ -13,12 +13,8 @@ namespace Clawsharp.Memory;
 /// EF-level checks. Database-level triggers enforce WORM at the DB layer.
 /// </para>
 /// </summary>
-public abstract class MemoryDbContextBase : DbContext
+public abstract class MemoryDbContextBase(DbContextOptions options) : DbContext(options)
 {
-    protected MemoryDbContextBase(DbContextOptions options) : base(options)
-    {
-    }
-
     public override int SaveChanges()
         => throw new InvalidOperationException(
             "Synchronous SaveChanges is not allowed. Use SaveChangesAsync.");

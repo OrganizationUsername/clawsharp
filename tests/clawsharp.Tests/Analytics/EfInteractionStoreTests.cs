@@ -33,20 +33,27 @@ public sealed class EfInteractionStoreTests
         try { File.Delete(dbPath + "-shm"); } catch { /* best-effort */ }
     }
 
-    private static InteractionRecord MakeRecord(string id = "test-001", string model = "gpt-4o") => new()
+    private static InteractionRecord MakeRecord(
+        string id = "test-001",
+        string model = "gpt-4o",
+        string sessionId = "session-a",
+        string userPrompt = "Hello",
+        string response = "Hi there",
+        string? thinking = null) => new()
     {
         Id = id,
-        SessionId = "session-a",
+        SessionId = sessionId,
         Channel = "cli",
         Model = model,
-        UserPrompt = "Hello",
-        Response = "Hi there",
+        UserPrompt = userPrompt,
+        Thinking = thinking,
+        Response = response,
         InputTokens = 100,
         OutputTokens = 50,
         CacheReadTokens = 0,
         CacheWriteTokens = 0,
-        CostUsd = 0.001,
-        CacheSavingsUsd = 0.0,
+        CostUsd = 0.001m,
+        CacheSavingsUsd = 0.0m,
         DurationMs = 250,
         Timestamp = DateTimeOffset.UtcNow,
     };
@@ -69,7 +76,7 @@ public sealed class EfInteractionStoreTests
             results[0].Response.ShouldBe("Hi there");
             results[0].InputTokens.ShouldBe(100);
             results[0].OutputTokens.ShouldBe(50);
-            results[0].CostUsd.ShouldBe(0.001, tolerance: 0.0001);
+            results[0].CostUsd.ShouldBe(0.001m);
             results[0].DurationMs.ShouldBe(250);
         }
         finally { CleanupDb(dbPath); }
@@ -130,8 +137,8 @@ public sealed class EfInteractionStoreTests
                 OutputTokens = 100,
                 CacheReadTokens = 50,
                 CacheWriteTokens = 10,
-                CostUsd = 0.005,
-                CacheSavingsUsd = 0.001,
+                CostUsd = 0.005m,
+                CacheSavingsUsd = 0.001m,
                 DurationMs = 500,
                 Timestamp = DateTimeOffset.UtcNow,
             };
@@ -147,7 +154,7 @@ public sealed class EfInteractionStoreTests
             results[0].ToolIterations.ShouldBe(1);
             results[0].CacheReadTokens.ShouldBe(50);
             results[0].CacheWriteTokens.ShouldBe(10);
-            results[0].CacheSavingsUsd.ShouldBe(0.001, tolerance: 0.0001);
+            results[0].CacheSavingsUsd.ShouldBe(0.001m);
         }
         finally { CleanupDb(dbPath); }
     }
@@ -222,8 +229,8 @@ public sealed class EfInteractionStoreTests
                 OutputTokens = 200,
                 CacheReadTokens = 100,
                 CacheWriteTokens = 50,
-                CostUsd = 0.01,
-                CacheSavingsUsd = 0.003,
+                CostUsd = 0.01m,
+                CacheSavingsUsd = 0.003m,
                 DurationMs = 1500,
                 Timestamp = DateTimeOffset.UtcNow,
             };
@@ -239,15 +246,177 @@ public sealed class EfInteractionStoreTests
         finally { CleanupDb(dbPath); }
     }
 
-    private sealed class FileDbContextFactory : IDbContextFactory<SqliteAnalyticsContext>
-    {
-        private readonly string _dbPath;
-        public FileDbContextFactory(string dbPath) => _dbPath = dbPath;
+    // ── ConversationThread tests ──
 
+    [Test]
+    public async Task AppendAsync_CreatesConversationThread()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            await store.AppendAsync(MakeRecord());
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var threads = ctx.ConversationThreads.ToList();
+
+            threads.Count.ShouldBe(1);
+            threads[0].SessionId.ShouldBe("session-a");
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    [Test]
+    public async Task AppendAsync_SameSession_ReusesSameThread()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            await store.AppendAsync(MakeRecord("rec-1"));
+            await store.AppendAsync(MakeRecord("rec-2"));
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var threads = ctx.ConversationThreads.ToList();
+
+            threads.Count.ShouldBe(1);
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    [Test]
+    public async Task AppendAsync_DifferentSessions_CreatesSeparateThreads()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            await store.AppendAsync(MakeRecord("rec-1", sessionId: "session-x"));
+            await store.AppendAsync(MakeRecord("rec-2", sessionId: "session-y"));
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var threads = ctx.ConversationThreads.ToList();
+
+            threads.Count.ShouldBe(2);
+            threads.Select(t => t.SessionId).ShouldBe(["session-x", "session-y"], ignoreOrder: true);
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    [Test]
+    public async Task AppendAsync_CreatesMessageRows_SentAndReceived()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            await store.AppendAsync(MakeRecord());
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var messages = ctx.InteractionMessages.ToList();
+
+            messages.Count.ShouldBe(2);
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    [Test]
+    public async Task AppendAsync_WithThinking_Creates3MessageRows()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            var record = MakeRecord(thinking: "Let me think about this...");
+            await store.AppendAsync(record);
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var messages = ctx.InteractionMessages.ToList();
+
+            messages.Count.ShouldBe(3);
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    [Test]
+    public async Task AppendAsync_MessageRows_HaveCorrectTypes()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            var record = MakeRecord(thinking: "Reasoning...");
+            await store.AppendAsync(record);
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var messages = ctx.InteractionMessages.OrderBy(m => m.SequenceNumber).ToList();
+
+            messages[0].MessageType.ShouldBe(MessageType.Sent);
+            messages[1].MessageType.ShouldBe(MessageType.Thinking);
+            messages[2].MessageType.ShouldBe(MessageType.Received);
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    [Test]
+    public async Task AppendAsync_MessageRows_HaveCorrectContent()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            var record = MakeRecord(
+                userPrompt: "What is 2+2?",
+                response: "The answer is 4.",
+                thinking: "Simple arithmetic.");
+            await store.AppendAsync(record);
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var messages = ctx.InteractionMessages.OrderBy(m => m.SequenceNumber).ToList();
+
+            messages[0].Content.ShouldBe("What is 2+2?");
+            messages[1].Content.ShouldBe("Simple arithmetic.");
+            messages[2].Content.ShouldBe("The answer is 4.");
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    [Test]
+    public async Task AppendAsync_MessageRows_HaveCorrectSequenceNumbers()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            var record = MakeRecord(thinking: "Thinking content");
+            await store.AppendAsync(record);
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var messages = ctx.InteractionMessages.OrderBy(m => m.SequenceNumber).ToList();
+
+            messages[0].SequenceNumber.ShouldBe(0);
+            messages[1].SequenceNumber.ShouldBe(1);
+            messages[2].SequenceNumber.ShouldBe(2);
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    [Test]
+    public async Task AppendAsync_InteractionHasConversationThreadId()
+    {
+        var (store, dbPath) = CreateStore();
+        try
+        {
+            await store.AppendAsync(MakeRecord());
+
+            using var ctx = new FileDbContextFactory(dbPath).CreateDbContext();
+            var interaction = ctx.Set<Clawsharp.Analytics.Entities.InteractionEntity>().Single();
+            var thread = ctx.ConversationThreads.Single();
+
+            interaction.ConversationThreadId.ShouldBe(thread.Id);
+            thread.Id.ShouldBeGreaterThan(0);
+        }
+        finally { CleanupDb(dbPath); }
+    }
+
+    private sealed class FileDbContextFactory(string dbPath) : IDbContextFactory<SqliteAnalyticsContext>
+    {
         public SqliteAnalyticsContext CreateDbContext()
         {
             var opts = new DbContextOptionsBuilder<SqliteAnalyticsContext>()
-                .UseSqlite($"Data Source={_dbPath}")
+                .UseSqlite($"Data Source={dbPath}")
                 .Options;
             return new SqliteAnalyticsContext(opts);
         }

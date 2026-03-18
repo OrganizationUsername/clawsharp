@@ -53,9 +53,15 @@ internal static class MemoryDecayScoring
         // Recency factor: 1.0 if accessed today, decays toward 0 with half-life of halfLifeDays
         if (accessCount > 0 && usageBoostWeight > 0)
         {
-            var daysSinceAccess = lastAccessedAt.HasValue
-                ? Math.Max(0, (DateTimeOffset.UtcNow - lastAccessedAt.Value).TotalDays)
-                : (DateTimeOffset.UtcNow - createdAt).TotalDays;
+            double daysSinceAccess;
+            if (lastAccessedAt.HasValue)
+            {
+                daysSinceAccess = Math.Max(0, (DateTimeOffset.UtcNow - lastAccessedAt.Value).TotalDays);
+            }
+            else
+            {
+                daysSinceAccess = (DateTimeOffset.UtcNow - createdAt).TotalDays;
+            }
             var recencyFactor = Math.Pow(0.5, daysSinceAccess / Math.Max(halfLifeDays, 1));
             var boost = (float)(Math.Log(1.0 + accessCount) * usageBoostWeight * recencyFactor);
             decayed = Math.Min(1.0f, decayed + boost);

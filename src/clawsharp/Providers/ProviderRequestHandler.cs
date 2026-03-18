@@ -11,8 +11,11 @@ namespace Clawsharp.Providers;
 /// Shared HTTP helper for LLM providers. Extracts the common
 /// serialize-send-deserialize pattern used by Anthropic, OpenAI, and Gemini.
 /// </summary>
-internal static partial class ProviderHttpHelper
+internal static partial class ProviderRequestHandler
 {
+    private const int MaxErrorBodyBytes = 4096;
+
+    private const int MaxSanitizedErrorLength = 500;
     /// <summary>
     /// Serializes an <see cref="IRequest{TResponse}"/>, sends it via HTTP POST,
     /// and deserializes the response body. Error bodies are capped at 4 KB and sanitized.
@@ -111,7 +114,12 @@ internal static partial class ProviderHttpHelper
     private static async Task<string> ReadCappedErrorBodyAsync(HttpResponseMessage resp, CancellationToken ct)
     {
         var errBytes = await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
-        var limitedBytes = errBytes.Length > 4096 ? errBytes.AsSpan(0, 4096) : errBytes.AsSpan();
+        var limitedBytes = errBytes.AsSpan();
+        if (errBytes.Length > MaxErrorBodyBytes)
+        {
+            limitedBytes = errBytes.AsSpan(0, MaxErrorBodyBytes);
+        }
+
         return Encoding.UTF8.GetString(limitedBytes);
     }
 
@@ -181,7 +189,12 @@ internal static partial class ProviderHttpHelper
         var cleaned = SecretPatternRegex().Replace(raw, "[REDACTED]");
 
         // Truncate to a safe display length.
-        return cleaned.Length > 500 ? string.Concat(cleaned.AsSpan(0, 500), "... (truncated)") : cleaned;
+        if (cleaned.Length > MaxSanitizedErrorLength)
+        {
+            return string.Concat(cleaned.AsSpan(0, MaxSanitizedErrorLength), "... (truncated)");
+        }
+
+        return cleaned;
     }
 
     /// <summary>
@@ -194,6 +207,7 @@ internal static partial class ProviderHttpHelper
     /// </list>
     /// </summary>
     [GeneratedRegex(
-        @"sk-ant-[A-Za-z0-9\-]{20,}|sk-[A-Za-z0-9]{20,}|key-[A-Za-z0-9]{20,}|Bearer\s+[^\s""]{20,}|[0-9a-fA-F]{40,}")]
+        @"sk-ant-[A-Za-z0-9\-]{20,}|sk-[A-Za-z0-9]{20,}|key-[A-Za-z0-9]{20,}|Bearer\s+[^\s""]{20,}|[0-9a-fA-F]{40,}",
+        RegexOptions.None, 200)]
     private static partial Regex SecretPatternRegex();
 }

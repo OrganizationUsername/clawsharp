@@ -195,7 +195,7 @@ public sealed partial class McpClient : IAsyncDisposable
             }
 
             var textParts = callResult.Content
-                                      .Where(c => string.Equals(c.Type, "text", StringComparison.Ordinal))
+                                      .Where(c => string.Equals(c.Type, McpContentType.Text, StringComparison.Ordinal))
                                       .Select(c => c.Text ?? "")
                                       .ToList();
 

@@ -13,26 +13,20 @@ namespace Clawsharp.Core.Sessions;
 ///     Uses an in-memory cache to avoid disk I/O on the hot path (every incoming message).
 ///     Thread-safe via <see cref="JsonFileStore{T}"/> for persistence and a local lock for the cache.
 /// </summary>
-public sealed class ApprovedSendersStore : IDisposable
+public sealed class ApprovedSendersStore(ILogger<ApprovedSendersStore> logger) : IDisposable
 {
     private static readonly string StorePath = Path.Combine(
         ConfigLoader.ExpandHome("~/.clawsharp"), "approved-senders.json");
 
-    private readonly JsonFileStore<Dictionary<string, List<string>>> _store;
+    private readonly JsonFileStore<Dictionary<string, List<string>>> _store = new(
+        StorePath, ApprovedSendersJsonContext.Default.DictionaryStringListString);
 
-    private readonly ILogger<ApprovedSendersStore> _logger;
+    private readonly ILogger<ApprovedSendersStore> _logger = logger;
 
     /// <summary>In-memory cache of approved senders, loaded once from disk and refreshed on writes.</summary>
     private Dictionary<string, HashSet<string>>? _cache;
 
     private readonly Lock _cacheLock = new();
-
-    public ApprovedSendersStore(ILogger<ApprovedSendersStore> logger)
-    {
-        _logger = logger;
-        _store = new JsonFileStore<Dictionary<string, List<string>>>(
-            StorePath, ApprovedSendersJsonContext.Default.DictionaryStringListString);
-    }
 
     /// <inheritdoc />
     public void Dispose() => _store.Dispose();

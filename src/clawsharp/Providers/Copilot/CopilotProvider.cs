@@ -15,13 +15,9 @@ namespace Clawsharp.Providers.Copilot;
 /// Ollama/LmStudio pattern) to avoid duplicating request building, response
 /// parsing, and streaming logic. Gains <see cref="IStreamingProvider"/> for free.
 /// </summary>
-public sealed class CopilotProvider : IStreamingProvider, IDisposable
+public sealed class CopilotProvider(IHttpClientFactory httpClientFactory, GitHubDeviceFlow deviceFlow) : IStreamingProvider, IDisposable
 {
     private const string CopilotBaseUrl = "https://api.githubcopilot.com";
-
-    private readonly IHttpClientFactory _httpFactory;
-
-    private readonly GitHubDeviceFlow _deviceFlow;
 
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
 
@@ -29,12 +25,6 @@ public sealed class CopilotProvider : IStreamingProvider, IDisposable
 
     /// <inheritdoc />
     public bool SupportsVision => true;
-
-    public CopilotProvider(IHttpClientFactory httpClientFactory, GitHubDeviceFlow deviceFlow)
-    {
-        _httpFactory = httpClientFactory;
-        _deviceFlow = deviceFlow;
-    }
 
     /// <inheritdoc />
     public void Dispose() => _refreshLock.Dispose();
@@ -70,7 +60,7 @@ public sealed class CopilotProvider : IStreamingProvider, IDisposable
     private async Task<OpenAiProvider> CreateInnerProviderAsync(CancellationToken ct)
     {
         var token = await GetAuthTokenAsync(ct);
-        return new OpenAiProvider(_httpFactory, CopilotBaseUrl, token, "copilot");
+        return new OpenAiProvider(httpClientFactory, CopilotBaseUrl, token, "copilot");
     }
 
     private async Task<string> GetAuthTokenAsync(CancellationToken ct)
@@ -104,7 +94,7 @@ public sealed class CopilotProvider : IStreamingProvider, IDisposable
             }
 
             AnsiConsole.MarkupLine("[yellow][[copilot]][/] Token expired, refreshing...");
-            var refreshed = await _deviceFlow.RefreshCopilotTokenAsync(oauthToken.RefreshToken, ct);
+            var refreshed = await deviceFlow.RefreshCopilotTokenAsync(oauthToken.RefreshToken, ct);
             if (refreshed is null)
             {
                 throw new InvalidOperationException(

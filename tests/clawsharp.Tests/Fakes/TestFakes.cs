@@ -298,7 +298,7 @@ public sealed class FakeToolRegistry : IToolRegistry
         _definitions.Add(tool.ToDefinition());
     }
 
-    public void SetChannelContext(string channelName, int spawnDepth = 0, string? sessionId = null)
+    public void SetChannelContext(ChannelName channelName, int spawnDepth = 0, string? sessionId = null)
     {
     }
 

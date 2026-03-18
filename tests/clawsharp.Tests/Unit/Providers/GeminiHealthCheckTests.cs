@@ -199,28 +199,18 @@ public sealed class GeminiHealthCheckTests
 /// <summary>
 /// HTTP handler that also captures the HTTP method used.
 /// </summary>
-internal sealed class MethodCapturingHttpHandler : HttpMessageHandler
+internal sealed class MethodCapturingHttpHandler(HttpStatusCode statusCode, string responseBody) : HttpMessageHandler
 {
-    private readonly HttpStatusCode _statusCode;
-
-    private readonly string _responseBody;
-
     public HttpMethod? LastMethod { get; private set; }
-
-    public MethodCapturingHttpHandler(HttpStatusCode statusCode, string responseBody)
-    {
-        _statusCode = statusCode;
-        _responseBody = responseBody;
-    }
 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
         LastMethod = request.Method;
 
-        var response = new HttpResponseMessage(_statusCode)
+        var response = new HttpResponseMessage(statusCode)
         {
-            Content = new StringContent(_responseBody, System.Text.Encoding.UTF8, "application/json")
+            Content = new StringContent(responseBody, System.Text.Encoding.UTF8, "application/json")
         };
         return Task.FromResult(response);
     }

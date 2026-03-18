@@ -17,6 +17,30 @@ namespace clawsharp.Analytics.Sqlite.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.3");
 
+            modelBuilder.Entity("Clawsharp.Analytics.Entities.ConversationThread", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId")
+                        .IsUnique();
+
+                    b.ToTable("ConversationThreads", (string)null);
+                });
+
             modelBuilder.Entity("Clawsharp.Analytics.Entities.InteractionEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -26,8 +50,9 @@ namespace clawsharp.Analytics.Sqlite.Migrations
                     b.Property<long>("CacheReadTokens")
                         .HasColumnType("INTEGER");
 
-                    b.Property<double>("CacheSavingsUsd")
-                        .HasColumnType("REAL");
+                    b.Property<decimal>("CacheSavingsUsd")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("TEXT");
 
                     b.Property<long>("CacheWriteTokens")
                         .HasColumnType("INTEGER");
@@ -37,8 +62,12 @@ namespace clawsharp.Analytics.Sqlite.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<double>("CostUsd")
-                        .HasColumnType("REAL");
+                    b.Property<long?>("ConversationThreadId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("CostUsd")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("TEXT");
 
                     b.Property<long>("DurationMs")
                         .HasColumnType("INTEGER");
@@ -90,6 +119,8 @@ namespace clawsharp.Analytics.Sqlite.Migrations
 
                     b.HasIndex("Channel");
 
+                    b.HasIndex("ConversationThreadId");
+
                     b.HasIndex("Model");
 
                     b.HasIndex("SessionId");
@@ -97,6 +128,58 @@ namespace clawsharp.Analytics.Sqlite.Migrations
                     b.HasIndex("Timestamp");
 
                     b.ToTable("Interactions", (string)null);
+                });
+
+            modelBuilder.Entity("Clawsharp.Analytics.Entities.InteractionMessageEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("InteractionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("Timestamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InteractionId");
+
+                    b.HasIndex("MessageType");
+
+                    b.ToTable("InteractionMessages", (string)null);
+                });
+
+            modelBuilder.Entity("Clawsharp.Analytics.Entities.InteractionEntity", b =>
+                {
+                    b.HasOne("Clawsharp.Analytics.Entities.ConversationThread", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationThreadId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Clawsharp.Analytics.Entities.InteractionMessageEntity", b =>
+                {
+                    b.HasOne("Clawsharp.Analytics.Entities.InteractionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("InteractionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

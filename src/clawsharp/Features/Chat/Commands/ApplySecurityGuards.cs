@@ -18,6 +18,7 @@ namespace Clawsharp.Features.Chat.Commands;
 [Handler]
 public static partial class ApplySecurityGuards
 {
+    private const int InjectionLogPreviewLength = 50;
     /// <summary>Logger category for DI resolution (static types cannot be used as type arguments).</summary>
     public sealed class Log;
 
@@ -51,7 +52,7 @@ public static partial class ApplySecurityGuards
         // Prompt injection guard: scan and wrap non-CLI user messages.
         if (cfg.PromptInjectionGuard && inbound.Channel != ChannelName.Cli)
         {
-            var guardMode = appConfig.Value.Security?.PromptGuard?.Mode ?? "warn";
+            var guardMode = appConfig.Value.Security?.PromptGuard?.Mode ?? PromptGuardMode.Warn;
             var injAction = PromptGuard.ScanAndApply(
                 ref userText, "user message", guardMode, auditLogger,
                 inbound.Channel.Value, inbound.SenderId, ct);
@@ -65,7 +66,7 @@ public static partial class ApplySecurityGuards
             {
                 logger.LogWarning(
                     "Potential prompt injection in user message: {Preview}",
-                    userText[..Math.Min(50, userText.Length)]);
+                    userText[..Math.Min(InjectionLogPreviewLength, userText.Length)]);
             }
 
             userText = PromptGuard.WrapUserMessage(userText);

@@ -8,6 +8,7 @@ using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly.Registry;
 
 namespace Clawsharp.Channels.WeChat;
 
@@ -43,8 +44,9 @@ internal sealed partial class WeChatChannel : BridgePollingChannelBase<WeChatBri
         IMessageBus bus,
         ILogger<WeChatChannel> logger,
         IHttpClientFactory httpClientFactory,
-        ApprovedSendersStore approvedSenders)
-        : base(options, bus, httpClientFactory, approvedSenders, "wechat",
+        ApprovedSendersStore approvedSenders,
+        ResiliencePipelineProvider<string> pipelineProvider)
+        : base(options, bus, httpClientFactory, approvedSenders, pipelineProvider, "wechat",
             ChannelName.WeChat.Value,
             bridgeConfigCheck: static cfg => cfg.BridgeUrl is not null || cfg.WebhookKey is not null)
     {

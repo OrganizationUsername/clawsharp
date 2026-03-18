@@ -30,10 +30,10 @@ public sealed class CostRecord
 
     /// <summary>Estimated USD saved versus billing all input at the full uncached rate.</summary>
     [JsonPropertyName("cache_savings_usd")]
-    public double CacheSavingsUsd { get; init; }
+    public decimal CacheSavingsUsd { get; init; }
 
     [JsonPropertyName("cost_usd")]
-    public double CostUsd { get; init; }
+    public decimal CostUsd { get; init; }
 
     [JsonPropertyName("timestamp")]
     public DateTimeOffset Timestamp { get; init; }

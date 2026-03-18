@@ -208,6 +208,7 @@ Config is loaded from `~/.clawsharp/config.json`. Use `clawsharp config set key=
 - **New config classes**: Register in `Config/JsonContext.cs` with `[JsonSerializable(typeof(MyNewConfig))]`.
 - **New channels**: Register via `AddChannel<T>()` helper in `GatewayHost.cs`.
 - **DTO properties**: Use `{ get; init; }` by default. Only use `{ get; set; }` for properties mutated after construction (EF Core tracked entities, status fields).
+- **EF Core migrations**: ALWAYS use `dotnet ef migrations add <Name>` and `dotnet ef migrations remove` CLI commands. NEVER manually write, edit, or adjust migration code or model snapshots. The EF tools generate correct type mappings, foreign keys, and column changes that are easy to miss by hand. Design-time factories use `IConfiguration` with user secrets + environment variables for connection strings.
 
 ## Agents & Tools for clawsharp
 

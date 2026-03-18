@@ -39,61 +39,61 @@ public static partial class LeakDetector
 
     // ── Structural patterns (fire at any sensitivity) ──────────────────────
 
-    [GeneratedRegex(@"sk_(live|test)_[a-zA-Z0-9]{24,}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"sk_(live|test)_[a-zA-Z0-9]{24,}", RegexOptions.CultureInvariant, 200)]
     private static partial Regex StripeKeyRegex();
 
-    [GeneratedRegex(@"sk-[a-zA-Z0-9]{20,}T3BlbkFJ[a-zA-Z0-9]{20,}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"sk-[a-zA-Z0-9]{20,}T3BlbkFJ[a-zA-Z0-9]{20,}", RegexOptions.CultureInvariant, 200)]
     private static partial Regex OpenAiClassicKeyRegex();
 
-    [GeneratedRegex(@"sk-[a-zA-Z0-9]{48,}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"sk-[a-zA-Z0-9]{48,}", RegexOptions.CultureInvariant, 200)]
     private static partial Regex OpenAiStyleKeyRegex();
 
-    [GeneratedRegex(@"sk-ant-[a-zA-Z0-9\-_]{32,}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"sk-ant-[a-zA-Z0-9\-_]{32,}", RegexOptions.CultureInvariant, 200)]
     private static partial Regex AnthropicKeyRegex();
 
-    [GeneratedRegex(@"AIza[a-zA-Z0-9_\-]{35}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"AIza[a-zA-Z0-9_\-]{35}", RegexOptions.CultureInvariant, 200)]
     private static partial Regex GoogleApiKeyRegex();
 
-    [GeneratedRegex(@"gh[pousr]_[a-zA-Z0-9]{36,}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"gh[pousr]_[a-zA-Z0-9]{36,}", RegexOptions.CultureInvariant, 200)]
     private static partial Regex GithubTokenRegex();
 
-    [GeneratedRegex(@"github_pat_[a-zA-Z0-9_]{22,}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"github_pat_[a-zA-Z0-9_]{22,}", RegexOptions.CultureInvariant, 200)]
     private static partial Regex GithubPatRegex();
 
-    [GeneratedRegex("""api[_\-]?key[=:]\s*['""]*[a-zA-Z0-9_\-]{20,}""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex("""api[_\-]?key[=:]\s*['""]*[a-zA-Z0-9_\-]{20,}""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 200)]
     private static partial Regex GenericApiKeyRegex();
 
-    [GeneratedRegex(@"AKIA[A-Z0-9]{16}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"AKIA[A-Z0-9]{16}", RegexOptions.CultureInvariant, 200)]
     private static partial Regex AwsAccessKeyRegex();
 
     [GeneratedRegex("""aws[_\-]?secret[_\-]?access[_\-]?key[=:]\s*['""]*[a-zA-Z0-9/+=]{40}""",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 200)]
     private static partial Regex AwsSecretKeyRegex();
 
-    [GeneratedRegex(@"eyJ[a-zA-Z0-9_\-]*\.eyJ[a-zA-Z0-9_\-]*\.[a-zA-Z0-9_\-]*", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"eyJ[a-zA-Z0-9_\-]*\.eyJ[a-zA-Z0-9_\-]*\.[a-zA-Z0-9_\-]*", RegexOptions.CultureInvariant, 200)]
     private static partial Regex JwtRegex();
 
-    [GeneratedRegex(@"postgres(ql)?://[^:]+:[^@]+@\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"postgres(ql)?://[^:]+:[^@]+@\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 200)]
     private static partial Regex PostgresUrlRegex();
 
-    [GeneratedRegex(@"mysql://[^:]+:[^@]+@\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"mysql://[^:]+:[^@]+@\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 200)]
     private static partial Regex MysqlUrlRegex();
 
-    [GeneratedRegex(@"mongodb(\+srv)?://[^:]+:[^@]+@\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"mongodb(\+srv)?://[^:]+:[^@]+@\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 200)]
     private static partial Regex MongoUrlRegex();
 
-    [GeneratedRegex(@"redis://[^:]+:[^@]+@\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"redis://[^:]+:[^@]+@\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 200)]
     private static partial Regex RedisUrlRegex();
 
     // ── Sensitivity-gated patterns ─────────────────────────────────────────
 
-    [GeneratedRegex("""(?i)password[=:]\s*['""]*[^\s'""]{8,}""", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("""(?i)password[=:]\s*['""]*[^\s'""]{8,}""", RegexOptions.CultureInvariant, 200)]
     private static partial Regex PasswordRegex();
 
-    [GeneratedRegex("""(?i)secret[=:]\s*['""]*[a-zA-Z0-9_\-]{16,}""", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("""(?i)secret[=:]\s*['""]*[a-zA-Z0-9_\-]{16,}""", RegexOptions.CultureInvariant, 200)]
     private static partial Regex SecretRegex();
 
-    [GeneratedRegex("""(?i)token[=:]\s*['""]*[a-zA-Z0-9_.\-]{20,}""", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("""(?i)token[=:]\s*['""]*[a-zA-Z0-9_.\-]{20,}""", RegexOptions.CultureInvariant, 200)]
     private static partial Regex TokenRegex();
 
     // ── Check methods ──────────────────────────────────────────────────────
@@ -139,19 +139,22 @@ public static partial class LeakDetector
     {
         foreach (var (begin, end, label) in PrivateKeyPatterns)
         {
-            if (!original.Contains(begin, StringComparison.Ordinal) ||
-                !original.Contains(end, StringComparison.Ordinal))
+            // Search redacted (not original) for positions to avoid index mismatch
+            // when prior redactions (API keys, AWS creds) changed string length.
+            var start = redacted.IndexOf(begin, StringComparison.Ordinal);
+            if (start < 0)
+            {
+                continue;
+            }
+
+            var finish = redacted.IndexOf(end, start + begin.Length, StringComparison.Ordinal);
+            if (finish < 0)
             {
                 continue;
             }
 
             patterns.Add(label);
-            var start = redacted.IndexOf(begin, StringComparison.Ordinal);
-            var finish = redacted.IndexOf(end, StringComparison.Ordinal);
-            if (start >= 0 && finish >= 0)
-            {
-                redacted = string.Concat(redacted[..start], "[REDACTED_PRIVATE_KEY]", redacted[(finish + end.Length)..]);
-            }
+            redacted = string.Concat(redacted[..start], "[REDACTED_PRIVATE_KEY]", redacted[(finish + end.Length)..]);
         }
     }
 

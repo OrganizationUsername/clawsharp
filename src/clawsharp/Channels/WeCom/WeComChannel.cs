@@ -350,10 +350,16 @@ internal sealed partial class WeComChannel : WebhookListenerBase, IChannel
             return null;
         }
 
-        var isGroup = string.Equals(msg.ChatType, "group", StringComparison.Ordinal);
-        var senderId = isGroup && msg.ChatId is not null
-            ? $"group:{msg.ChatId}"
-            : userId;
+        var isGroup = string.Equals(msg.ChatType, WeComChatType.Group, StringComparison.Ordinal);
+        string senderId;
+        if (isGroup && msg.ChatId is not null)
+        {
+            senderId = $"group:{msg.ChatId}";
+        }
+        else
+        {
+            senderId = userId;
+        }
         var threadId = isGroup ? msg.ChatId : null;
 
         return (senderId, userId, threadId);
@@ -366,11 +372,11 @@ internal sealed partial class WeComChannel : WebhookListenerBase, IChannel
     {
         return msg.MsgType switch
         {
-            "text" => msg.Text?.Content,
-            "voice" => msg.Voice?.Content,
-            "mixed" => ExtractMixedText(msg.Mixed),
-            "image" => msg.Image?.Url is not null ? $"[image: {msg.Image.Url}]" : null,
-            "file" => "[file attachment]",
+            var t when t == WeComMessageType.Text => msg.Text?.Content,
+            var t when t == WeComMessageType.Voice => msg.Voice?.Content,
+            var t when t == WeComMessageType.Mixed => ExtractMixedText(msg.Mixed),
+            var t when t == WeComMessageType.Image => msg.Image?.Url is not null ? $"[image: {msg.Image.Url}]" : null,
+            var t when t == WeComMessageType.File => "[file attachment]",
             _ => null
         };
     }
@@ -388,7 +394,7 @@ internal sealed partial class WeComChannel : WebhookListenerBase, IChannel
         var sb = new StringBuilder();
         foreach (var item in mixed.MsgItem)
         {
-            if (string.Equals(item.MsgType, "text", StringComparison.Ordinal) && item.Text?.Content is not null)
+            if (string.Equals(item.MsgType, WeComMessageType.Text, StringComparison.Ordinal) && item.Text?.Content is not null)
             {
                 if (sb.Length > 0)
                 {
@@ -397,7 +403,7 @@ internal sealed partial class WeComChannel : WebhookListenerBase, IChannel
 
                 sb.Append(item.Text.Content);
             }
-            else if (string.Equals(item.MsgType, "image", StringComparison.Ordinal) && item.Image?.Url is not null)
+            else if (string.Equals(item.MsgType, WeComMessageType.Image, StringComparison.Ordinal) && item.Image?.Url is not null)
             {
                 if (sb.Length > 0)
                 {
@@ -408,7 +414,12 @@ internal sealed partial class WeComChannel : WebhookListenerBase, IChannel
             }
         }
 
-        return sb.Length > 0 ? sb.ToString() : null;
+        if (sb.Length > 0)
+        {
+            return sb.ToString();
+        }
+
+        return null;
     }
 
     public async Task SendAsync(OutboundMessage message, CancellationToken ct = default)

@@ -23,7 +23,12 @@ public abstract class LifecycleBackgroundService : IHostedLifecycleService, IDis
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _executeTask = ExecuteAsync(_cts.Token);
-        return _executeTask.IsCompleted ? _executeTask : Task.CompletedTask;
+        if (_executeTask.IsCompleted)
+        {
+            return _executeTask;
+        }
+
+        return Task.CompletedTask;
     }
 
     public virtual Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;

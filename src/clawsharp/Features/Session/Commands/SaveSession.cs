@@ -13,7 +13,7 @@ public static partial class SaveSession
 
     private static async ValueTask HandleAsync(
         Command command,
-        SessionManager sessionManager,
+        SessionStore sessionManager,
         CancellationToken ct)
     {
         await sessionManager.SaveAsync(command.Session, ct);

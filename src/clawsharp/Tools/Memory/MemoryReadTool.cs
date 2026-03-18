@@ -3,15 +3,8 @@ using Clawsharp.Memory;
 
 namespace Clawsharp.Tools.Memory;
 
-public sealed class MemoryReadTool : Tool
+public sealed class MemoryReadTool(IMemory memory) : Tool
 {
-    private readonly IMemory _memory;
-
-    public MemoryReadTool(IMemory memory)
-    {
-        _memory = memory;
-    }
-
     public override string Name => "memory_read";
 
     public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
@@ -22,7 +15,7 @@ public sealed class MemoryReadTool : Tool
 
     public override async Task<string> ExecuteAsync(JsonElement arguments, CancellationToken ct = default)
     {
-        var ctx = await _memory.GetContextAsync(ct);
+        var ctx = await memory.GetContextAsync(ct);
         return ctx ?? "(memory is empty)";
     }
 }

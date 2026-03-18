@@ -5,13 +5,13 @@ namespace Clawsharp.Security;
 public sealed record AuditEvent
 {
     [JsonPropertyName("timestamp")]
-    public string Timestamp { get; init; } = DateTimeOffset.UtcNow.ToString("O");
+    public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
 
     [JsonPropertyName("event_id")]
-    public string EventId { get; init; } = Guid.NewGuid().ToString();
+    public Guid EventId { get; init; } = Guid.NewGuid();
 
     [JsonPropertyName("event_type")]
-    public string EventType { get; init; } = "";
+    public required AuditEventType EventType { get; init; }
 
     [JsonPropertyName("actor")]
     public AuditActor? Actor { get; init; }
@@ -83,23 +83,3 @@ public sealed record AuditSecurity
     public string? BlockedReason { get; init; }
 }
 
-public static class AuditEventTypes
-{
-    public const string CommandExecution = "command_execution";
-
-    public const string FileAccess = "file_access";
-
-    public const string ConfigChange = "config_change";
-
-    public const string AuthSuccess = "auth_success";
-
-    public const string AuthFailure = "auth_failure";
-
-    public const string PolicyViolation = "policy_violation";
-
-    public const string SecurityEvent = "security_event";
-
-    public const string CostBudget = "cost_budget";
-
-    public const string RateLimit = "rate_limit";
-}

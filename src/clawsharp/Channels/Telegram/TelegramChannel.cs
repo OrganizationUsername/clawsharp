@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Clawsharp.Config;
+using Clawsharp.Config.Channels;
 using Clawsharp.Core;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
@@ -8,16 +9,24 @@ using Clawsharp.Core.Utilities;
 using Clawsharp.Core.Transcription;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 
 namespace Clawsharp.Channels.Telegram;
 
 public sealed partial class TelegramChannel : LifecycleBackgroundService, IChannel, IStreamingChannel, IThinkingIndicator
 {
+    private const int MaxServerBackoffSeconds = 60;
+
+    private readonly ResiliencePipeline _retryPipeline;
+
+    private static readonly TimeSpan PipelineExhaustionDelay = TimeSpan.FromMinutes(1);
+
     private readonly AllowListPolicy _allowPolicy = AllowListPolicy.AllowAll;
 
     private readonly IMessageBus _bus;
 
-    private readonly string? _dmPolicy;
+    private readonly DmPolicy? _dmPolicy;
 
     private readonly bool _enabled;
 
@@ -39,6 +48,8 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
     private readonly long _maxVoiceFileBytes;
 
+    private volatile bool _permanentStop;
+
     private long _botId;
 
     private string? _botUsername;
@@ -52,7 +63,8 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         PairingStore pairingStore,
         ApprovedSendersStore approvedSenders,
         IHttpClientFactory httpClientFactory,
-        VoiceTranscriptionService voiceService)
+        VoiceTranscriptionService voiceService,
+        ResiliencePipelineProvider<string> pipelineProvider)
     {
         _bus = bus;
         _logger = logger;
@@ -60,6 +72,7 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         _approvedSenders = approvedSenders;
         _http = httpClientFactory.CreateClient("telegram");
         _voiceService = voiceService;
+        _retryPipeline = pipelineProvider.GetPipeline(ChannelName.Telegram.Value);
         _maxImageBytes = options.Value.Limits.MaxImageBytes;
         _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
 
@@ -99,65 +112,74 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
         LogStartingLongPollLoop(_logger);
         await FetchBotInfoAsync(stoppingToken);
-        await RunPollLoopAsync(stoppingToken);
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await _retryPipeline.ExecuteAsync(
+                    async ct => await RunPollLoopAsync(ct),
+                    stoppingToken);
+
+                // RunPollLoopAsync signals permanent stop (401/403) by setting
+                // _permanentStop and returning normally, which avoids wasteful
+                // Polly retries on non-retriable authentication errors.
+                if (_permanentStop)
+                {
+                    LogPermanentApiError(_logger);
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogPipelineExhausted(_logger, ex);
+                await Task.Delay(PipelineExhaustionDelay, stoppingToken);
+            }
+        }
     }
 
     private async Task RunPollLoopAsync(CancellationToken stoppingToken)
     {
         var backoffSeconds = 0; // exponential backoff for 5xx errors; 0 = no backoff active
-        var outerBackoffMs = 2_000; // exponential backoff for non-HTTP exceptions (socket errors, etc.)
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
+            var url = ApiUrl($"getUpdates?offset={_offset}&timeout=30");
+            using var resp = await _http.GetAsync(url, stoppingToken);
+
+            // CRIT-04: Check HTTP status before deserializing to avoid tight-looping on permanent errors.
+            if (!resp.IsSuccessStatusCode)
             {
-                var url = ApiUrl($"getUpdates?offset={_offset}&timeout=30");
-                using var resp = await _http.GetAsync(url, stoppingToken);
-
-                // CRIT-04: Check HTTP status before deserializing to avoid tight-looping on permanent errors.
-                if (!resp.IsSuccessStatusCode)
+                var action = await HandlePollErrorResponseAsync(resp, backoffSeconds, stoppingToken);
+                switch (action.Action)
                 {
-                    var action = await HandlePollErrorResponseAsync(resp, backoffSeconds, stoppingToken);
-                    switch (action.Action)
-                    {
-                        case PollAction.Stop:
-                            return;
-                        case PollAction.Backoff:
-                            backoffSeconds = action.NewBackoffSeconds;
-                            continue;
-                        default:
-                            continue;
-                    }
-                }
-
-                // Reset backoff on success
-                backoffSeconds = 0;
-                outerBackoffMs = 2_000;
-
-                await using var stream = await resp.Content.ReadAsStreamAsync(stoppingToken);
-                var result = await JsonSerializer.DeserializeAsync(stream, TelegramJsonContext.Default.TelegramGetUpdatesResponse,
-                    stoppingToken);
-                if (result?.Ok != true)
-                {
-                    LogPollApiError(_logger, result?.Description ?? "unknown error", result?.ErrorCode ?? 0);
-                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
-                    continue;
-                }
-
-                foreach (var update in result.Result)
-                {
-                    _offset = update.UpdateId + 1;
-                    await ProcessUpdateAsync(update, stoppingToken);
+                    case PollAction.Stop:
+                        _permanentStop = true;
+                        return;
+                    case PollAction.Backoff:
+                        backoffSeconds = action.NewBackoffSeconds;
+                        continue;
+                    default:
+                        continue;
                 }
             }
-            catch (OperationCanceledException)
+
+            // Reset backoff on success
+            backoffSeconds = 0;
+
+            await using var stream = await resp.Content.ReadAsStreamAsync(stoppingToken);
+            var result = await JsonSerializer.DeserializeAsync(stream, TelegramJsonContext.Default.TelegramGetUpdatesResponse,
+                stoppingToken);
+            if (result?.Ok != true)
             {
-                break;
+                LogPollApiError(_logger, result?.Description ?? "unknown error", result?.ErrorCode ?? 0);
+                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                continue;
             }
-            catch (Exception ex)
+
+            foreach (var update in result.Result)
             {
-                LogPollError(_logger, outerBackoffMs, ex);
-                await Task.Delay(outerBackoffMs, stoppingToken);
-                outerBackoffMs = Math.Min(outerBackoffMs * 2, 60_000);
+                _offset = update.UpdateId + 1;
+                await ProcessUpdateAsync(update, stoppingToken);
             }
         }
     }
@@ -186,15 +208,29 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
                 var retryAfter = resp.Headers.RetryAfter?.Delta?.TotalSeconds
                                  ?? resp.Headers.RetryAfter?.Date?.Subtract(DateTimeOffset.UtcNow).TotalSeconds
                                  ?? 30;
-                if (retryAfter < 1) retryAfter = 1;
-                if (retryAfter > 300) retryAfter = 300;
+                if (retryAfter < 1)
+                {
+                    retryAfter = 1;
+                }
+
+                if (retryAfter > 300)
+                {
+                    retryAfter = 300;
+                }
+
                 LogPollRateLimited(_logger, (int)retryAfter);
                 await Task.Delay(TimeSpan.FromSeconds(retryAfter), ct);
                 return (PollAction.Continue, backoffSeconds);
             default:
                 if (statusCode >= 500)
                 {
-                    var newBackoff = Math.Min(backoffSeconds == 0 ? 1 : backoffSeconds * 2, 60);
+                    var baseBackoff = 1;
+                    if (backoffSeconds != 0)
+                    {
+                        baseBackoff = backoffSeconds * 2;
+                    }
+
+                    var newBackoff = Math.Min(baseBackoff, MaxServerBackoffSeconds);
                     LogPollServerError(_logger, statusCode, newBackoff);
                     await Task.Delay(TimeSpan.FromSeconds(newBackoff), ct);
                     return (PollAction.Backoff, newBackoff);
@@ -245,7 +281,7 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
         if (!await IsUserAllowedAsync(msg.From))
         {
-            if (string.Equals(_dmPolicy, "pairing", StringComparison.OrdinalIgnoreCase))
+            if (_dmPolicy == DmPolicy.Pairing)
             {
                 var code = await _pairingStore.GetOrCreateCodeAsync(
                     ChannelName.Telegram.Value,
@@ -263,9 +299,11 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         }
 
         // Download image attachments (best-effort, max 5 MB each)
-        var images = msg.Photo is { Length: > 0 } photos
-            ? await DownloadImageAttachmentsAsync(photos, ct)
-            : null;
+        IReadOnlyList<ImageAttachment>? images = null;
+        if (msg.Photo is { Length: > 0 } photos)
+        {
+            images = await DownloadImageAttachmentsAsync(photos, ct);
+        }
 
         // Add sender context for group chats so the LLM can distinguish users
         if (isGroup && text is not null)
@@ -283,9 +321,15 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         // (supergroup with topics enabled), include the topic thread ID in the
         // session key and thread it through so replies target the correct topic.
         var threadId = msg.MessageThreadId;
-        var senderId = threadId is not null
-            ? $"{msg.Chat.Id}:topic_{threadId}"
-            : msg.Chat.Id.ToString();
+        string senderId;
+        if (threadId is not null)
+        {
+            senderId = $"{msg.Chat.Id}:topic_{threadId}";
+        }
+        else
+        {
+            senderId = msg.Chat.Id.ToString();
+        }
         var threadIdStr = threadId?.ToString();
 
         await _bus.PublishAsync(new InboundMessage(
@@ -501,9 +545,12 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
                     MessageThreadId = messageThreadId,
                     Url = ApiUrl("sendMessage")
                 }, c).ConfigureAwait(false);
-                return postResp?.Ok == true && postResp.Result is not null
-                    ? postResp.Result.MessageId.ToString()
-                    : null;
+                if (postResp?.Ok == true && postResp.Result is not null)
+                {
+                    return postResp.Result.MessageId.ToString();
+                }
+
+                return null;
             },
             editMessageAsync: async (msgIdStr, text, c) =>
             {
@@ -558,9 +605,11 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         try
         {
             // Truncate to Telegram's limit.
-            var display = text.Length > ClawsharpConstants.TelegramMaxMessageLength
-                ? text[..ClawsharpConstants.TelegramMaxMessageLength]
-                : text;
+            var display = text;
+            if (text.Length > ClawsharpConstants.TelegramMaxMessageLength)
+            {
+                display = text[..ClawsharpConstants.TelegramMaxMessageLength];
+            }
             await ExecuteAsync(new TelegramEditMessageTextRequest
             {
                 ChatId = chatId,
@@ -724,7 +773,12 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
             using var resp = await _http.GetAsync(url, ct);
             await using var fileStream = await resp.Content.ReadAsStreamAsync(ct);
             var result = await JsonSerializer.DeserializeAsync(fileStream, TelegramJsonContext.Default.TelegramGetFileResponse, ct);
-            return result?.Ok == true ? result.Result : null;
+            if (result?.Ok == true)
+            {
+                return result.Result;
+            }
+
+            return null;
         }
         catch (OperationCanceledException)
         {
@@ -866,9 +920,12 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
             LogTranscriptionComplete(_logger, transcription.Length);
 
-            return msg.Caption is { Length: > 0 } caption
-                ? $"[Voice] {transcription}\n[Caption] {caption}"
-                : $"[Voice] {transcription}";
+            if (msg.Caption is { Length: > 0 } caption)
+            {
+                return $"[Voice] {transcription}\n[Caption] {caption}";
+            }
+
+            return $"[Voice] {transcription}";
         }
         catch (OperationCanceledException)
         {
@@ -909,9 +966,6 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
     [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "Image download failed")]
     private static partial void LogImageDownloadFailed(ILogger logger, Exception exception);
-
-    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "Poll error, retrying in {BackoffMs}ms")]
-    private static partial void LogPollError(ILogger logger, int backoffMs, Exception exception);
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "Send failed: {ResponseBody}")]
     private static partial void LogSendFailed(ILogger logger, string responseBody);
@@ -966,4 +1020,12 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
     [LoggerMessage(EventId = 23, Level = LogLevel.Warning, Message = "Failed to fetch bot info via getMe")]
     private static partial void LogBotInfoFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 24, Level = LogLevel.Critical,
+        Message = "All retry attempts exhausted, restarting pipeline in 60s")]
+    private static partial void LogPipelineExhausted(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 25, Level = LogLevel.Critical,
+        Message = "Telegram polling stopped permanently due to authentication error (401/403). Check your bot token.")]
+    private static partial void LogPermanentApiError(ILogger logger);
 }

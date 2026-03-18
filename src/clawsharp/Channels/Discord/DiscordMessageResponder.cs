@@ -1,4 +1,5 @@
 using Clawsharp.Config;
+using Clawsharp.Config.Channels;
 using Clawsharp.Core;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
@@ -44,9 +45,9 @@ public sealed partial class DiscordMessageResponder(
 
     private readonly IReadOnlySet<string>? _guildAllowList = options.GuildAllowList;
 
-    private readonly string? _dmPolicy = options.DmPolicy;
+    private readonly DmPolicy? _dmPolicy = options.DmPolicy;
 
-    private readonly bool _groupPolicyOpen = string.Equals(options.GroupPolicy, "open", StringComparison.OrdinalIgnoreCase);
+    private readonly bool _groupPolicyOpen = options.GroupPolicy == GroupPolicy.Open;
 
     private readonly HttpClient _http = httpClientFactory.CreateClient("discord");
 
@@ -89,9 +90,14 @@ public sealed partial class DiscordMessageResponder(
         var transcript = await TranscribeVoiceAttachmentAsync(ev.Attachments, ct);
         if (transcript is not null)
         {
-            text = string.IsNullOrWhiteSpace(text)
-                ? $"[Voice] {transcript}"
-                : $"{text}\n[Voice] {transcript}";
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                text = $"[Voice] {transcript}";
+            }
+            else
+            {
+                text = $"{text}\n[Voice] {transcript}";
+            }
         }
 
         // Ensure there's something to send after all attachment processing
@@ -150,7 +156,7 @@ public sealed partial class DiscordMessageResponder(
             return true;
         }
 
-        if (isDm && string.Equals(_dmPolicy, "pairing", StringComparison.OrdinalIgnoreCase))
+        if (isDm && _dmPolicy == DmPolicy.Pairing)
         {
             try
             {

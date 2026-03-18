@@ -39,11 +39,11 @@ public sealed class DiscordChannelOptions
     ///     DM policy for unknown senders: "open", "allowlist", or "pairing".
     ///     When "pairing", unknown DM senders receive a 6-digit code to share with the operator.
     /// </summary>
-    public string? DmPolicy { get; }
+    public DmPolicy? DmPolicy { get; }
 
     /// <summary>
     ///     Guild message policy: "mention" (default) or "open".
     ///     When "open", the bot responds to all messages in allowed guilds without requiring @mention or !-prefix.
     /// </summary>
-    public string? GroupPolicy { get; }
+    public GroupPolicy? GroupPolicy { get; }
 }

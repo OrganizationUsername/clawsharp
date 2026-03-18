@@ -10,17 +10,15 @@ namespace Clawsharp.Tools.Mcp;
 /// Sends JSON-RPC requests as HTTP POST and reads responses from the body,
 /// which may be direct JSON or an SSE stream.
 /// </summary>
-internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
+internal sealed partial class StreamableHttpMcpTransport(
+    HttpClient httpClient,
+    Uri endpointUri,
+    string serverName,
+    Dictionary<string, string>? headers,
+    ILogger logger)
+    : IMcpTransport
 {
-    private readonly HttpClient _httpClient;
-
-    private readonly Uri _endpointUri;
-
-    private readonly string _serverName;
-
-    private readonly ILogger _logger;
-
-    private readonly Dictionary<string, string> _headers;
+    private readonly Dictionary<string, string> _headers = headers ?? [];
 
     private readonly SemaphoreSlim _lock = new(1, 1);
 
@@ -31,20 +29,6 @@ internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
     private string? _sessionId;
 
     public bool IsConnected => _connected;
-
-    public StreamableHttpMcpTransport(
-        HttpClient httpClient,
-        Uri endpointUri,
-        string serverName,
-        Dictionary<string, string>? headers,
-        ILogger logger)
-    {
-        _httpClient = httpClient;
-        _endpointUri = endpointUri;
-        _serverName = serverName;
-        _logger = logger;
-        _headers = headers ?? [];
-    }
 
     public async Task<McpResponse> SendRequestAsync(string method, JsonElement? parameters, CancellationToken ct)
     {
@@ -57,9 +41,9 @@ internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
         };
 
         var json = JsonSerializer.Serialize(request, McpJsonContext.Default.McpRequest);
-        LogOutbound(_logger, _serverName, json);
+        LogOutbound(logger, serverName, json);
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _endpointUri)
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpointUri)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
@@ -78,7 +62,7 @@ internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
             httpRequest.Headers.TryAddWithoutValidation("Mcp-Session-Id", _sessionId);
         }
 
-        using var httpResponse = await _httpClient.SendAsync(
+        using var httpResponse = await httpClient.SendAsync(
             httpRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         httpResponse.EnsureSuccessStatusCode();
 
@@ -102,11 +86,11 @@ internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
 
         // Direct JSON response
         var responseJson = await httpResponse.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        LogInbound(_logger, _serverName, responseJson);
+        LogInbound(logger, serverName, responseJson);
 
         var response = JsonSerializer.Deserialize(responseJson, McpJsonContext.Default.McpResponse)
                        ?? throw new InvalidOperationException(
-                           $"MCP StreamableHTTP server '{_serverName}' returned null JSON-RPC response.");
+                           $"MCP StreamableHTTP server '{serverName}' returned null JSON-RPC response.");
 
         return response;
     }
@@ -121,9 +105,9 @@ internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
         };
 
         var json = JsonSerializer.Serialize(notification, McpJsonContext.Default.McpRequest);
-        LogOutboundNotification(_logger, _serverName, json);
+        LogOutboundNotification(logger, serverName, json);
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _endpointUri)
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpointUri)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
@@ -138,7 +122,7 @@ internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
             httpRequest.Headers.TryAddWithoutValidation("Mcp-Session-Id", _sessionId);
         }
 
-        using var httpResponse = await _httpClient.SendAsync(httpRequest, ct).ConfigureAwait(false);
+        using var httpResponse = await httpClient.SendAsync(httpRequest, ct).ConfigureAwait(false);
         // Notifications may return 202 Accepted or 200 OK -- either is fine.
         httpResponse.EnsureSuccessStatusCode();
     }
@@ -172,9 +156,9 @@ internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
 
                     // Only process "message" events or events with no type
                     if (string.IsNullOrEmpty(currentEvent)
-                        || string.Equals(currentEvent, "message", StringComparison.Ordinal))
+                        || string.Equals(currentEvent, McpSseEventType.Message, StringComparison.Ordinal))
                     {
-                        LogInbound(_logger, _serverName, data);
+                        LogInbound(logger, serverName, data);
 
                         McpResponse? response;
                         try
@@ -220,7 +204,7 @@ internal sealed partial class StreamableHttpMcpTransport : IMcpTransport
         }
 
         throw new InvalidOperationException(
-            $"MCP StreamableHTTP server '{_serverName}' SSE stream ended without response for request {requestId}.");
+            $"MCP StreamableHTTP server '{serverName}' SSE stream ended without response for request {requestId}.");
     }
 
     public ValueTask DisposeAsync()

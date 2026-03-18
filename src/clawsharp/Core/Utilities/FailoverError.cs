@@ -26,14 +26,9 @@ public enum FailoverReason
 }
 
 /// <summary>Thrown when all providers in the fallback chain have been exhausted.</summary>
-public sealed class FallbackExhaustedException : Exception
+public sealed class FallbackExhaustedException(List<(string Provider, FailoverReason Reason, string Message)> attempts)
+    : Exception($"All {attempts.Count} provider(s) exhausted: {string.Join(", ", attempts.Select(a => $"{a.Provider}={a.Reason}"))}")
 {
-    public FallbackExhaustedException(List<(string Provider, FailoverReason Reason, string Message)> attempts)
-        : base($"All {attempts.Count} provider(s) exhausted: {string.Join(", ", attempts.Select(a => $"{a.Provider}={a.Reason}"))}")
-    {
-        Attempts = attempts;
-    }
-
     /// <summary>Details of each provider attempt that failed.</summary>
-    public IReadOnlyList<(string Provider, FailoverReason Reason, string Message)> Attempts { get; }
+    public IReadOnlyList<(string Provider, FailoverReason Reason, string Message)> Attempts { get; } = attempts;
 }

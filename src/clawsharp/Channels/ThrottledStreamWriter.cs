@@ -95,7 +95,11 @@ public static class ThrottledStreamWriter
             }
         }
 
-        var finalText = textBuilder.Length > 0 ? textBuilder.ToString() : "(no response)";
+        var finalText = "(no response)";
+        if (textBuilder.Length > 0)
+        {
+            finalText = textBuilder.ToString();
+        }
 
         if (messageId is not null)
         {

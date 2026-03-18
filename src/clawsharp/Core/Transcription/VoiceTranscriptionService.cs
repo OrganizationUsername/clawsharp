@@ -33,6 +33,8 @@ namespace Clawsharp.Core.Transcription;
 /// </summary>
 public sealed partial class VoiceTranscriptionService
 {
+    private const int MaxErrorBodyLength = 500;
+
     private readonly HttpClient? _http;
 
     private readonly string? _apiKey;
@@ -68,7 +70,7 @@ public sealed partial class VoiceTranscriptionService
         if (cfg is not { Enabled: true } || string.IsNullOrEmpty(cfg.ApiKey))
         {
             IsEnabled = false;
-            _provider = "groq";
+            _provider = TranscriptionProvider.Groq;
             _language = "en-US";
             return;
         }
@@ -76,36 +78,34 @@ public sealed partial class VoiceTranscriptionService
         IsEnabled = true;
         _apiKey = cfg.ApiKey;
         _http = httpFactory.CreateClient("transcription");
-        _provider = (cfg.Provider ?? "groq").ToLowerInvariant();
+        _provider = (cfg.Provider ?? TranscriptionProvider.Groq).ToLowerInvariant();
         _language = cfg.EffectiveLanguage;
         _maxSpeakers = cfg.MaxSpeakers;
 
-        switch (_provider)
+        if (string.Equals(_provider, TranscriptionProvider.Azure, StringComparison.Ordinal))
         {
-            case "azure":
-                if (string.IsNullOrEmpty(cfg.Region))
-                {
-                    throw new InvalidOperationException(
-                        "transcription.region is required when provider is 'azure' (e.g. \"eastus\").");
-                }
+            if (string.IsNullOrEmpty(cfg.Region))
+            {
+                throw new InvalidOperationException(
+                    "transcription.region is required when provider is 'azure' (e.g. \"eastus\").");
+            }
 
-                _azureUrl = $"https://{cfg.Region}.api.cognitive.microsoft.com" +
-                            "/speechtotext/transcriptions:transcribe?api-version=2025-10-15";
-                break;
-
-            case "gcp":
-                _gcpUrl = "https://speech.googleapis.com/v1/speech:recognize";
-                break;
-
-            case "openai":
-                _baseUrl = ClawsharpConstants.OpenAiDefaultBaseUrl + "/audio/transcriptions";
-                _model = cfg.EffectiveModel;
-                break;
-
-            default: // groq + unknown -> Groq endpoint
-                _baseUrl = "https://api.groq.com/openai/v1/audio/transcriptions";
-                _model = cfg.EffectiveModel;
-                break;
+            _azureUrl = $"https://{cfg.Region}.api.cognitive.microsoft.com" +
+                        "/speechtotext/transcriptions:transcribe?api-version=2025-10-15";
+        }
+        else if (string.Equals(_provider, TranscriptionProvider.Gcp, StringComparison.Ordinal))
+        {
+            _gcpUrl = "https://speech.googleapis.com/v1/speech:recognize";
+        }
+        else if (string.Equals(_provider, TranscriptionProvider.OpenAi, StringComparison.Ordinal))
+        {
+            _baseUrl = ClawsharpConstants.OpenAiDefaultBaseUrl + "/audio/transcriptions";
+            _model = cfg.EffectiveModel;
+        }
+        else // groq + unknown -> Groq endpoint
+        {
+            _baseUrl = "https://api.groq.com/openai/v1/audio/transcriptions";
+            _model = cfg.EffectiveModel;
         }
     }
 
@@ -122,9 +122,9 @@ public sealed partial class VoiceTranscriptionService
 
         return _provider switch
         {
-            "azure" => TranscribeAzureAsync(audioBytes, mimeType, ct),
-            "gcp" => TranscribeGcpAsync(audioBytes, mimeType, ct),
-            "awstranscribe" => TranscribeAwsAsync(),
+            var p when p == TranscriptionProvider.Azure => TranscribeAzureAsync(audioBytes, mimeType, ct),
+            var p when p == TranscriptionProvider.Gcp => TranscribeGcpAsync(audioBytes, mimeType, ct),
+            var p when p == TranscriptionProvider.AwsTranscribe => TranscribeAwsAsync(),
             _ => TranscribeOpenAiCompatAsync(audioBytes, mimeType, ct),
         };
     }
@@ -176,12 +176,16 @@ public sealed partial class VoiceTranscriptionService
         var cleanMime = mimeType.Split(';')[0].Trim();
         var ext = MimeToExt(cleanMime);
 
+        AzureDiarizationOptions? diarization = null;
+        if (_maxSpeakers > 0)
+        {
+            diarization = new AzureDiarizationOptions { Enabled = true, MaxSpeakers = _maxSpeakers };
+        }
+
         var defObj = new AzureTranscriptionDefinition
         {
             Locales = [_language],
-            Diarization = _maxSpeakers > 0
-                ? new AzureDiarizationOptions { Enabled = true, MaxSpeakers = _maxSpeakers }
-                : null,
+            Diarization = diarization,
         };
         var defJson = JsonSerializer.Serialize(
             defObj, VoiceTranscriptJsonContext.Default.AzureTranscriptionDefinition);
@@ -268,15 +272,29 @@ public sealed partial class VoiceTranscriptionService
         var cleanMime = mimeType.Split(';')[0].Trim();
         var encoding = GcpEncoding(cleanMime);
 
+        int? sampleRate = null;
+        if (encoding == "LINEAR16")
+        {
+            sampleRate = 16000;
+        }
+
+        bool? enableDiarization = null;
+        int? diarizationCount = null;
+        if (_maxSpeakers > 0)
+        {
+            enableDiarization = true;
+            diarizationCount = _maxSpeakers;
+        }
+
         var reqBody = new GcpSpeechRequest
         {
             Config = new GcpSpeechConfig
             {
                 Encoding = encoding,
-                SampleRateHertz = encoding == "LINEAR16" ? 16000 : null,
+                SampleRateHertz = sampleRate,
                 LanguageCode = _language,
-                EnableSpeakerDiarization = _maxSpeakers > 0 ? true : null,
-                DiarizationSpeakerCount = _maxSpeakers > 0 ? _maxSpeakers : null,
+                EnableSpeakerDiarization = enableDiarization,
+                DiarizationSpeakerCount = diarizationCount,
             },
             Audio = new GcpAudioContent
             {
@@ -407,7 +425,12 @@ public sealed partial class VoiceTranscriptionService
                 return "(empty)";
             }
 
-            return body.Length > 500 ? body[..500] : body;
+            if (body.Length > MaxErrorBodyLength)
+            {
+                return body[..MaxErrorBodyLength];
+            }
+
+            return body;
         }
         catch
         {

@@ -7,5 +7,6 @@ namespace Clawsharp.Security;
 [JsonSerializable(typeof(AuditAction))]
 [JsonSerializable(typeof(AuditResult))]
 [JsonSerializable(typeof(AuditSecurity))]
+[JsonSerializable(typeof(AuditEventType))]
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 internal sealed partial class AuditJsonContext : JsonSerializerContext;

@@ -6,6 +6,9 @@ namespace Clawsharp.Memory;
 /// </summary>
 internal static class KeywordExpander
 {
+    private const int MinTextLengthForExtraction = 30;
+
+    private const int MinKeywordLength = 4;
     /// <summary>
     ///     Extract significant keywords from text for secondary memory recall.
     ///     Only processes messages &gt;= 30 chars. Returns keywords &gt;= 4 chars,
@@ -13,7 +16,7 @@ internal static class KeywordExpander
     /// </summary>
     public static IReadOnlyList<string> ExtractKeywords(string text)
     {
-        if (text.Length < 30)
+        if (text.Length < MinTextLengthForExtraction)
         {
             return [];
         }
@@ -28,7 +31,7 @@ internal static class KeywordExpander
         var keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var word in words)
         {
-            if (word.Length < 4)
+            if (word.Length < MinKeywordLength)
             {
                 continue;
             }

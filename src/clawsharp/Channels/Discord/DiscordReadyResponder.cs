@@ -7,22 +7,12 @@ using Remora.Results;
 namespace Clawsharp.Channels.Discord;
 
 /// <summary>Captures the bot's own user ID when the READY event fires.</summary>
-public sealed partial class DiscordReadyResponder : IResponder<IReady>
+public sealed partial class DiscordReadyResponder(DiscordBotState state, ILogger<DiscordReadyResponder> logger) : IResponder<IReady>
 {
-    private readonly ILogger<DiscordReadyResponder> _logger;
-
-    private readonly DiscordBotState _state;
-
-    public DiscordReadyResponder(DiscordBotState state, ILogger<DiscordReadyResponder> logger)
-    {
-        _state = state;
-        _logger = logger;
-    }
-
     public Task<Result> RespondAsync(IReady gatewayEvent, CancellationToken ct = default)
     {
-        _state.SelfId = gatewayEvent.User.ID;
-        LogBotReady(_logger, gatewayEvent.User.ID, gatewayEvent.User.Username);
+        state.SelfId = gatewayEvent.User.ID;
+        LogBotReady(logger, gatewayEvent.User.ID, gatewayEvent.User.Username);
         return Task.FromResult(Result.FromSuccess());
     }
 

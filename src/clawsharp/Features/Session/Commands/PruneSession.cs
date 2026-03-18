@@ -14,7 +14,7 @@ public static partial class PruneSession
 
     private static async ValueTask<bool> HandleAsync(
         Command command,
-        SessionManager sessionManager,
+        SessionStore sessionManager,
         CancellationToken ct)
     {
         if (!command.Session.Prune(command.MaxMessages, command.MaxAgeDays))

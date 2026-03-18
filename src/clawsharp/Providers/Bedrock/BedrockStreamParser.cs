@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -39,31 +40,39 @@ internal static class BedrockStreamParser
                 continue;
             }
 
-            var messageBytes = new byte[remaining];
-            if (!await ReadExactAsync(stream, messageBytes, 0, remaining, ct))
+            var messageBytes = ArrayPool<byte>.Shared.Rent(remaining);
+            try
             {
-                yield break;
-            }
+                if (!await ReadExactAsync(stream, messageBytes, 0, remaining, ct))
+                {
+                    yield break;
+                }
 
-            // Parse headers to extract :event-type or :exception-type
-            var eventType = ParseEventType(messageBytes.AsSpan(0, (int)headersLength));
-            if (eventType is null)
+                // Parse headers to extract :event-type or :exception-type
+                var eventType = ParseEventType(messageBytes.AsSpan(0, (int)headersLength));
+                if (eventType is null)
+                {
+                    continue;
+                }
+
+                // Extract JSON payload (between headers and 4-byte trailing message CRC)
+                var payloadStart = (int)headersLength;
+                var payloadLength = remaining - payloadStart - 4;
+                if (payloadLength <= 0)
+                {
+                    continue;
+                }
+
+                // Payload is yielded as ReadOnlyMemory — must be a standalone allocation
+                var payload = new byte[payloadLength];
+                Buffer.BlockCopy(messageBytes, payloadStart, payload, 0, payloadLength);
+
+                yield return (eventType, payload);
+            }
+            finally
             {
-                continue;
+                ArrayPool<byte>.Shared.Return(messageBytes);
             }
-
-            // Extract JSON payload (between headers and 4-byte trailing message CRC)
-            var payloadStart = (int)headersLength;
-            var payloadLength = remaining - payloadStart - 4;
-            if (payloadLength <= 0)
-            {
-                continue;
-            }
-
-            var payload = new byte[payloadLength];
-            Buffer.BlockCopy(messageBytes, payloadStart, payload, 0, payloadLength);
-
-            yield return (eventType, payload);
         }
     }
 

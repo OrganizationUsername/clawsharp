@@ -2,16 +2,11 @@ using System.Text.Json;
 
 namespace Clawsharp.Tools.Files;
 
-public sealed class FileListTool : Tool
+public sealed class FileListTool(string workspace) : Tool
 {
     private const int MaxListEntries = 500;
 
-    private readonly string _workspace;
-
-    public FileListTool(string workspace)
-    {
-        _workspace = Path.GetFullPath(workspace);
-    }
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     public override string Name => "file_list";
 

@@ -5,6 +5,8 @@ using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 using NBitcoin.Secp256k1;
 using NNostr.Client;
 using NNostr.Client.Protocols;
@@ -21,6 +23,10 @@ namespace Clawsharp.Channels.Nostr;
 /// </remarks>
 public sealed partial class NostrChannel : LifecycleBackgroundService, IChannel
 {
+    private readonly ResiliencePipeline _retryPipeline;
+
+    private static readonly TimeSpan PipelineExhaustionDelay = TimeSpan.FromMinutes(1);
+
     private readonly AllowListPolicy _allowPolicy = AllowListPolicy.AllowAll;
 
     private readonly ApprovedSendersStore _approvedSenders;
@@ -54,11 +60,13 @@ public sealed partial class NostrChannel : LifecycleBackgroundService, IChannel
         IOptions<AppConfig> options,
         IMessageBus bus,
         ILogger<NostrChannel> logger,
-        ApprovedSendersStore approvedSenders)
+        ApprovedSendersStore approvedSenders,
+        ResiliencePipelineProvider<string> pipelineProvider)
     {
         _bus = bus;
         _logger = logger;
         _approvedSenders = approvedSenders;
+        _retryPipeline = pipelineProvider.GetPipeline(ChannelName.Nostr.Value);
 
         var cfg = options.Value.Channels.GetValueOrDefault(ChannelName.Nostr.Value);
         if (cfg is not { Enabled: true } || cfg.NostrPrivKey is null)
@@ -87,23 +95,16 @@ public sealed partial class NostrChannel : LifecycleBackgroundService, IChannel
         var npub = _privKey.CreateXOnlyPubKey().ToNIP19();
         LogBotPubKey(_pubKeyHex, npub);
 
-        var backoffMs = 5_000;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await RunAsync(stoppingToken);
-                backoffMs = 5_000; // reset on clean exit
+                await _retryPipeline.ExecuteAsync(async ct => await RunAsync(ct), stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                break;
-            }
-            catch (Exception ex)
-            {
-                LogConnectionError(backoffMs, ex);
-                await Task.Delay(backoffMs, stoppingToken);
-                backoffMs = Math.Min(backoffMs * 2, 60_000);
+                LogPipelineExhausted(ex);
+                await Task.Delay(PipelineExhaustionDelay, stoppingToken);
             }
         }
     }
@@ -148,9 +149,15 @@ public sealed partial class NostrChannel : LifecycleBackgroundService, IChannel
 
     private async Task RunAsync(CancellationToken ct)
     {
-        var relays = _relayUrls is { Length: > 0 }
-            ? _relayUrls
-            : ["wss://relay.damus.io", "wss://nos.lol"];
+        string[] relays;
+        if (_relayUrls is { Length: > 0 })
+        {
+            relays = _relayUrls;
+        }
+        else
+        {
+            relays = ["wss://relay.damus.io", "wss://nos.lol"];
+        }
 
         var relayUris = relays.Select(r => new Uri(r)).ToArray();
         _client = new CompositeNostrClient(relayUris);
@@ -228,7 +235,11 @@ public sealed partial class NostrChannel : LifecycleBackgroundService, IChannel
             }
 
             // Use first 8 hex chars of pubkey as display name
-            var senderName = senderPubKey.Length >= 8 ? senderPubKey[..8] : senderPubKey;
+            var senderName = senderPubKey;
+            if (senderPubKey.Length >= 8)
+            {
+                senderName = senderPubKey[..8];
+            }
 
             await _bus.PublishAsync(new InboundMessage(
                 Channel: Name,
@@ -312,10 +323,6 @@ public sealed partial class NostrChannel : LifecycleBackgroundService, IChannel
         Message = "Connected to {RelayCount} relay(s)")]
     private partial void LogConnected(int relayCount);
 
-    [LoggerMessage(EventId = 3, Level = LogLevel.Error,
-        Message = "Relay connection error, reconnecting in {BackoffMs}ms")]
-    private partial void LogConnectionError(int backoffMs, Exception exception);
-
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning,
         Message = "Blocked sender {SenderPrefix}")]
     private partial void LogBlockedSender(string senderPrefix);
@@ -323,4 +330,8 @@ public sealed partial class NostrChannel : LifecycleBackgroundService, IChannel
     [LoggerMessage(EventId = 5, Level = LogLevel.Warning,
         Message = "Failed to handle event {EventId}")]
     private partial void LogEventHandleError(string eventId, Exception exception);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Critical,
+        Message = "All retry attempts exhausted, restarting pipeline in 60s")]
+    private partial void LogPipelineExhausted(Exception exception);
 }

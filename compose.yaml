@@ -42,6 +42,9 @@ services:
       dockerfile: src/clawsharp/Dockerfile
     restart: unless-stopped
     env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
     # ── Container hardening ──────────────────────────────────────────────────
     security_opt:
       - no-new-privileges:true   # process cannot gain new privileges via setuid/setgid
@@ -53,6 +56,7 @@ services:
     tmpfs:
       - /tmp                     # .NET runtime temp files
       - /var/tmp                 # some system libs expect this
+    network_mode: host
     volumes:
       # Persists config.json, sessions, memory, skills, and the .secret_key file.
       # The .secret_key file is only used when neither CLAWSHARP_SECRET_KEY env var
@@ -70,39 +74,39 @@ services:
       DOTNET_ENVIRONMENT: Production
 
       # ── Encryption key (env var method) ─────────────────────────────────────
-      # REQUIRED when config.json contains enc2: ciphertext (produced by
-      # `clawsharp onboard`, `clawsharp config set`, or `clawsharp config encrypt-secrets`).
-      # Without a stable key, enc2: values become permanently undecryptable on restart.
-      #
-      # Method A (simpler): set in a .env file that is NOT committed to source control.
-      # Method B (more secure): use Docker native secrets — see 'secrets:' blocks above.
       CLAWSHARP_SECRET_KEY: "${CLAWSHARP_SECRET_KEY:?Set CLAWSHARP_SECRET_KEY in .env: echo CLAWSHARP_SECRET_KEY=$(openssl rand -hex 32) >> .env}"
 
+      # ── Web channel ────────────────────────────────────────────────────────
+      CLAWSHARP__channels__web__enabled: "true"
+      CLAWSHARP__channels__web__webHost: "0.0.0.0"
+      CLAWSHARP__channels__web__webPort: "3001"
+      CLAWSHARP__channels__web__pairingToken: "test-token-123"
+
+      # ── PostgreSQL memory backend ──────────────────────────────────────────
+      CLAWSHARP__memory__backend: postgres
+      CLAWSHARP__memory__connectionString: "Host=127.0.0.1;Database=clawsharp;Username=clawsharp;Password=${POSTGRES_PASSWORD}"
+
+      # ── Analytics (interactions) → PostgreSQL ──────────────────────────────
+      CLAWSHARP__analytics__enabled: "true"
+      CLAWSHARP__analytics__backend: postgres
+
+      # ── LM Studio (host network — use localhost) ───────────────────────────
+      CLAWSHARP__providers__lmstudio__baseUrl: "http://127.0.0.1:1234"
+      CLAWSHARP__agents__defaults__model: "qwen/qwen3.5-9b"
+
       # ── Optional: inline config overrides (no file needed) ──────────────────
-      # Uncomment and set to inject secrets without a config.json at all.
-      # These are plaintext env vars — Docker protects them in memory but they
-      # will appear in 'docker inspect'. Prefer password manager references
-      # (op://vault/item/field or bws:<uuid>) in config.json for better security.
       #CLAWSHARP__providers__openai__apiKey: ""
       #CLAWSHARP__providers__anthropic__apiKey: ""
       #CLAWSHARP__channels__telegram__token: ""
       #CLAWSHARP__channels__discord__token: ""
       #CLAWSHARP__channels__slack__botToken: ""
       #CLAWSHARP__channels__slack__appToken: ""
-      # ── Workspace path (only needed if mounting a workspace volume) ────────
       #CLAWSHARP__tools__workspace: "/home/app/.clawsharp/workspace"
 
-  # ── PostgreSQL memory backend (opt-in: docker compose --profile postgres up) ─
-  #
-  # Uses pgvector for cosine-similarity memory search.
-  # Connection string injected automatically via clawsharp-postgres service below.
-  #
-  # For manual connection string override, export:
-  #   export POSTGRES_PASSWORD=yourpassword
+  # ── PostgreSQL (pgvector) ──────────────────────────────────────────────────
   postgres:
     container_name: clawsharp-postgres-db
     image: pgvector/pgvector:pg17
-    profiles: [postgres]
     restart: unless-stopped
     environment:
       POSTGRES_DB: clawsharp
@@ -117,19 +121,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  clawsharp-postgres:
-    container_name: clawsharp-postgres
-    extends:
-      service: clawsharp
-    profiles: [postgres]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      CLAWSHARP_SECRET_KEY: "${CLAWSHARP_SECRET_KEY:?Set CLAWSHARP_SECRET_KEY in .env}"
-      CLAWSHARP__memory__backend: postgres
-      CLAWSHARP__memory__connectionString: "Host=postgres;Database=clawsharp;Username=clawsharp;Password=${POSTGRES_PASSWORD}"
 
   # ── MS SQL Server 2025 (opt-in: docker compose --profile mssql up) ──────────
   #

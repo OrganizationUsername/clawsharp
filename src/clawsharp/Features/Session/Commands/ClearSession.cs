@@ -13,7 +13,7 @@ public static partial class ClearSession
 
     private static async ValueTask HandleAsync(
         Command command,
-        SessionManager sessionManager,
+        SessionStore sessionManager,
         CancellationToken ct)
     {
         command.Session.Messages.Clear();

@@ -3,17 +3,9 @@ using Clawsharp.Security;
 
 namespace Clawsharp.Tools.Files;
 
-public sealed class FileReadTool : Tool
+public sealed class FileReadTool(string workspace, AuditLogger? auditLogger = null) : Tool
 {
-    private readonly string _workspace;
-
-    private readonly AuditLogger? _auditLogger;
-
-    public FileReadTool(string workspace, AuditLogger? auditLogger = null)
-    {
-        _workspace = Path.GetFullPath(workspace);
-        _auditLogger = auditLogger;
-    }
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
@@ -50,9 +42,9 @@ public sealed class FileReadTool : Tool
         }
         catch (InvalidOperationException ex)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(rel, "read", ChannelName, success: false, error: ex.Message, ct: ct);
+                _ = auditLogger.LogFileAccessAsync(rel, "read", ChannelName, success: false, error: ex.Message, ct: ct);
             }
 
             return "Error: path is outside the workspace.";
@@ -69,9 +61,9 @@ public sealed class FileReadTool : Tool
         var fileInfo = new FileInfo(path);
         if (fileInfo.Length > maxFileBytes)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogFileAccessAsync(rel, "read", ChannelName, success: false,
+                _ = auditLogger.LogFileAccessAsync(rel, "read", ChannelName, success: false,
                     error: $"File too large: {fileInfo.Length:N0} bytes (max {maxFileBytes:N0})", ct: ct);
             }
 
@@ -95,9 +87,9 @@ public sealed class FileReadTool : Tool
             content = content[..maxChars] + $"\n... (truncated at {maxChars:N0} chars, file has {content.Length:N0} total)";
         }
 
-        if (_auditLogger is not null)
+        if (auditLogger is not null)
         {
-            _ = _auditLogger.LogFileAccessAsync(rel, "read", ChannelName, success: true, ct: ct);
+            _ = auditLogger.LogFileAccessAsync(rel, "read", ChannelName, success: true, ct: ct);
         }
 
         return content;

@@ -17,20 +17,21 @@ using Clawsharp.Tools.Browser;
 using Clawsharp.Tools.Files;
 using Clawsharp.Tools.Memory;
 using Clawsharp.Tools.Ops;
+using Clawsharp.Core.Utilities;
 using Clawsharp.Tools.Web;
 
 namespace Clawsharp.Tools;
 
 public sealed class ToolRegistry : IToolRegistry
 {
-    private static readonly AsyncLocal<string?> _currentChannelName = new();
+    private static readonly AsyncLocal<ChannelName?> _currentChannelName = new();
 
     private static readonly AsyncLocal<string?> _currentSessionId = new();
 
     private static readonly AsyncLocal<int> _currentSpawnDepth = new();
 
     /// <summary>Current channel name for the executing async flow. Read by tools via AsyncLocal.</summary>
-    public static string? CurrentChannelName => _currentChannelName.Value;
+    public static ChannelName? CurrentChannelName => _currentChannelName.Value;
 
     /// <summary>Current session ID for the executing async flow. Read by tools via AsyncLocal.</summary>
     public static string? CurrentSessionId => _currentSessionId.Value;
@@ -59,7 +60,7 @@ public sealed class ToolRegistry : IToolRegistry
         IHttpClientFactory httpFactory,
         AuditLogger auditLogger,
         SandboxProbe sandboxProbe,
-        BrowserSessionManager browserSessions,
+        BrowserSessionCache browserSessions,
         GoalStorage goalStorage,
         RateLimiter rateLimiter,
         CostTracker costTracker,
@@ -73,11 +74,16 @@ public sealed class ToolRegistry : IToolRegistry
         _filterGroups = config.Tools.FilterGroups;
         _maxNonCliSensitivity = ParseSensitivity(config.Security?.MaxNonCliToolSensitivity ?? "high");
         var workspace = ConfigLoader.ExpandHome(config.Tools.Workspace);
-        var list = new List<Tool>
+        var list = new List<Tool>();
+
+        if (config.Tools.ShellEnabled)
         {
-            new ShellTool(workspace, config.Tools.RequireShellApproval,
+            list.Add(new ShellTool(workspace, config.Tools.RequireShellApproval,
                 config.Tools.EnableShellDenyPatterns, config.Tools.CustomShellDenyPatterns, auditLogger, sandboxProbe,
-                config.Security?.RequireApprovalPatterns, config.Security?.AutoApprovePatterns),
+                config.Security?.RequireApprovalPatterns, config.Security?.AutoApprovePatterns));
+        }
+
+        list.AddRange([
             new FileReadTool(workspace, auditLogger),
             new FileWriteTool(workspace, auditLogger),
             new FileEditTool(workspace, auditLogger),
@@ -100,7 +106,7 @@ public sealed class ToolRegistry : IToolRegistry
             new GoalTool(goalStorage, loggerFactory.CreateLogger<GoalTool>()),
             new SendFileTool(workspace, auditLogger),
             new InteractionsTool(interactionStore),
-        };
+        ]);
 
         _tools = new ConcurrentDictionary<string, Tool>(
             list.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase),
@@ -112,7 +118,7 @@ public sealed class ToolRegistry : IToolRegistry
 
     /// <summary>Sets per-request channel context via AsyncLocal so each async call chain
     /// gets its own isolated value, preventing cross-channel corruption on shared singletons.</summary>
-    public void SetChannelContext(string channelName, int spawnDepth = 0, string? sessionId = null)
+    public void SetChannelContext(ChannelName channelName, int spawnDepth = 0, string? sessionId = null)
     {
         _currentChannelName.Value = channelName;
         _currentSpawnDepth.Value = spawnDepth;
@@ -179,11 +185,11 @@ public sealed class ToolRegistry : IToolRegistry
 
             matchedByAny = true;
 
-            if (string.Equals(group.Mode, "always", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(group.Mode, ToolFilterMode.Always, StringComparison.OrdinalIgnoreCase))
             {
                 includedByAlways = true;
             }
-            else if (string.Equals(group.Mode, "dynamic", StringComparison.OrdinalIgnoreCase)
+            else if (string.Equals(group.Mode, ToolFilterMode.Dynamic, StringComparison.OrdinalIgnoreCase)
                      && group.Keywords is { Count: > 0 })
             {
                 dynamicKeywords ??= [];
@@ -238,7 +244,7 @@ public sealed class ToolRegistry : IToolRegistry
         // threshold on non-CLI channels to prevent prompt injection from triggering
         // high-impact operations via external messaging channels.
         var channel = CurrentChannelName;
-        if (channel is not (null or "cli") && tool.Sensitivity > _maxNonCliSensitivity)
+        if (channel is not null && channel != ChannelName.Cli && tool.Sensitivity > _maxNonCliSensitivity)
         {
             return $"[security] Tool '{name}' (sensitivity: {tool.Sensitivity}) is not available on " +
                    $"the {channel} channel. Maximum allowed: {_maxNonCliSensitivity}. " +

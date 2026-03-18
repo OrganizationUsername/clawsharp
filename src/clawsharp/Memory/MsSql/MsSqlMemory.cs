@@ -9,20 +9,14 @@ namespace Clawsharp.Memory.MsSql;
 ///     Microsoft SQL Server-backed memory store using Entity Framework Core.
 ///     Search uses CONTAINS (if full-text index configured) with LIKE fallback.
 /// </summary>
-public sealed partial class MsSqlMemory : IMemory
+public sealed partial class MsSqlMemory(IDbContextFactory<MsSqlMemoryContext> contextFactory, ILogger<MsSqlMemory> logger)
+    : IMemory
 {
     private const int RecentContentLimit = 50;
-
-    private readonly IDbContextFactory<MsSqlMemoryContext> _contextFactory;
 
     private volatile Task? _initTask;
 
     private readonly SemaphoreSlim _initLock = new(1, 1);
-
-    private readonly ILogger<MsSqlMemory> _logger;
-
-    // Compiled queries — pre-compiled LINQ expression trees for frequently-called read paths.
-    // Thread-safe: the compiled delegate is a pure function; context instance is passed at call time.
 
     private static readonly Func<MsSqlMemoryContext, IAsyncEnumerable<string>>
         GetRecentContentQuery = EF.CompileAsyncQuery((MsSqlMemoryContext db) =>
@@ -56,16 +50,10 @@ public sealed partial class MsSqlMemory : IMemory
               .OrderByDescending(f => f.Id)
               .Select(f => f));
 
-    public MsSqlMemory(IDbContextFactory<MsSqlMemoryContext> contextFactory, ILogger<MsSqlMemory> logger)
-    {
-        _contextFactory = contextFactory;
-        _logger = logger;
-    }
-
     public async Task<string?> GetContextAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var facts = new List<string>();
         await foreach (var content in GetRecentContentQuery(context).WithCancellation(ct))
         {
@@ -78,7 +66,7 @@ public sealed partial class MsSqlMemory : IMemory
     public async Task AppendFactAsync(string fact, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         context.Facts.Add(new Fact { Content = fact, CreatedAt = DateTimeOffset.UtcNow });
         await context.SaveChangesAsync(ct);
     }
@@ -86,7 +74,7 @@ public sealed partial class MsSqlMemory : IMemory
     public async Task AppendHistoryAsync(string summary, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         context.History.Add(new HistoryEntry(summary, DateTimeOffset.UtcNow));
         await context.SaveChangesAsync(ct);
     }
@@ -94,7 +82,7 @@ public sealed partial class MsSqlMemory : IMemory
     public async Task<IReadOnlyList<string>> SearchAsync(string query, int n = 5, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
 
         List<string> results = [];
         try
@@ -115,7 +103,7 @@ public sealed partial class MsSqlMemory : IMemory
         catch (Exception ex)
         {
             // FTS not configured -- fall through to LIKE
-            LogMemoryOperationFailed(_logger, ex, ex.Message);
+            LogMemoryOperationFailed(logger, ex, ex.Message);
         }
 
         if (results.Count == 0)
@@ -135,7 +123,7 @@ public sealed partial class MsSqlMemory : IMemory
     {
         await EnsureInitializedAsync(ct);
         // MsSql backend does not support embeddings — fall back to LIKE search
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var pattern = $"%{EscapeLikePattern(query)}%";
         var results = new List<Fact>();
         await foreach (var fact in SearchHybridLikeQuery(context, pattern, topK).WithCancellation(ct))
@@ -155,7 +143,7 @@ public sealed partial class MsSqlMemory : IMemory
     public async Task<IReadOnlyList<Fact>> ListFactsAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var facts = new List<Fact>();
         await foreach (var fact in ListAllFactsQuery(context).WithCancellation(ct))
         {
@@ -168,44 +156,36 @@ public sealed partial class MsSqlMemory : IMemory
     public async Task ClearAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
-        // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         await context.Database.ExecuteSqlRawAsync($"TRUNCATE TABLE {Fact.TableName}", ct);
-        // History entries are WORM (write-once read-many) — never deleted.
-        // They represent immutable compaction snapshots and are preserved across clears.
     }
 
     public async Task<int> PruneExpiredFactsAsync(TimeSpan maxAge, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var cutoff = DateTimeOffset.UtcNow - maxAge;
 
-        // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
-        // Use raw SQL for cross-provider consistency and to avoid LINQ translation issues
-        var deleted = await context.Database.ExecuteSqlRawAsync(
-            $"DELETE FROM {Fact.TableName} WHERE [CreatedAt] < {{0}}", new object[] { cutoff }, ct);
-
-        return deleted;
+        return await context.Facts
+                            .Where(f => f.CreatedAt < cutoff)
+                            .ExecuteDeleteAsync(ct);
     }
 
     private async Task UpdateAccessCountsAsync(List<long> ids, CancellationToken ct = default)
     {
         try
         {
-            await using var ctx = await _contextFactory.CreateDbContextAsync(ct);
+            await using var ctx = await contextFactory.CreateDbContextAsync(ct);
             var now = DateTimeOffset.UtcNow;
-            // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
-            // Batch update — IDs are long values so string joining is safe (no injection risk)
-            var idList = string.Join(",", ids);
-            await ctx.Database.ExecuteSqlRawAsync(
-                $"UPDATE {Fact.TableName} SET {Fact.AccessCountColumn} = {Fact.AccessCountColumn} + 1, {Fact.LastAccessedAtColumn} = {{0}} WHERE [Id] IN ({idList})",
-                new object[] { now }, ct);
+            await ctx.Facts
+                     .Where(f => ids.Contains(f.Id))
+                     .ExecuteUpdateAsync(s => s
+                         .SetProperty(f => f.AccessCount, f => f.AccessCount + 1)
+                         .SetProperty(f => f.LastAccessedAt, now), ct);
         }
         catch (Exception ex)
         {
-            // Non-fatal — access tracking failure does not affect search results
-            LogMemoryOperationFailed(_logger, ex, ex.Message);
+            LogMemoryOperationFailed(logger, ex, ex.Message);
         }
     }
 
@@ -243,25 +223,24 @@ public sealed partial class MsSqlMemory : IMemory
         }
     }
 
-    [RequiresDynamicCode(
-        "EF Core MigrateAsync builds the design-time model at runtime. Not compatible with NativeAOT; use migration bundles for AOT deployment.")]
+    [RequiresDynamicCode("EF Core MigrateAsync builds the design-time model at runtime. Not compatible with NativeAOT; use migration bundles for AOT deployment.")]
     private async Task InitSchemaAsync(CancellationToken ct)
     {
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
-        // MigrateAsync applies pending migrations. For existing databases originally created via
-        // EnsureCreated, the __EFMigrationsHistory table will be created and the initial migration
-        // marked as applied if the schema already matches.
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         using var migrationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         migrationCts.CancelAfter(TimeSpan.FromSeconds(30));
         await context.Database.MigrateAsync(migrationCts.Token);
-        // Add access tracking columns if not already present
-        await context.Database.ExecuteSqlRawAsync($"""
-                                                   IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('{Fact.TableName}') AND name = '{Fact.AccessCountColumn}')
-                                                   BEGIN
-                                                       ALTER TABLE {Fact.TableName} ADD {Fact.AccessCountColumn} INT NOT NULL DEFAULT 0;
-                                                       ALTER TABLE {Fact.TableName} ADD {Fact.LastAccessedAtColumn} DATETIMEOFFSET NULL;
-                                                   END
-                                                   """);
+
+        const string sql = 
+            $"""
+            IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('{Fact.TableName}') AND name = '{Fact.AccessCountColumn}')
+            BEGIN
+               ALTER TABLE {Fact.TableName} ADD {Fact.AccessCountColumn} INT NOT NULL DEFAULT 0;
+               ALTER TABLE {Fact.TableName} ADD {Fact.LastAccessedAtColumn} DATETIMEOFFSET NULL;
+            END
+            """;
+        
+        await context.Database.ExecuteSqlRawAsync(sql, migrationCts.Token);
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Memory operation failed: {Message}")]

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Clawsharp.Config;
+using Clawsharp.Config.Channels;
 using Clawsharp.Core;
 using Clawsharp.Core.Services;
 using Clawsharp.Core.Sessions;
@@ -29,7 +30,7 @@ public sealed partial class SlackChannel : LifecycleBackgroundService, IChannel,
 
     private readonly IMessageBus _bus;
 
-    private readonly string? _dmPolicy;
+    private readonly DmPolicy? _dmPolicy;
 
     private readonly bool _enabled;
 
@@ -198,7 +199,12 @@ public sealed partial class SlackChannel : LifecycleBackgroundService, IChannel,
                     ThreadTs = message.ThreadId,
                     Url = "chat.postMessage"
                 }, c).ConfigureAwait(false);
-                return postResp?.Ok == true ? postResp.Ts : null;
+                if (postResp?.Ok == true)
+                {
+                    return postResp.Ts;
+                }
+
+                return null;
             },
             editMessageAsync: async (ts, text, c) =>
             {
@@ -393,13 +399,15 @@ public sealed partial class SlackChannel : LifecycleBackgroundService, IChannel,
 
         // DM pairing flow: if policy is "pairing" and this is a DM, send a pairing code.
         var isDmForPairing = channelId.StartsWith('D');
-        if (isDmForPairing && string.Equals(_dmPolicy, "pairing", StringComparison.OrdinalIgnoreCase))
+        if (isDmForPairing && _dmPolicy == DmPolicy.Pairing)
         {
             try
             {
-                var userName = ev.TryGetProperty("user_profile", out var up) && up.TryGetProperty("display_name", out var dn)
-                    ? dn.GetString() ?? userId
-                    : userId;
+                var userName = userId;
+                if (ev.TryGetProperty("user_profile", out var up) && up.TryGetProperty("display_name", out var dn))
+                {
+                    userName = dn.GetString() ?? userId;
+                }
                 var code = await _pairingStore.GetOrCreateCodeAsync("slack", userId, userName, ct);
                 await PostPairingMessageAsync(userId, code, ct);
                 LogPairingSent(_logger, userId, code);
@@ -509,37 +517,37 @@ public sealed partial class SlackChannel : LifecycleBackgroundService, IChannel,
 
     // --- GeneratedRegex for AOT-compatible mrkdwn conversion ---
 
-    [GeneratedRegex(@"```[\s\S]*?```")]
+    [GeneratedRegex(@"```[\s\S]*?```", RegexOptions.None, 200)]
     private static partial Regex CodeBlockRegex();
 
-    [GeneratedRegex(@"`[^`]+`")]
+    [GeneratedRegex(@"`[^`]+`", RegexOptions.None, 200)]
     private static partial Regex InlineCodeRegex();
 
-    [GeneratedRegex(@"\*\*(.+?)\*\*")]
+    [GeneratedRegex(@"\*\*(.+?)\*\*", RegexOptions.None, 200)]
     private static partial Regex BoldRegex();
 
-    [GeneratedRegex(@"__(.+?)__")]
+    [GeneratedRegex(@"__(.+?)__", RegexOptions.None, 200)]
     private static partial Regex ItalicDoubleUnderscoreRegex();
 
-    [GeneratedRegex(@"~~(.+?)~~")]
+    [GeneratedRegex(@"~~(.+?)~~", RegexOptions.None, 200)]
     private static partial Regex StrikethroughRegex();
 
-    [GeneratedRegex(@"\[([^\]]+)\]\(([^)]+)\)")]
+    [GeneratedRegex(@"\[([^\]]+)\]\(([^)]+)\)", RegexOptions.None, 200)]
     private static partial Regex LinkRegex();
 
-    [GeneratedRegex(@"^#{1,6}\s+(.+)$", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^#{1,6}\s+(.+)$", RegexOptions.Multiline, 200)]
     private static partial Regex HeaderRegex();
 
-    [GeneratedRegex(@"^- ", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^- ", RegexOptions.Multiline, 200)]
     private static partial Regex UnorderedListDashRegex();
 
-    [GeneratedRegex(@"^\* ", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\* ", RegexOptions.Multiline, 200)]
     private static partial Regex UnorderedListAsteriskRegex();
 
-    [GeneratedRegex(@"\u00CB(\d+)\x00")]
+    [GeneratedRegex(@"\u00CB(\d+)\x00", RegexOptions.None, 200)]
     private static partial Regex CodeBlockSentinelRegex();
 
-    [GeneratedRegex(@"\x00IC(\d+)\x00")]
+    [GeneratedRegex(@"\x00IC(\d+)\x00", RegexOptions.None, 200)]
     private static partial Regex InlineCodeSentinelRegex();
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Starting Socket Mode")]

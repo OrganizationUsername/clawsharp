@@ -7,5 +7,5 @@ public sealed class FirecrawlConfig
     public string? ApiKey { get; set; }
 
     /// <summary>Firecrawl API base URL (default: https://api.firecrawl.dev).</summary>
-    public string BaseUrl { get; set; } = "https://api.firecrawl.dev";
+    public string BaseUrl { get; init; } = "https://api.firecrawl.dev";
 }

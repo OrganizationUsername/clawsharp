@@ -133,7 +133,7 @@ public abstract class CronStoreContractTests
         var job = MakeJob();
         await _store.UpsertAsync(job);
 
-        var runAt = "2026-03-03T09:00:00+00:00";
+        var runAt = new DateTimeOffset(2026, 3, 3, 9, 0, 0, TimeSpan.Zero);
         await _store.UpdateRunStatsAsync(job.Id, runAt, 5);
 
         var jobs = await _store.LoadAllAsync();
@@ -145,7 +145,7 @@ public abstract class CronStoreContractTests
     public async Task UpdateRunStatsAsync_NonExistentId_DoesNotThrow()
     {
         await Should.NotThrowAsync(() =>
-            _store.UpdateRunStatsAsync("ghost-id", "2026-01-01T00:00:00Z", 1));
+            _store.UpdateRunStatsAsync("ghost-id", new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), 1));
     }
 
     [Test]

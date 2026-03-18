@@ -58,7 +58,7 @@ public sealed partial class AgentLoop
     // Lazy<T> ensures the factory runs exactly once even if two threads race on the same key.
     private readonly ConcurrentDictionary<string, Lazy<(Channel<InboundMessage> Ch, Task DrainTask)>> _sessionPipelines = new();
 
-    private readonly SessionManager _sessions;
+    private readonly SessionStore _sessions;
 
     private readonly IToolRegistry _tools;
 
@@ -103,7 +103,7 @@ public sealed partial class AgentLoop
         IReadOnlyList<IChannel> channels,
         IToolRegistry tools,
         IMemory memory,
-        SessionManager sessions,
+        SessionStore sessions,
         CompactionService compactionService,
         CostTracker costTracker,
         IOptions<AgentDefaults> defaultsOptions,
@@ -212,7 +212,7 @@ public sealed partial class AgentLoop
         _suspicionTracker.Reset();
 
         // Track cron execution context so tools (e.g. CronTool) can detect self-scheduling loops.
-        var isCron = string.Equals(inbound.SenderName, "cron", StringComparison.Ordinal);
+        var isCron = string.Equals(inbound.SenderName, CronSenderName.Cron, StringComparison.Ordinal);
         CronContext.IsInCronExecution = isCron;
 
         _channelMap.TryGetValue(inbound.Channel, out var channel);
@@ -227,7 +227,7 @@ public sealed partial class AgentLoop
         // when the IP is already blocked. Skipped when SenderIp is null (CLI, IRC, etc.).
         if (!inbound.IsHeartbeat && !_rateLimiter.TryAcquireByIp(inbound.SenderIp))
         {
-            LogIpRateLimited(_logger, inbound.SenderIp!);
+            LogIpRateLimited(_logger, inbound.SenderIp?.ToString() ?? "unknown");
             if (channel is not null)
             {
                 var rateLimitMessage = outbound with { Text = "Too many requests from your network. Please wait a moment." };
@@ -316,7 +316,12 @@ public sealed partial class AgentLoop
 
             // Inject canary token for exfiltration detection (enabled by default).
             var canaryEnabled = _appConfig.Security?.CanaryGuard?.Enabled ?? true;
-            var canaryGuard = canaryEnabled ? new CanaryGuard() : null;
+            CanaryGuard? canaryGuard = null;
+            if (canaryEnabled)
+            {
+                canaryGuard = new CanaryGuard();
+            }
+
             var systemPrompt = reqCtx.SystemPrompt;
             if (canaryGuard is not null)
             {
@@ -331,10 +336,15 @@ public sealed partial class AgentLoop
 
             if (!reqCtx.ContextWindowEnabled)
             {
-                var historyToAdd = session.Messages.Count > _defaults.MaxContextMessages
-                    ? session.Messages.GetRange(session.Messages.Count - _defaults.MaxContextMessages, _defaults.MaxContextMessages)
-                    : session.Messages;
-                messages.AddRange(historyToAdd);
+                if (session.Messages.Count > _defaults.MaxContextMessages)
+                {
+                    messages.AddRange(session.Messages.GetRange(
+                        session.Messages.Count - _defaults.MaxContextMessages, _defaults.MaxContextMessages));
+                }
+                else
+                {
+                    messages.AddRange(session.Messages);
+                }
             }
             else
             {
@@ -419,9 +429,15 @@ public sealed partial class AgentLoop
         CancellationToken ct,
         IProvider? providerOverride = null)
     {
-        var candidates = providerOverride is not null
-            ? [(providerOverride.Name, providerOverride)]
-            : GetFallbackCandidates();
+        IReadOnlyList<(string Name, IProvider Provider)> candidates;
+        if (providerOverride is not null)
+        {
+            candidates = [(providerOverride.Name, providerOverride)];
+        }
+        else
+        {
+            candidates = GetFallbackCandidates();
+        }
         long totalCacheRead = 0;
         long totalCacheWrite = 0;
         string? lastThinking = null;
@@ -722,4 +738,8 @@ public sealed partial class AgentLoop
     [LoggerMessage(EventId = 26, Level = LogLevel.Warning,
         Message = "Failed to deliver pending file {Filename}: {Error}")]
     private static partial void LogPendingFileDeliveryFailed(ILogger logger, string filename, string error);
+
+    [LoggerMessage(EventId = 27, Level = LogLevel.Warning,
+        Message = "Scrubbed {Count} secret pattern(s) from memory consolidation summary")]
+    private partial void LogConsolidationSecretsScrubbed(int count);
 }

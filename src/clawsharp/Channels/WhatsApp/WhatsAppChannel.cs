@@ -8,6 +8,7 @@ using Clawsharp.Core.Transcription;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly.Registry;
 
 namespace Clawsharp.Channels.WhatsApp;
 
@@ -17,33 +18,24 @@ namespace Clawsharp.Channels.WhatsApp;
 /// Polls GET /api/messages/unread for inbound messages and
 /// sends via POST /api/sendMessage.
 /// </summary>
-internal sealed partial class WhatsAppChannel : BridgePollingChannelBase<WhatsAppIncomingMessage, WhatsAppSendRequest>
+internal sealed partial class WhatsAppChannel(
+    IOptions<AppConfig> options,
+    IMessageBus bus,
+    ILogger<WhatsAppChannel> logger,
+    IHttpClientFactory httpClientFactory,
+    VoiceTranscriptionService voiceService,
+    ApprovedSendersStore approvedSenders,
+    ResiliencePipelineProvider<string> pipelineProvider)
+    : BridgePollingChannelBase<WhatsAppIncomingMessage, WhatsAppSendRequest>(options, bus, httpClientFactory, approvedSenders,
+        pipelineProvider, "whatsapp", ChannelName.WhatsApp.Value)
 {
-    private readonly ILogger<WhatsAppChannel> _logger;
-
-    private readonly VoiceTranscriptionService _voiceService;
-
-    private readonly long _maxVoiceFileBytes;
+    private readonly long _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
 
     public override ChannelName Name => ChannelName.WhatsApp;
 
-    protected override ILogger Logger => _logger;
+    protected override ILogger Logger => logger;
 
     protected override JsonTypeInfo<WhatsAppSendRequest> SendRequestTypeInfo => WhatsAppJsonContext.Default.WhatsAppSendRequest;
-
-    public WhatsAppChannel(
-        IOptions<AppConfig> options,
-        IMessageBus bus,
-        ILogger<WhatsAppChannel> logger,
-        IHttpClientFactory httpClientFactory,
-        VoiceTranscriptionService voiceService,
-        ApprovedSendersStore approvedSenders)
-        : base(options, bus, httpClientFactory, approvedSenders, "whatsapp", ChannelName.WhatsApp.Value)
-    {
-        _logger = logger;
-        _voiceService = voiceService;
-        _maxVoiceFileBytes = options.Value.Limits.MaxVoiceFileBytes;
-    }
 
     protected override string GetPollUrl() => "api/messages/unread";
 
@@ -71,8 +63,8 @@ internal sealed partial class WhatsAppChannel : BridgePollingChannelBase<WhatsAp
 
         // Voice note (ptt) or audio attachment — transcribe before publishing
         if (item.HasMedia && (
-                string.Equals(item.Type, "ptt", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(item.Type, "audio", StringComparison.OrdinalIgnoreCase)))
+                string.Equals(item.Type, WhatsAppMessageType.PushToTalk, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.Type, WhatsAppMessageType.Audio, StringComparison.OrdinalIgnoreCase)))
         {
             var transcript = await TranscribeWhatsAppAudioAsync(item.Id, ct).ConfigureAwait(false);
             if (transcript is null)
@@ -121,7 +113,7 @@ internal sealed partial class WhatsAppChannel : BridgePollingChannelBase<WhatsAp
 
     private async Task<string?> TranscribeWhatsAppAudioAsync(string messageId, CancellationToken ct)
     {
-        if (!_voiceService.IsEnabled)
+        if (!voiceService.IsEnabled)
         {
             return "[Voice message — transcription unavailable]";
         }
@@ -147,13 +139,13 @@ internal sealed partial class WhatsAppChannel : BridgePollingChannelBase<WhatsAp
             var estimatedSize = (long)media.Data.Length * 3 / 4;
             if (estimatedSize > _maxVoiceFileBytes)
             {
-                LogVoiceFileTooLarge(_logger, estimatedSize);
+                LogVoiceFileTooLarge(logger, estimatedSize);
                 return null;
             }
 
             var bytes = Convert.FromBase64String(media.Data);
             var mime = media.Mimetype?.Split(';')[0].Trim() ?? "audio/ogg";
-            var text = await _voiceService.TranscribeAsync(bytes, mime, ct).ConfigureAwait(false);
+            var text = await voiceService.TranscribeAsync(bytes, mime, ct).ConfigureAwait(false);
             return text is not null ? $"[Voice] {text}" : null;
         }
         catch (OperationCanceledException)

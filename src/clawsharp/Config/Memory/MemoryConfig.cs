@@ -10,7 +10,7 @@ public sealed class MemoryConfig
     /// Backend to use: "markdown" | "sqlite" | "postgres" | "mssql".
     /// </summary>
     [Required]
-    public string Backend { get; set; } = "markdown";
+    public string Backend { get; init; } = "markdown";
 
     /// <summary>Parsed <see cref="MemoryBackend"/> value derived from <see cref="Backend"/>.</summary>
     [JsonIgnore]
@@ -33,7 +33,7 @@ public sealed class MemoryConfig
     /// ADO.NET connection string for database backends (postgres, mssql).
     /// Supports ${ENV_VAR} expansion.
     /// </summary>
-    public string? ConnectionString { get; set; }
+    public string? ConnectionString { get; init; }
 
     /// <summary>
     /// Embedding provider configuration for semantic / vector memory search.

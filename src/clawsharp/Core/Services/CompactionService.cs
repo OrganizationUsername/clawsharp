@@ -12,22 +12,14 @@ namespace Clawsharp.Core.Services;
 ///     Uses the LLM to generate a concise summary of the conversation prefix, then replaces it with
 ///     a single summary message.
 /// </summary>
-public sealed partial class CompactionService
+public sealed partial class CompactionService(CostTracker costTracker, AuditLogger? auditLogger, ILogger<CompactionService> logger)
 {
+    private const int MaxPerMessageChars = 500;
+
+    private const int SplitBatchThreshold = 10;
+
     private const string SummaryPrompt =
         "Summarize the key points, decisions, and context from this conversation. Be concise.";
-
-    private readonly CostTracker _costTracker;
-    private readonly AuditLogger? _auditLogger;
-
-    private readonly ILogger<CompactionService> _logger;
-
-    public CompactionService(CostTracker costTracker, AuditLogger? auditLogger, ILogger<CompactionService> logger)
-    {
-        _costTracker = costTracker;
-        _auditLogger = auditLogger;
-        _logger = logger;
-    }
 
     /// <summary>
     ///     Compact the message history by keeping recent messages and summarizing older ones.
@@ -88,7 +80,7 @@ public sealed partial class CompactionService
             // before reinserting into conversation history. An attacker could inject
             // content that survives compaction and influences future LLM behavior.
             var injAction = PromptGuard.ScanAndApply(
-                ref summary, "compaction summary", PromptGuardModes.Sanitize, _auditLogger, ct: ct);
+                ref summary, "compaction summary", PromptGuardMode.Sanitize, auditLogger, ct: ct);
             if (injAction != InjectionAction.None)
             {
                 LogCompactionInjectionDetected();
@@ -164,7 +156,7 @@ public sealed partial class CompactionService
         CancellationToken ct)
     {
         // For very large message sets, split into two halves and summarize each
-        if (olderMessages.Count > 10)
+        if (olderMessages.Count > SplitBatchThreshold)
         {
             var mid = olderMessages.Count / 2;
             var firstHalf = olderMessages.GetRange(0, mid);
@@ -193,7 +185,6 @@ public sealed partial class CompactionService
     {
         var sb = new StringBuilder();
         var charBudget = maxSourceChars;
-        const int maxPerMessage = 500;
 
         foreach (var msg in batch)
         {
@@ -203,9 +194,9 @@ public sealed partial class CompactionService
             }
 
             var content = msg.Content ?? "";
-            if (content.Length > maxPerMessage)
+            if (content.Length > MaxPerMessageChars)
             {
-                content = content[..maxPerMessage];
+                content = content[..MaxPerMessageChars];
             }
 
             var line = $"{msg.Role.Value}: {content}";
@@ -221,7 +212,7 @@ public sealed partial class CompactionService
         // Check budget before making a compaction LLM call. Pass 0 for estimated cost
         // because precise token counts are unavailable here; this still rejects when
         // the budget is already exceeded.
-        var budgetCheck = await _costTracker.CheckBudgetAsync(0, ct).ConfigureAwait(false);
+        var budgetCheck = await costTracker.CheckBudgetAsync(0, ct).ConfigureAwait(false);
         if (budgetCheck.Status == BudgetStatus.Exceeded)
         {
             LogCompactionBudgetSkipped();

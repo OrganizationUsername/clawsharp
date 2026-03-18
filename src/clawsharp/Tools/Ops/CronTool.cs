@@ -5,15 +5,13 @@ using Clawsharp.Cron;
 
 namespace Clawsharp.Tools.Ops;
 
-public sealed class CronTool : Tool
+public sealed class CronTool(CronService cronService) : Tool
 {
-    private readonly CronService _cronService;
+    private const int AddPreviewLength = 60;
 
-    public CronTool(CronService cronService)
-    {
-        _cronService = cronService;
-    }
+    private const int ListPreviewLength = 50;
 
+    private const int ShortIdLength = 8;
     public string DefaultChannel => ToolRegistry.CurrentChannelName ?? "cli";
 
     public override string Name => "cron";
@@ -71,9 +69,12 @@ public sealed class CronTool : Tool
     /// </summary>
     private static string? CheckCronSelfScheduling()
     {
-        return CronContext.IsInCronExecution
-            ? "Cannot schedule cron jobs from within a cron job execution."
-            : null;
+        if (CronContext.IsInCronExecution)
+        {
+            return "Cannot schedule cron jobs from within a cron job execution.";
+        }
+
+        return null;
     }
 
     // ── Actions ───────────────────────────────────────────────────────────────
@@ -131,14 +132,19 @@ public sealed class CronTool : Tool
             Provider = args.TryGetProperty("provider", out var pr) ? pr.GetString() : null
         };
 
-        await _cronService.AddJobAsync(job, ct);
-        var preview = message.Length > 60 ? message[..60] + "…" : message;
-        return $"Added job '{job.Id[..8]}': [{kind.Value}:{expr}] → {job.Channel} — {preview}";
+        await cronService.AddJobAsync(job, ct);
+        var preview = message;
+        if (message.Length > AddPreviewLength)
+        {
+            preview = message[..AddPreviewLength] + "…";
+        }
+
+        return $"Added job '{job.Id[..ShortIdLength]}': [{kind.Value}:{expr}] → {job.Channel} — {preview}";
     }
 
     private async Task<string> ListAsync(CancellationToken ct)
     {
-        var jobs = await _cronService.ListJobsAsync(ct);
+        var jobs = await cronService.ListJobsAsync(ct);
         if (jobs.Count == 0)
         {
             return "No cron jobs scheduled.";
@@ -148,11 +154,27 @@ public sealed class CronTool : Tool
         foreach (var job in jobs)
         {
             var status = job.Enabled ? "enabled " : "disabled";
-            var lastRun = job.LastRunAt is not null
-                ? $"last={job.LastRunAt[..Math.Min(19, job.LastRunAt.Length)]}"
-                : "never run";
-            var preview = job.Message.Length > 50 ? job.Message[..50] + "…" : job.Message;
-            var shortId = job.Id.Length > 8 ? job.Id[..8] : job.Id;
+            string lastRun;
+            if (job.LastRunAt is { } lastRunAt)
+            {
+                lastRun = $"last={lastRunAt:yyyy-MM-ddTHH:mm:ss}";
+            }
+            else
+            {
+                lastRun = "never run";
+            }
+            var preview = job.Message;
+            if (job.Message.Length > ListPreviewLength)
+            {
+                preview = job.Message[..ListPreviewLength] + "…";
+            }
+
+            var shortId = job.Id;
+            if (job.Id.Length > ShortIdLength)
+            {
+                shortId = job.Id[..ShortIdLength];
+            }
+
             var tzLabel = !string.IsNullOrEmpty(job.Tz) ? $" tz={job.Tz}" : "";
             var overrideLabel = "";
             if (job.Provider is not null || job.Model is not null)
@@ -190,7 +212,7 @@ public sealed class CronTool : Tool
             return "Error: 'id' is required for remove.";
         }
 
-        var removed = await _cronService.RemoveJobAsync(id, ct);
+        var removed = await cronService.RemoveJobAsync(id, ct);
         return removed ? $"Removed job '{id}'." : $"No job found with id '{id}'.";
     }
 
@@ -202,7 +224,7 @@ public sealed class CronTool : Tool
             return "Error: 'id' is required for run.";
         }
 
-        return await _cronService.RunJobNowAsync(id, ct);
+        return await cronService.RunJobNowAsync(id, ct);
     }
 
     private async Task<string> UpdateAsync(JsonElement args, CancellationToken ct)
@@ -213,7 +235,7 @@ public sealed class CronTool : Tool
             return "Error: 'id' is required for update.";
         }
 
-        var all = await _cronService.ListJobsAsync(ct);
+        var all = await cronService.ListJobsAsync(ct);
         var job = all.FirstOrDefault(j =>
             j.Id == id || j.Id.StartsWith(id, StringComparison.OrdinalIgnoreCase));
         if (job is null)
@@ -275,7 +297,7 @@ public sealed class CronTool : Tool
             Provider = args.TryGetProperty("provider", out var pr) ? pr.GetString() : job.Provider
         };
 
-        var result = await _cronService.UpdateJobAsync(updated, ct);
+        var result = await cronService.UpdateJobAsync(updated, ct);
         return result is null ? $"No job found with id '{id}'." : $"Updated job '{result.Id}'.";
     }
 

@@ -30,11 +30,11 @@ public sealed class CronJob
     /// <summary>Whether the job is enabled.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>ISO 8601 timestamp when the job was created.</summary>
-    public string CreatedAt { get; init; } = DateTimeOffset.UtcNow.ToString("O");
+    /// <summary>Timestamp when the job was created.</summary>
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
-    /// <summary>ISO 8601 timestamp of the last successful run.</summary>
-    public string? LastRunAt { get; set; }
+    /// <summary>Timestamp of the last successful run.</summary>
+    public DateTimeOffset? LastRunAt { get; set; }
 
     /// <summary>Total number of times this job has been executed.</summary>
     public int RunCount { get; set; }

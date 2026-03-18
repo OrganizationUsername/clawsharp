@@ -31,6 +31,9 @@ public sealed class ToolsConfig
     /// <summary>GLM/Zhipu AI search API configuration (Chinese web search).</summary>
     public GlmConfig? Glm { get; init; }
 
+    /// <summary>Whether the shell command tool is available to the LLM. Default: true.</summary>
+    public bool ShellEnabled { get; init; } = true;
+
     /// <summary>Whether shell commands require interactive approval.</summary>
     public bool RequireShellApproval { get; init; } = false;
 

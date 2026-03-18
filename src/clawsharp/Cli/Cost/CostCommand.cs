@@ -11,6 +11,14 @@ namespace Clawsharp.Cli.Cost;
 [UsedImplicitly]
 public sealed class CostShowCommand : AsyncCommand
 {
+    private sealed record Aggregation(
+        decimal DailyTotal, decimal MonthlyTotal, decimal AllTimeTotal,
+        long DailyTokensIn, long DailyTokensOut,
+        long MonthlyTokensIn, long MonthlyTokensOut,
+        decimal DailySavings, decimal MonthlySavings,
+        long DailyCacheReads, long MonthlyCacheReads,
+        Dictionary<string, (long In, long Out, decimal Cost, int Count, long CacheRead, long CacheWrite, decimal Savings)> ModelStats);
+
     public override async Task<int> ExecuteAsync(CommandContext context, CancellationToken cancellationToken)
     {
         var config = ClawsharpConfiguration.GetAppConfig();
@@ -24,7 +32,7 @@ public sealed class CostShowCommand : AsyncCommand
         }
 
         var storage = new CostStorage();
-        var records = await storage.ReadAllAsync(cancellationToken);
+        var records = await storage.ReadAllAsync(cancellationToken).ConfigureAwait(false);
 
         if (records.Count == 0)
         {
@@ -32,24 +40,35 @@ public sealed class CostShowCommand : AsyncCommand
             return 0;
         }
 
+        var agg = AggregateRecords(records);
+
+        AnsiConsole.MarkupLine("[bold]Cost Summary[/]");
+        AnsiConsole.WriteLine();
+        RenderSummaryTable(costConfig, agg);
+        RenderModelBreakdownTable(agg.ModelStats);
+
+        return 0;
+    }
+
+    private static Aggregation AggregateRecords(IReadOnlyList<CostRecord> records)
+    {
         var now = DateTimeOffset.UtcNow;
         var todayUtc = DateOnly.FromDateTime(now.UtcDateTime);
 
-        var dailyTotal = 0.0;
-        var monthlyTotal = 0.0;
-        var allTimeTotal = 0.0;
+        var dailyTotal = 0.0m;
+        var monthlyTotal = 0.0m;
+        var allTimeTotal = 0.0m;
         var dailyTokensIn = 0L;
         var dailyTokensOut = 0L;
         var monthlyTokensIn = 0L;
         var monthlyTokensOut = 0L;
-        var dailySavings = 0.0;
-        var monthlySavings = 0.0;
+        var dailySavings = 0.0m;
+        var monthlySavings = 0.0m;
         var dailyCacheReads = 0L;
         var monthlyCacheReads = 0L;
 
-        // Per-model aggregation for the table
         var modelStats =
-            new Dictionary<string, (long In, long Out, double Cost, int Count, long CacheRead, long CacheWrite, double Savings)>(
+            new Dictionary<string, (long In, long Out, decimal Cost, int Count, long CacheRead, long CacheWrite, decimal Savings)>(
                 StringComparer.OrdinalIgnoreCase);
 
         foreach (var r in records)
@@ -77,7 +96,7 @@ public sealed class CostShowCommand : AsyncCommand
 
                 if (!modelStats.TryGetValue(r.Model, out var stats))
                 {
-                    stats = (0L, 0L, 0.0, 0, 0L, 0L, 0.0);
+                    stats = (0L, 0L, 0.0m, 0, 0L, 0L, 0.0m);
                 }
 
                 modelStats[r.Model] = (
@@ -91,11 +110,18 @@ public sealed class CostShowCommand : AsyncCommand
             }
         }
 
-        // Summary
-        AnsiConsole.MarkupLine("[bold]Cost Summary[/]");
-        AnsiConsole.WriteLine();
+        return new Aggregation(
+            dailyTotal, monthlyTotal, allTimeTotal,
+            dailyTokensIn, dailyTokensOut,
+            monthlyTokensIn, monthlyTokensOut,
+            dailySavings, monthlySavings,
+            dailyCacheReads, monthlyCacheReads,
+            modelStats);
+    }
 
-        var hasCacheData = dailyCacheReads > 0 || monthlyCacheReads > 0;
+    private static void RenderSummaryTable(CostConfig costConfig, Aggregation agg)
+    {
+        var hasCacheData = agg.DailyCacheReads > 0 || agg.MonthlyCacheReads > 0;
 
         var summaryTable = new Table().NoBorder();
         summaryTable.AddColumn(new TableColumn("Period").PadRight(4));
@@ -109,48 +135,34 @@ public sealed class CostShowCommand : AsyncCommand
             summaryTable.AddColumn(new TableColumn("Saved (USD)").RightAligned());
         }
 
-        var dailyLimit = costConfig.DailyLimitUsd > 0
-            ? $"${costConfig.DailyLimitUsd:F2}"
-            : "[grey]none[/]";
-        var monthlyLimit = costConfig.MonthlyLimitUsd > 0
-            ? $"${costConfig.MonthlyLimitUsd:F2}"
-            : "[grey]none[/]";
-
-        var dailyCostColor = costConfig.DailyLimitUsd > 0 && dailyTotal > costConfig.DailyLimitUsd
-            ? "red"
-            : costConfig.DailyLimitUsd > 0 && dailyTotal >= costConfig.DailyLimitUsd * costConfig.WarnAtPercent / 100.0
-                ? "yellow"
-                : "green";
-
-        var monthlyCostColor = costConfig.MonthlyLimitUsd > 0 && monthlyTotal > costConfig.MonthlyLimitUsd
-            ? "red"
-            : costConfig.MonthlyLimitUsd > 0 && monthlyTotal >= costConfig.MonthlyLimitUsd * costConfig.WarnAtPercent / 100.0
-                ? "yellow"
-                : "green";
+        var dailyLimit = FormatLimit(costConfig.DailyLimitUsd);
+        var monthlyLimit = FormatLimit(costConfig.MonthlyLimitUsd);
+        var dailyCostColor = GetCostColor(agg.DailyTotal, costConfig.DailyLimitUsd, costConfig.WarnAtPercent);
+        var monthlyCostColor = GetCostColor(agg.MonthlyTotal, costConfig.MonthlyLimitUsd, costConfig.WarnAtPercent);
 
         if (hasCacheData)
         {
             summaryTable.AddRow(
                 "Today",
-                $"[{dailyCostColor}]${dailyTotal:F4}[/]",
+                $"[{dailyCostColor}]${agg.DailyTotal:F4}[/]",
                 dailyLimit,
-                $"{dailyTokensIn:N0}",
-                $"{dailyTokensOut:N0}",
-                $"[cyan]{dailyCacheReads:N0}[/]",
-                dailySavings > 0 ? $"[green]${dailySavings:F4}[/]" : "[grey]$0.0000[/]");
+                $"{agg.DailyTokensIn:N0}",
+                $"{agg.DailyTokensOut:N0}",
+                $"[cyan]{agg.DailyCacheReads:N0}[/]",
+                agg.DailySavings > 0 ? $"[green]${agg.DailySavings:F4}[/]" : "[grey]$0.0000[/]");
 
             summaryTable.AddRow(
                 "This month",
-                $"[{monthlyCostColor}]${monthlyTotal:F4}[/]",
+                $"[{monthlyCostColor}]${agg.MonthlyTotal:F4}[/]",
                 monthlyLimit,
-                $"{monthlyTokensIn:N0}",
-                $"{monthlyTokensOut:N0}",
-                $"[cyan]{monthlyCacheReads:N0}[/]",
-                monthlySavings > 0 ? $"[green]${monthlySavings:F4}[/]" : "[grey]$0.0000[/]");
+                $"{agg.MonthlyTokensIn:N0}",
+                $"{agg.MonthlyTokensOut:N0}",
+                $"[cyan]{agg.MonthlyCacheReads:N0}[/]",
+                agg.MonthlySavings > 0 ? $"[green]${agg.MonthlySavings:F4}[/]" : "[grey]$0.0000[/]");
 
             summaryTable.AddRow(
                 "All time",
-                $"${allTimeTotal:F4}",
+                $"${agg.AllTimeTotal:F4}",
                 "[grey]--[/]",
                 "[grey]--[/]",
                 "[grey]--[/]",
@@ -161,21 +173,21 @@ public sealed class CostShowCommand : AsyncCommand
         {
             summaryTable.AddRow(
                 "Today",
-                $"[{dailyCostColor}]${dailyTotal:F4}[/]",
+                $"[{dailyCostColor}]${agg.DailyTotal:F4}[/]",
                 dailyLimit,
-                $"{dailyTokensIn:N0}",
-                $"{dailyTokensOut:N0}");
+                $"{agg.DailyTokensIn:N0}",
+                $"{agg.DailyTokensOut:N0}");
 
             summaryTable.AddRow(
                 "This month",
-                $"[{monthlyCostColor}]${monthlyTotal:F4}[/]",
+                $"[{monthlyCostColor}]${agg.MonthlyTotal:F4}[/]",
                 monthlyLimit,
-                $"{monthlyTokensIn:N0}",
-                $"{monthlyTokensOut:N0}");
+                $"{agg.MonthlyTokensIn:N0}",
+                $"{agg.MonthlyTokensOut:N0}");
 
             summaryTable.AddRow(
                 "All time",
-                $"${allTimeTotal:F4}",
+                $"${agg.AllTimeTotal:F4}",
                 "[grey]--[/]",
                 "[grey]--[/]",
                 "[grey]--[/]");
@@ -183,57 +195,85 @@ public sealed class CostShowCommand : AsyncCommand
 
         AnsiConsole.Write(summaryTable);
         AnsiConsole.WriteLine();
+    }
 
-        // Per-model breakdown (this month)
-        if (modelStats.Count > 0)
+    private static string FormatLimit(decimal limitUsd)
+    {
+        if (limitUsd > 0)
         {
-            AnsiConsole.MarkupLine("[bold]This Month by Model[/]");
-            AnsiConsole.WriteLine();
-
-            var anyModelCacheData = modelStats.Values.Any(s => s.CacheRead > 0 || s.CacheWrite > 0);
-
-            var modelTable = new Table().Border(TableBorder.Simple);
-            modelTable.AddColumn("Model");
-            modelTable.AddColumn(new TableColumn("Requests").RightAligned());
-            modelTable.AddColumn(new TableColumn("Tokens In").RightAligned());
-            modelTable.AddColumn(new TableColumn("Tokens Out").RightAligned());
-            if (anyModelCacheData)
-            {
-                modelTable.AddColumn(new TableColumn("Cache Reads").RightAligned());
-                modelTable.AddColumn(new TableColumn("Cache Writes").RightAligned());
-                modelTable.AddColumn(new TableColumn("Saved (USD)").RightAligned());
-            }
-
-            modelTable.AddColumn(new TableColumn("Cost (USD)").RightAligned());
-
-            foreach (var (model, stats) in modelStats.OrderByDescending(kv => kv.Value.Cost))
-            {
-                if (anyModelCacheData)
-                {
-                    modelTable.AddRow(
-                        Markup.Escape(model),
-                        stats.Count.ToString("N0"),
-                        stats.In.ToString("N0"),
-                        stats.Out.ToString("N0"),
-                        $"[cyan]{stats.CacheRead:N0}[/]",
-                        $"{stats.CacheWrite:N0}",
-                        stats.Savings > 0 ? $"[green]${stats.Savings:F4}[/]" : "[grey]$0.0000[/]",
-                        $"${stats.Cost:F4}");
-                }
-                else
-                {
-                    modelTable.AddRow(
-                        Markup.Escape(model),
-                        stats.Count.ToString("N0"),
-                        stats.In.ToString("N0"),
-                        stats.Out.ToString("N0"),
-                        $"${stats.Cost:F4}");
-                }
-            }
-
-            AnsiConsole.Write(modelTable);
+            return $"${limitUsd:F2}";
         }
 
-        return 0;
+        return "[grey]none[/]";
+    }
+
+    private static string GetCostColor(decimal total, decimal limitUsd, decimal warnAtPercent)
+    {
+        if (limitUsd > 0 && total > limitUsd)
+        {
+            return "red";
+        }
+
+        if (limitUsd > 0 && total >= limitUsd * warnAtPercent / 100.0m)
+        {
+            return "yellow";
+        }
+
+        return "green";
+    }
+
+    private static void RenderModelBreakdownTable(
+        Dictionary<string, (long In, long Out, decimal Cost, int Count, long CacheRead, long CacheWrite, decimal Savings)> modelStats)
+    {
+        if (modelStats.Count == 0)
+        {
+            return;
+        }
+
+        AnsiConsole.MarkupLine("[bold]This Month by Model[/]");
+        AnsiConsole.WriteLine();
+
+        var anyModelCacheData = modelStats.Values.Any(s => s.CacheRead > 0 || s.CacheWrite > 0);
+
+        var modelTable = new Table().Border(TableBorder.Simple);
+        modelTable.AddColumn("Model");
+        modelTable.AddColumn(new TableColumn("Requests").RightAligned());
+        modelTable.AddColumn(new TableColumn("Tokens In").RightAligned());
+        modelTable.AddColumn(new TableColumn("Tokens Out").RightAligned());
+        if (anyModelCacheData)
+        {
+            modelTable.AddColumn(new TableColumn("Cache Reads").RightAligned());
+            modelTable.AddColumn(new TableColumn("Cache Writes").RightAligned());
+            modelTable.AddColumn(new TableColumn("Saved (USD)").RightAligned());
+        }
+
+        modelTable.AddColumn(new TableColumn("Cost (USD)").RightAligned());
+
+        foreach (var (model, stats) in modelStats.OrderByDescending(kv => kv.Value.Cost))
+        {
+            if (anyModelCacheData)
+            {
+                modelTable.AddRow(
+                    Markup.Escape(model),
+                    stats.Count.ToString("N0"),
+                    stats.In.ToString("N0"),
+                    stats.Out.ToString("N0"),
+                    $"[cyan]{stats.CacheRead:N0}[/]",
+                    $"{stats.CacheWrite:N0}",
+                    stats.Savings > 0 ? $"[green]${stats.Savings:F4}[/]" : "[grey]$0.0000[/]",
+                    $"${stats.Cost:F4}");
+            }
+            else
+            {
+                modelTable.AddRow(
+                    Markup.Escape(model),
+                    stats.Count.ToString("N0"),
+                    stats.In.ToString("N0"),
+                    stats.Out.ToString("N0"),
+                    $"${stats.Cost:F4}");
+            }
+        }
+
+        AnsiConsole.Write(modelTable);
     }
 }

@@ -37,14 +37,14 @@ public static partial class ShellGuard
         IReadOnlyList<string>? denyPatterns,
         IReadOnlyList<string>? approvalPatterns,
         IReadOnlyList<string>? autoApprovePatterns,
-        ILogger? logger = null)
+        ILogger logger)
     {
         _compiledDenyPatterns = CompilePatterns(denyPatterns, logger);
         _compiledApprovalPatterns = CompilePatterns(approvalPatterns, logger);
         _compiledAutoApprovePatterns = CompilePatterns(autoApprovePatterns, logger);
     }
 
-    private static Regex[]? CompilePatterns(IReadOnlyList<string>? patterns, ILogger? logger = null)
+    private static Regex[]? CompilePatterns(IReadOnlyList<string>? patterns, ILogger logger)
     {
         if (patterns is not { Count: > 0 })
         {
@@ -64,7 +64,12 @@ public static partial class ShellGuard
             }
         }
 
-        return compiled.Count > 0 ? compiled.ToArray() : null;
+        if (compiled.Count > 0)
+        {
+            return compiled.ToArray();
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -147,9 +152,16 @@ public static partial class ShellGuard
     {
         for (var i = 0; i < DenyPatterns.Length; i++)
         {
-            if (DenyPatterns[i].IsMatch(command))
+            try
             {
-                return $"Command blocked by safety guard (pattern {i + 1}: {DenyCategories[i]}).";
+                if (DenyPatterns[i].IsMatch(command))
+                {
+                    return $"Command blocked by safety guard (pattern {i + 1}: {DenyCategories[i]}).";
+                }
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return $"Command blocked: deny pattern timed out (potential ReDoS): {DenyCategories[i]}";
             }
         }
 
@@ -197,6 +209,11 @@ public static partial class ShellGuard
                     return $"Command blocked by custom deny pattern: {pattern}";
                 }
             }
+            catch (RegexMatchTimeoutException)
+            {
+                // Block on timeout — an attacker could craft ReDoS input to disable a deny rule.
+                return $"Command blocked: custom deny pattern timed out (potential ReDoS): {pattern}";
+            }
             catch
             {
                 // Invalid custom regex — skip silently
@@ -206,13 +223,13 @@ public static partial class ShellGuard
         return null;
     }
 
-    [GeneratedRegex(@"['""]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"['""]", RegexOptions.IgnoreCase, 200)]
     private static partial Regex StripShellQuotes();
 
-    [GeneratedRegex(@"\\(\S)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\\(\S)", RegexOptions.IgnoreCase, 200)]
     private static partial Regex CollapseBackslashEscapes();
 
-    [GeneratedRegex(@"(?:/usr/local/|/usr/|/)s?bin/", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?:/usr/local/|/usr/|/)s?bin/", RegexOptions.IgnoreCase, 200)]
     private static partial Regex StripBinaryPaths();
 
     // ── Built-in approval patterns (always checked) ────────────────────────
@@ -280,8 +297,16 @@ public static partial class ShellGuard
 
         for (var i = 0; i < BuiltInApprovalPatterns.Length; i++)
         {
-            if (BuiltInApprovalPatterns[i].IsMatch(command))
+            try
             {
+                if (BuiltInApprovalPatterns[i].IsMatch(command))
+                {
+                    return ApprovalPatternDescriptions[i];
+                }
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                // Fail-closed: treat timeout as requiring approval
                 return ApprovalPatternDescriptions[i];
             }
         }
@@ -325,16 +350,16 @@ public static partial class ShellGuard
         return null;
     }
 
-    [GeneratedRegex(@"\bgit\s+push\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bgit\s+push\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ApprovalGitPush();
 
-    [GeneratedRegex(@"\brm\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\brm\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ApprovalRm();
 
-    [GeneratedRegex(@"\bgit\s+reset\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bgit\s+reset\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ApprovalGitReset();
 
-    [GeneratedRegex(@"\bdocker\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bdocker\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ApprovalDocker();
 
     /// <summary>
@@ -491,181 +516,181 @@ public static partial class ShellGuard
 
     // ── Source-generated regex patterns ───────────────────────────────────────
 
-    [GeneratedRegex(@"\brm\s+(-[a-z]*[rf][a-z]*\b|--recursive\b|--force\b)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\brm\s+(-[a-z]*[rf][a-z]*\b|--recursive\b|--force\b)", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyRm();
 
-    [GeneratedRegex(@"\bdel\s+/[fq]\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bdel\s+/[fq]\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyDel();
 
-    [GeneratedRegex(@"\brmdir\s+/s\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\brmdir\s+/s\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyRmdir();
 
-    [GeneratedRegex(@"\b(format|mkfs|diskpart)\b\s", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(format|mkfs|diskpart)\b\s", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyDiskFormat();
 
-    [GeneratedRegex(@"\bdd\s+if=", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bdd\s+if=", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyDd();
 
-    [GeneratedRegex(@">\s*/dev/sd[a-z]\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@">\s*/dev/sd[a-z]\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyBlockDevice();
 
-    [GeneratedRegex(@"\b(shutdown|reboot|poweroff)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(shutdown|reboot|poweroff)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenySystemControl();
 
-    [GeneratedRegex(@":\(\)\s*\{.*\};\s*:", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@":\(\)\s*\{.*\};\s*:", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyForkBomb();
 
-    [GeneratedRegex(@"\$\([^)]+\)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\$\([^)]+\)", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyCmdSubstitution();
 
-    [GeneratedRegex(@"\$\{[^}]+\}", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\$\{[^}]+\}", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyVarExpansion();
 
-    [GeneratedRegex(@"`[^`]+`", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"`[^`]+`", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyBacktick();
 
-    [GeneratedRegex(@"\|\s*sh\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*sh\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipeSh();
 
-    [GeneratedRegex(@"\|\s*bash\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*bash\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipeBash();
 
-    [GeneratedRegex(@"\|\s*python[23]?\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*python[23]?\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipePython();
 
-    [GeneratedRegex(@"\|\s*perl\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*perl\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipePerl();
 
-    [GeneratedRegex(@"\|\s*ruby\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*ruby\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipeRuby();
 
-    [GeneratedRegex(@"\|\s*node\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*node\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipeNode();
 
-    [GeneratedRegex(@"\|\s*zsh\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*zsh\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipeZsh();
 
-    [GeneratedRegex(@"\|\s*(pwsh|powershell)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*(pwsh|powershell)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipePwsh();
 
-    [GeneratedRegex(@"\|\s*fish\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\s*fish\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipeFish();
 
-    [GeneratedRegex(@";\s*rm\s+-[rf]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@";\s*rm\s+-[rf]", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyChainedRm1();
 
-    [GeneratedRegex(@"&&\s*rm\s+-[rf]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"&&\s*rm\s+-[rf]", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyChainedRm2();
 
-    [GeneratedRegex(@"\|\|\s*rm\s+-[rf]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\|\|\s*rm\s+-[rf]", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyChainedRm3();
 
-    [GeneratedRegex(@"<<[-~]?\s*\w+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<<[-~]?\s*\w+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyHereDoc();
 
-    [GeneratedRegex(@"\$\(\s*cat\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\$\(\s*cat\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyCmdSubCat();
 
-    [GeneratedRegex(@"\$\(\s*curl\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\$\(\s*curl\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyCmdSubCurl();
 
-    [GeneratedRegex(@"\$\(\s*wget\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\$\(\s*wget\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyCmdSubWget();
 
-    [GeneratedRegex(@"\$\(\s*which\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\$\(\s*which\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyCmdSubWhich();
 
-    [GeneratedRegex(@"\bsudo\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bsudo\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenySudo();
 
-    [GeneratedRegex(@"\bchmod\s+[0-7]{3,4}\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bchmod\s+[0-7]{3,4}\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyChmod();
 
-    [GeneratedRegex(@"\bchown\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bchown\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyChown();
 
-    [GeneratedRegex(@"\bpkill\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bpkill\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPkill();
 
-    [GeneratedRegex(@"\bkillall\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bkillall\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyKillall();
 
-    [GeneratedRegex(@"\bkill\s+-9\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bkill\s+-9\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyKill9();
 
-    [GeneratedRegex(@"\bcurl\b.*\|\s*(sh|bash|python[23]?|perl|ruby|node|zsh|pwsh|powershell|fish)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bcurl\b.*\|\s*(sh|bash|python[23]?|perl|ruby|node|zsh|pwsh|powershell|fish)", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyCurlExec();
 
-    [GeneratedRegex(@"\bwget\b.*\|\s*(sh|bash|python[23]?|perl|ruby|node|zsh|pwsh|powershell|fish)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bwget\b.*\|\s*(sh|bash|python[23]?|perl|ruby|node|zsh|pwsh|powershell|fish)", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyWgetExec();
 
-    [GeneratedRegex(@"\bnpm\s+install\s+-g\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bnpm\s+install\s+-g\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyNpmGlobal();
 
-    [GeneratedRegex(@"\bpip\s+install\s+--user\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bpip\s+install\s+--user\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyPipUser();
 
-    [GeneratedRegex(@"\bapt\s+(install|remove|purge)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bapt\s+(install|remove|purge)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyApt();
 
-    [GeneratedRegex(@"\byum\s+(install|remove)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\byum\s+(install|remove)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyYum();
 
-    [GeneratedRegex(@"\bdnf\s+(install|remove)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bdnf\s+(install|remove)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyDnf();
 
-    [GeneratedRegex(@"\bdocker\s+run\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bdocker\s+run\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyDockerRun();
 
-    [GeneratedRegex(@"\bdocker\s+exec\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bdocker\s+exec\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyDockerExec();
 
-    [GeneratedRegex(@"\bgit\s+push\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bgit\s+push\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyGitPush();
 
-    [GeneratedRegex(@"\bgit\s+push\s+.*(?:--force|-f)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bgit\s+push\s+.*(?:--force|-f)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyGitForce();
 
-    [GeneratedRegex(@"\bssh\b.*@", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bssh\b.*@", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenySsh();
 
-    [GeneratedRegex(@"\beval\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\beval\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyEval();
 
-    [GeneratedRegex(@"\bsource\s+\S+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bsource\s+\S+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenySource();
 
-    [GeneratedRegex(@"\$'[^']*'")]
+    [GeneratedRegex(@"\$'[^']*'", RegexOptions.None, 200)]
     private static partial Regex DenyAnsiCQuoting();
 
-    [GeneratedRegex(@"[<>]\([^)]*\)")]
+    [GeneratedRegex(@"[<>]\([^)]*\)", RegexOptions.None, 200)]
     private static partial Regex DenyProcessSubstitution();
 
-    [GeneratedRegex(@"\bln\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bln\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyLn();
 
-    [GeneratedRegex(@"\bmkfifo\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bmkfifo\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyMkfifo();
 
-    [GeneratedRegex(@"\bmknod\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bmknod\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyMknod();
 
-    [GeneratedRegex(@"\b(?:mount|umount)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:mount|umount)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyMount();
 
-    [GeneratedRegex(@"\b(?:crontab|at)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:crontab|at)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyCrontab();
 
-    [GeneratedRegex(@"\b(?:nohup|screen|tmux)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:nohup|screen|tmux)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenySessionPersistence();
 
-    [GeneratedRegex(@"\bchmod\b.*[ugo]*[+][st]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bchmod\b.*[ugo]*[+][st]", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyChmodSetuid();
 
-    [GeneratedRegex(@"<<<\s*\S+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<<<\s*\S+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DenyHereString();
 
-    [GeneratedRegex(@"(?:^|[;&|])\s*\.\s+[/~.\w]")]
+    [GeneratedRegex(@"(?:^|[;&|])\s*\.\s+[/~.\w]", RegexOptions.None, 200)]
     private static partial Regex DenyDotSourcing();
 
     // ── Network egress deny patterns (53–59) ─────────────────────────────────
@@ -718,43 +743,47 @@ public static partial class ShellGuard
         // Run egress-specific patterns
         for (var i = 0; i < EgressDenyPatterns.Length; i++)
         {
-            if (EgressDenyPatterns[i].IsMatch(command))
+            try
             {
-                return $"Command blocked on non-CLI channel: {EgressDenyCategories[i]}. " +
-                       "Network egress commands are restricted to the CLI channel for security.";
+                if (EgressDenyPatterns[i].IsMatch(command))
+                {
+                    return $"Command blocked on non-CLI channel: {EgressDenyCategories[i]}. " +
+                           "Network egress commands are restricted to the CLI channel for security.";
+                }
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return $"Command blocked: egress deny pattern timed out (potential ReDoS): {EgressDenyCategories[i]}";
             }
         }
 
         return null;
     }
 
-    [GeneratedRegex(@"\bcurl\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bcurl\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex EgressCurl();
 
-    [GeneratedRegex(@"\bwget\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bwget\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex EgressWget();
 
-    [GeneratedRegex(@"\b(?:nc|netcat|ncat)\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:nc|netcat|ncat)\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex EgressNetcat();
 
-    [GeneratedRegex(@"\btelnet\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\btelnet\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex EgressTelnet();
 
-    [GeneratedRegex(@"\b(?:nslookup|dig|host)\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:nslookup|dig|host)\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex EgressDnsExfil();
 
-    [GeneratedRegex(@"\bscp\s+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bscp\s+", RegexOptions.IgnoreCase, 200)]
     private static partial Regex EgressScp();
 
-    [GeneratedRegex(@"\brsync\s+\S*:", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\brsync\s+\S*:", RegexOptions.IgnoreCase, 200)]
     private static partial Regex EgressRsync();
 
-    private static void LogInvalidCustomPattern(ILogger? logger, string pattern, Exception ex)
+    private static void LogInvalidCustomPattern(ILogger logger, string pattern, Exception ex)
     {
-        if (logger is not null)
-        {
-            LogInvalidPattern(logger, pattern, ex);
-        }
+        LogInvalidPattern(logger, pattern, ex);
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Invalid custom ShellGuard pattern '{Pattern}' — skipped")]

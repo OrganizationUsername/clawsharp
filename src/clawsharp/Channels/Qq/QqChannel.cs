@@ -8,6 +8,8 @@ using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 
 namespace Clawsharp.Channels.Qq;
 
@@ -21,6 +23,10 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
     private const int MaxWebSocketMessageBytes = 1 * 1024 * 1024; // 1 MB
 
     private const int DeduplicatorCapacity = 10_000;
+
+    private readonly ResiliencePipeline _retryPipeline;
+
+    private static readonly TimeSpan PipelineExhaustionDelay = TimeSpan.FromMinutes(1);
 
     private readonly AllowListPolicy _allowPolicy = AllowListPolicy.AllowAll;
 
@@ -47,12 +53,14 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
         IMessageBus bus,
         ILogger<QqChannel> logger,
         IHttpClientFactory httpClientFactory,
-        ApprovedSendersStore approvedSenders)
+        ApprovedSendersStore approvedSenders,
+        ResiliencePipelineProvider<string> pipelineProvider)
     {
         _bus = bus;
         _logger = logger;
         _approvedSenders = approvedSenders;
         _http = httpClientFactory.CreateClient("qq");
+        _retryPipeline = pipelineProvider.GetPipeline(ChannelName.Qq.Value);
 
         var cfg = options.Value.Channels.GetValueOrDefault(ChannelName.Qq.Value);
         if (cfg is not { Enabled: true } || cfg.WebSocketUrl is null)
@@ -78,25 +86,17 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
         }
 
         LogStarting();
-        var backoffMs = 1000;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await RunWebSocketAsync(stoppingToken);
-                // If RunWebSocketAsync exits cleanly (server close), reset backoff
-                backoffMs = 1000;
+                await _retryPipeline.ExecuteAsync(async ct => await RunWebSocketAsync(ct), stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                break;
-            }
-            catch (Exception ex)
-            {
-                LogConnectError(ex);
-                await Task.Delay(backoffMs, stoppingToken);
-                backoffMs = Math.Min(backoffMs * 2, 60_000);
+                LogPipelineExhausted(ex);
+                await Task.Delay(PipelineExhaustionDelay, stoppingToken);
             }
         }
     }
@@ -113,9 +113,9 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
             string url;
             byte[] body;
 
-            if (message.RecipientId.StartsWith("group:", StringComparison.Ordinal))
+            if (message.RecipientId.StartsWith(QqRecipientPrefix.Group, StringComparison.Ordinal))
             {
-                var groupId = message.RecipientId["group:".Length..];
+                var groupId = message.RecipientId[QqRecipientPrefix.Group.Value.Length..];
                 url = $"{_apiBase}/send_group_msg";
                 body = JsonSerializer.SerializeToUtf8Bytes(
                     new QqSendGroupMessage(groupId, message.Text),
@@ -204,7 +204,7 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
 
         // Only process message events
         if (!root.TryGetProperty("post_type", out var postType) ||
-            !string.Equals(postType.GetString(), "message", StringComparison.Ordinal))
+            !string.Equals(postType.GetString(), QqPostType.Message, StringComparison.Ordinal))
         {
             return;
         }
@@ -240,7 +240,7 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
 
         // Determine if group or private
         var messageType = root.TryGetProperty("message_type", out var mt) ? mt.GetString() : null;
-        var isGroup = string.Equals(messageType, "group", StringComparison.Ordinal);
+        var isGroup = string.Equals(messageType, QqMessageType.Group, StringComparison.Ordinal);
 
         string senderId;
         string? threadId = null;
@@ -253,7 +253,7 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
                 return;
             }
 
-            senderId = $"group:{groupId}";
+            senderId = $"{QqRecipientPrefix.Group}{groupId}";
             threadId = groupId;
         }
         else
@@ -299,7 +299,7 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
             foreach (var segment in messageProp.EnumerateArray())
             {
                 if (segment.TryGetProperty("type", out var typeProp) &&
-                    string.Equals(typeProp.GetString(), "text", StringComparison.Ordinal) &&
+                    string.Equals(typeProp.GetString(), QqMessageType.Text, StringComparison.Ordinal) &&
                     segment.TryGetProperty("data", out var dataProp) &&
                     dataProp.TryGetProperty("text", out var textProp))
                 {
@@ -426,9 +426,6 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Starting QQ/OneBot channel")]
     private partial void LogStarting();
 
-    [LoggerMessage(EventId = 2, Level = LogLevel.Error, Message = "QQ/OneBot WebSocket error, reconnecting")]
-    private partial void LogConnectError(Exception exception);
-
     [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "QQ/OneBot WebSocket connected to {WsUrl}")]
     private partial void LogConnected(string wsUrl);
 
@@ -443,4 +440,8 @@ public sealed partial class QqChannel : LifecycleBackgroundService, IChannel
 
     [LoggerMessage(EventId = 7, Level = LogLevel.Warning, Message = "QQ/OneBot event processing error")]
     private partial void LogEventProcessingError(Exception exception);
+
+    [LoggerMessage(EventId = 8, Level = LogLevel.Critical,
+        Message = "All retry attempts exhausted, restarting pipeline in 60s")]
+    private partial void LogPipelineExhausted(Exception exception);
 }

@@ -55,7 +55,7 @@ public static partial class SanitizeReply
 
         // Scan outbound reply for leaked credentials/secrets before delivery.
         var leakSensitivity = appConfig.Value.Security?.LeakDetector?.Sensitivity ?? 0.7;
-        if (leakSensitivity > 0)
+        if (leakSensitivity >= 0)
         {
             var leakResult = LeakDetector.Scan(reply, leakSensitivity);
             if (!leakResult.IsClean)

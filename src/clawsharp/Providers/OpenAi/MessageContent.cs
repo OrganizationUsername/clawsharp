@@ -54,9 +54,15 @@ internal sealed class MessageContentConverter : JsonConverter<MessageContent>
                     }
                 }
 
+                var joinedText = "";
+                if (texts.Count > 0)
+                {
+                    joinedText = string.Join("\n", texts);
+                }
+
                 return new MessageContent
                 {
-                    Text = texts.Count > 0 ? string.Join("\n", texts) : "",
+                    Text = joinedText,
                     Parts = parts
                 };
             }

@@ -11,43 +11,35 @@ namespace Clawsharp.Channels.Web;
 ///     logs, detects already-running instances, and gracefully shuts down on host stop.
 ///     Only active when <c>DOTNET_ENVIRONMENT=Development</c>.
 /// </summary>
-public sealed partial class ViteDevOrchestrator : IHostedLifecycleService
+public sealed partial class ViteDevOrchestrator(IHostEnvironment env, ILogger<ViteDevOrchestrator> logger) : IHostedLifecycleService
 {
-    private readonly IHostEnvironment _env;
-
-    private readonly ILogger<ViteDevOrchestrator> _logger;
-
     private Process? _viteProcess;
 
     private const int VitePort = 5173;
 
-    public ViteDevOrchestrator(IHostEnvironment env, ILogger<ViteDevOrchestrator> logger)
-    {
-        _env = env;
-        _logger = logger;
-    }
+    private const int VitePollIntervalMs = 300;
 
     public async Task StartingAsync(CancellationToken cancellationToken)
     {
-        if (!_env.IsDevelopment())
+        if (!env.IsDevelopment())
         {
             return;
         }
 
         if (await IsPortOpenAsync())
         {
-            LogViteAlreadyRunning(_logger);
+            LogViteAlreadyRunning(logger);
             return;
         }
 
         var webDir = FindWebDir();
         if (webDir is null)
         {
-            LogWebDirNotFound(_logger);
+            LogWebDirNotFound(logger);
             return;
         }
 
-        LogStartingVite(_logger);
+        LogStartingVite(logger);
 
         _viteProcess = Process.Start(new ProcessStartInfo
         {
@@ -62,7 +54,7 @@ public sealed partial class ViteDevOrchestrator : IHostedLifecycleService
 
         if (_viteProcess is null)
         {
-            LogViteStartFailed(_logger);
+            LogViteStartFailed(logger);
             return;
         }
 
@@ -70,14 +62,14 @@ public sealed partial class ViteDevOrchestrator : IHostedLifecycleService
         {
             if (!string.IsNullOrWhiteSpace(e.Data))
             {
-                LogViteOutput(_logger, e.Data);
+                LogViteOutput(logger, e.Data);
             }
         };
         _viteProcess.ErrorDataReceived += (_, e) =>
         {
             if (!string.IsNullOrWhiteSpace(e.Data))
             {
-                LogViteError(_logger, e.Data);
+                LogViteError(logger, e.Data);
             }
         };
         _viteProcess.BeginOutputReadLine();
@@ -86,10 +78,10 @@ public sealed partial class ViteDevOrchestrator : IHostedLifecycleService
         while (!await IsPortOpenAsync())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(300, cancellationToken);
+            await Task.Delay(VitePollIntervalMs, cancellationToken);
         }
 
-        LogViteReady(_logger, VitePort);
+        LogViteReady(logger, VitePort);
     }
 
     public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -100,14 +92,14 @@ public sealed partial class ViteDevOrchestrator : IHostedLifecycleService
     {
         if (_viteProcess is { HasExited: false })
         {
-            LogStoppingVite(_logger);
+            LogStoppingVite(logger);
             try
             {
                 _viteProcess.Kill(entireProcessTree: true);
             }
             catch (Exception ex)
             {
-                LogViteKillFailed(_logger, ex);
+                LogViteKillFailed(logger, ex);
             }
         }
 

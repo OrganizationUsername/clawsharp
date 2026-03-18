@@ -10,7 +10,7 @@ namespace Clawsharp.Features.Cost.Queries;
 [Handler]
 public static partial class CheckBudget
 {
-    public sealed record Query(double EstimatedCost);
+    public sealed record Query(decimal EstimatedCost);
 
     private static async ValueTask<BudgetCheckResult> HandleAsync(
         Query query,

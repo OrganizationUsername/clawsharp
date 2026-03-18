@@ -17,6 +17,6 @@ public enum BudgetStatus
 public sealed record BudgetCheckResult(
     BudgetStatus Status,
     string? Message = null,
-    double CurrentDailyUsd = 0,
-    double CurrentMonthlyUsd = 0
+    decimal CurrentDailyUsd = 0,
+    decimal CurrentMonthlyUsd = 0
 );

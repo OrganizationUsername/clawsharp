@@ -7,5 +7,5 @@ public sealed class PerplexityConfig
     public string? ApiKey { get; set; }
 
     /// <summary>Perplexity model to use (default: sonar-pro).</summary>
-    public string Model { get; set; } = "sonar-pro";
+    public string Model { get; init; } = "sonar-pro";
 }

@@ -38,9 +38,15 @@ public sealed partial class AuditLogger : IDisposable
         }
         else
         {
-            var configuredPath = Path.IsPathRooted(_config.LogPath)
-                ? _config.LogPath
-                : Path.Combine(dir, _config.LogPath);
+            string configuredPath;
+            if (Path.IsPathRooted(_config.LogPath))
+            {
+                configuredPath = _config.LogPath;
+            }
+            else
+            {
+                configuredPath = Path.Combine(dir, _config.LogPath);
+            }
 
             // MED-07: Validate that the resolved audit log path stays within ~/.clawsharp/
             // to prevent an attacker with config write access from redirecting audit logs
@@ -110,14 +116,22 @@ public sealed partial class AuditLogger : IDisposable
         string? error = null,
         string? sandboxBackend = null,
         CancellationToken ct = default)
-        => LogAsync(new AuditEvent
+    {
+        AuditSecurity? security = null;
+        if (sandboxBackend is not null)
         {
-            EventType = AuditEventTypes.CommandExecution,
+            security = new AuditSecurity { SandboxBackend = sandboxBackend };
+        }
+
+        return LogAsync(new AuditEvent
+        {
+            EventType = AuditEventType.CommandExecution,
             Actor = new AuditActor { Channel = channel, UserId = userId },
             Action = new AuditAction { Command = command, Allowed = allowed },
             Result = new AuditResult { Success = success, ExitCode = exitCode, DurationMs = durationMs, Error = error },
-            Security = sandboxBackend is not null ? new AuditSecurity { SandboxBackend = sandboxBackend } : null,
+            Security = security,
         }, ct);
+    }
 
     /// <summary>Convenience: log a policy violation (SSRF block, ShellGuard deny, etc.).</summary>
     public Task LogPolicyViolationAsync(
@@ -128,7 +142,7 @@ public sealed partial class AuditLogger : IDisposable
         CancellationToken ct = default)
         => LogAsync(new AuditEvent
         {
-            EventType = AuditEventTypes.PolicyViolation,
+            EventType = AuditEventType.PolicyViolation,
             Actor = new AuditActor { Channel = channel, UserId = userId },
             Action = new AuditAction { Detail = detail, Allowed = false },
             Security = new AuditSecurity { PolicyViolation = true, SsrfBlocked = ssrfBlocked, BlockedReason = detail },
@@ -142,7 +156,7 @@ public sealed partial class AuditLogger : IDisposable
         CancellationToken ct = default)
         => LogAsync(new AuditEvent
         {
-            EventType = AuditEventTypes.SecurityEvent,
+            EventType = AuditEventType.SecurityEvent,
             Actor = new AuditActor { Channel = channel, UserId = userId },
             Action = new AuditAction { Detail = detail, Allowed = false },
         }, ct);
@@ -157,7 +171,7 @@ public sealed partial class AuditLogger : IDisposable
         CancellationToken ct = default)
         => LogAsync(new AuditEvent
         {
-            EventType = AuditEventTypes.FileAccess,
+            EventType = AuditEventType.FileAccess,
             Actor = new AuditActor { Channel = channel },
             Action = new AuditAction { Command = $"{operation}:{path}", Allowed = true },
             Result = new AuditResult { Success = success, Error = error },

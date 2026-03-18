@@ -7,6 +7,19 @@ public sealed class ConfigKeyValidatorTests
 {
     // ── Valid fixed leaf paths ────────────────────────────────────────────────
 
+    // ── Legacy aliases (pre-TimeSpan migration) ─────────────────────────────
+
+    [Test]
+    [TestCase("agents.defaults.rateLimitWindowSeconds")]
+    [TestCase("secrets.onePassword.timeoutSeconds")]
+    [TestCase("secrets.bitwarden.timeoutSeconds")]
+    public void IsValidKey_LegacySecondsAlias_ReturnsTrue(string key)
+    {
+        ConfigKeyValidator.IsValidKey(key).ShouldBeTrue();
+    }
+
+    // ── Valid fixed leaf paths ────────────────────────────────────────────────
+
     [Test]
     [TestCase("agents.defaults.provider")]
     [TestCase("agents.defaults.model")]

@@ -10,6 +10,8 @@ using MailKit.Search;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
+using Polly;
+using Polly.Registry;
 using Clawsharp.Config.Channels;
 
 namespace Clawsharp.Channels.Email;
@@ -37,14 +39,20 @@ public sealed partial class EmailChannel : LifecycleBackgroundService, IChannel
     private static readonly string SeenUidsPath = Path.Combine(
         ConfigLoader.ExpandHome("~/.clawsharp"), "email_seen_uids.txt");
 
-    /// <summary>Current delay for exponential backoff on IMAP errors (5s to 300s).</summary>
-    private int _backoffDelayMs = 5_000;
+    private readonly TimeSpan _pollingInterval;
 
-    private const int MinBackoffMs = 5_000;
+    private readonly int _maxSeenUids;
 
-    private const int MaxBackoffMs = 300_000;
+    private readonly ResiliencePipeline _retryPipeline;
 
-    public EmailChannel(IOptions<AppConfig> options, IMessageBus bus, ILogger<EmailChannel> logger, ApprovedSendersStore approvedSenders)
+    private static readonly TimeSpan PipelineExhaustionDelay = TimeSpan.FromMinutes(1);
+
+    public EmailChannel(
+        IOptions<AppConfig> options,
+        IMessageBus bus,
+        ILogger<EmailChannel> logger,
+        ApprovedSendersStore approvedSenders,
+        ResiliencePipelineProvider<string> pipelineProvider)
     {
         _bus = bus;
         _logger = logger;
@@ -54,6 +62,10 @@ public sealed partial class EmailChannel : LifecycleBackgroundService, IChannel
         _allowPolicy = new AllowListPolicy(_cfg?.AllowFrom);
 
         _commandPrefix = _cfg?.CommandPrefix;
+
+        _pollingInterval = _cfg?.PollingInterval ?? TimeSpan.FromSeconds(30);
+        _maxSeenUids = _cfg?.MaxSeenUids ?? 10_000;
+        _retryPipeline = pipelineProvider.GetPipeline(ChannelName.Email.Value);
     }
 
     public ChannelName Name => ChannelName.Email;
@@ -71,23 +83,14 @@ public sealed partial class EmailChannel : LifecycleBackgroundService, IChannel
         {
             try
             {
-                await PollImapAsync(stoppingToken);
-                // Reset backoff on successful poll
-                _backoffDelayMs = MinBackoffMs;
+                await _retryPipeline.ExecuteAsync(async ct => await PollImapAsync(ct), stoppingToken);
+                await Task.Delay(_pollingInterval, stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                break;
+                LogPipelineExhausted(_logger, ex);
+                await Task.Delay(PipelineExhaustionDelay, stoppingToken);
             }
-            catch (Exception ex)
-            {
-                LogImapError(_logger, ex);
-                await Task.Delay(_backoffDelayMs, stoppingToken);
-                _backoffDelayMs = Math.Min(_backoffDelayMs * 2, MaxBackoffMs);
-                continue;
-            }
-
-            await Task.Delay(30_000, stoppingToken);
         }
     }
 
@@ -129,7 +132,7 @@ public sealed partial class EmailChannel : LifecycleBackgroundService, IChannel
             }
 
             _seenUidsQueue.Enqueue(uidStr);
-            if (_seenUidsQueue.Count > 10_000)
+            if (_seenUidsQueue.Count > _maxSeenUids)
             {
                 var oldest = _seenUidsQueue.Dequeue();
                 _seenUids.Remove(oldest);
@@ -214,6 +217,7 @@ public sealed partial class EmailChannel : LifecycleBackgroundService, IChannel
         var bodyLines = rawBody.Split('\n')
                                .Where(l => !l.TrimStart().StartsWith('>'))
                                .ToArray();
+        
         var body = string.Join('\n', bodyLines).Trim();
         return string.IsNullOrWhiteSpace(body) ? null : body;
     }
@@ -266,9 +270,6 @@ public sealed partial class EmailChannel : LifecycleBackgroundService, IChannel
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Starting IMAP poll loop")]
     private static partial void LogStartingImapPollLoop(ILogger logger);
 
-    [LoggerMessage(EventId = 2, Level = LogLevel.Error, Message = "IMAP error")]
-    private static partial void LogImapError(ILogger logger, Exception exception);
-
     [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "Blocked sender {FromAddr}")]
     private static partial void LogBlockedSender(ILogger logger, string fromAddr);
 
@@ -277,4 +278,8 @@ public sealed partial class EmailChannel : LifecycleBackgroundService, IChannel
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Warning, Message = "Failed to persist seen UIDs to disk")]
     private static partial void LogSeenUidsPersistError(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Critical,
+        Message = "All retry attempts exhausted, restarting pipeline in 60s")]
+    private static partial void LogPipelineExhausted(ILogger logger, Exception exception);
 }

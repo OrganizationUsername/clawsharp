@@ -8,19 +8,12 @@ namespace Clawsharp.Auth;
 /// Implements the GitHub OAuth device flow for Copilot authentication.
 /// After obtaining a GitHub OAuth token, exchanges it for a short-lived Copilot API token.
 /// </summary>
-public sealed class GitHubDeviceFlow
+public sealed class GitHubDeviceFlow(IHttpClientFactory httpFactory)
 {
     // Well-known public client_id for GitHub Copilot (used by many open-source projects)
     private const string CopilotClientId = "Iv1.b507a08c87ecfe98";
 
     private const string Scope = "read:user";
-
-    private readonly IHttpClientFactory _httpFactory;
-
-    public GitHubDeviceFlow(IHttpClientFactory httpFactory)
-    {
-        _httpFactory = httpFactory;
-    }
 
     /// <summary>
     /// Runs the full device flow login: obtains a GitHub token, then exchanges for a Copilot token.
@@ -29,7 +22,7 @@ public sealed class GitHubDeviceFlow
     /// </summary>
     public async Task<OAuthToken?> LoginAsync(CancellationToken ct)
     {
-        using var http = _httpFactory.CreateClient("llm");
+        using var http = httpFactory.CreateClient("llm");
         http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         // Step 1: Request device code
@@ -73,7 +66,7 @@ public sealed class GitHubDeviceFlow
     /// </summary>
     public async Task<OAuthToken?> RefreshCopilotTokenAsync(string githubToken, CancellationToken ct)
     {
-        using var http = _httpFactory.CreateClient("llm");
+        using var http = httpFactory.CreateClient("llm");
         http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return await ExchangeForCopilotTokenAsync(http, githubToken, ct);
     }

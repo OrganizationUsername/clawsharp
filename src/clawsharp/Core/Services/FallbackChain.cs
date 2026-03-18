@@ -10,18 +10,8 @@ namespace Clawsharp.Core.Services;
 ///     Orchestrates provider call execution with fallback across candidates.
 ///     Skips providers in cooldown, classifies errors, and records cooldowns on failure.
 /// </summary>
-public sealed partial class FallbackChain
+public sealed partial class FallbackChain(CooldownTracker cooldowns, ILogger<FallbackChain> logger)
 {
-    private readonly CooldownTracker _cooldowns;
-
-    private readonly ILogger<FallbackChain> _logger;
-
-    public FallbackChain(CooldownTracker cooldowns, ILogger<FallbackChain> logger)
-    {
-        _cooldowns = cooldowns;
-        _logger = logger;
-    }
-
     /// <summary>
     ///     Execute a provider call with fallback across candidates.
     ///     Tries each candidate in order, skipping those in cooldown.
@@ -38,7 +28,7 @@ public sealed partial class FallbackChain
         {
             ct.ThrowIfCancellationRequested();
 
-            if (_cooldowns.IsInCooldown(name))
+            if (cooldowns.IsInCooldown(name))
             {
                 LogSkippingCooldown(name);
                 attempts.Add((name, FailoverReason.Unknown, "In cooldown"));
@@ -48,7 +38,7 @@ public sealed partial class FallbackChain
             try
             {
                 var result = await action(name, provider, ct);
-                _cooldowns.RecordSuccess(name);
+                cooldowns.RecordSuccess(name);
                 return result;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -62,7 +52,7 @@ public sealed partial class FallbackChain
                 }
 
                 var retryAfter = ParseRetryAfter(ex.Message);
-                _cooldowns.RecordFailure(name, reason, retryAfter);
+                cooldowns.RecordFailure(name, reason, retryAfter);
 
                 LogProviderFailed(name, reason.ToString(), ex.Message);
                 attempts.Add((name, reason, ex.Message));
@@ -97,14 +87,18 @@ public sealed partial class FallbackChain
         {
             ct.ThrowIfCancellationRequested();
 
-            if (_cooldowns.IsInCooldown(name))
+            if (cooldowns.IsInCooldown(name))
             {
                 LogSkippingCooldown(name);
                 attempts.Add((name, FailoverReason.Unknown, "In cooldown"));
                 continue;
             }
 
-            var effectiveRequest = requestTransform is not null ? requestTransform(name, request) : request;
+            var effectiveRequest = request;
+            if (requestTransform is not null)
+            {
+                effectiveRequest = requestTransform(name, request);
+            }
 
             // Try to obtain the first chunk — if that succeeds, commit to this provider.
             // We buffer the first chunk so we can catch startup failures without yield-in-try issues.
@@ -136,7 +130,7 @@ public sealed partial class FallbackChain
                 }
 
                 var retryAfter = ParseRetryAfter(ex.Message);
-                _cooldowns.RecordFailure(name, reason, retryAfter);
+                cooldowns.RecordFailure(name, reason, retryAfter);
 
                 LogProviderFailed(name, reason.ToString(), ex.Message);
                 attempts.Add((name, reason, ex.Message));
@@ -144,7 +138,7 @@ public sealed partial class FallbackChain
             }
 
             // First chunk obtained — commit to this provider
-            _cooldowns.RecordSuccess(name);
+            cooldowns.RecordSuccess(name);
 
             if (firstChunk is not null)
             {
@@ -194,7 +188,7 @@ public sealed partial class FallbackChain
         return null;
     }
 
-    [GeneratedRegex(@"retry[_-]after[:\s]+(\d+(?:\.\d+)?)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"retry[_-]after[:\s]+(\d+(?:\.\d+)?)", RegexOptions.IgnoreCase, 200)]
     private static partial Regex RetryAfterRegex();
 
     [LoggerMessage(EventId = 100, Level = LogLevel.Warning,

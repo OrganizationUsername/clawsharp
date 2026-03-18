@@ -191,23 +191,22 @@ public sealed class ProviderHealthCheckServiceTests
         HealthCheckConfig? healthCheck = null,
         bool useHealthCheck = true)
     {
+        var hc = useHealthCheck
+            ? healthCheck ?? new HealthCheckConfig
+            {
+                Enabled = true,
+                CheckOnStartup = checkOnStartup,
+                Interval = TimeSpan.FromSeconds(intervalSeconds)
+            }
+            : null;
+
         var appConfig = new AppConfig
         {
             Agents = new AgentConfig
             {
-                Defaults = new AgentDefaults()
+                Defaults = new AgentDefaults { HealthCheck = hc }
             }
         };
-
-        if (useHealthCheck)
-        {
-            appConfig.Agents.Defaults.HealthCheck = healthCheck ?? new HealthCheckConfig
-            {
-                Enabled = true,
-                CheckOnStartup = checkOnStartup,
-                IntervalSeconds = intervalSeconds
-            };
-        }
 
         return Options.Create(appConfig);
     }
@@ -232,22 +231,10 @@ public sealed class ProviderHealthCheckServiceTests
 /// <summary>
 /// Fake provider that implements both IProvider and IHealthCheckableProvider.
 /// </summary>
-internal sealed class FakeHealthCheckableProvider : IProvider, IHealthCheckableProvider
+internal sealed class FakeHealthCheckableProvider(bool healthy = true, string? message = null, bool throwOnCheck = false)
+    : IProvider, IHealthCheckableProvider
 {
-    private readonly bool _healthy;
-
-    private readonly string? _message;
-
-    private readonly bool _throwOnCheck;
-
     private int _checkCount;
-
-    public FakeHealthCheckableProvider(bool healthy = true, string? message = null, bool throwOnCheck = false)
-    {
-        _healthy = healthy;
-        _message = message;
-        _throwOnCheck = throwOnCheck;
-    }
 
     public string Name => "fake-healthcheckable";
 
@@ -264,12 +251,12 @@ internal sealed class FakeHealthCheckableProvider : IProvider, IHealthCheckableP
     {
         Interlocked.Increment(ref _checkCount);
 
-        if (_throwOnCheck)
+        if (throwOnCheck)
         {
             throw new HttpRequestException("Simulated connection failure");
         }
 
-        var result = new HealthCheckResult(_healthy, _message ?? (_healthy ? "HTTP 200" : "HTTP 503"), TimeSpan.FromMilliseconds(10));
+        var result = new HealthCheckResult(healthy, message ?? (healthy ? "HTTP 200" : "HTTP 503"), TimeSpan.FromMilliseconds(10));
         return Task.FromResult(result);
     }
 }

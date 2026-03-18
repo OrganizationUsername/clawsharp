@@ -1,5 +1,6 @@
 using Clawsharp.Config;
 using Clawsharp.Config.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Clawsharp.Cron;
 
@@ -9,7 +10,7 @@ public static class CronStoreFactory
     {
         if (!MemoryBackend.TryFromValue(config.Memory.Backend, out var backend))
         {
-            return new JsonCronStore(ConfigLoader.ExpandHome("~/.clawsharp"));
+            return new JsonCronStore(ConfigLoader.ExpandHome("~/.clawsharp"), NullLogger.Instance);
         }
 
         if (backend == MemoryBackend.Sqlite)
@@ -31,6 +32,6 @@ public static class CronStoreFactory
                 ?? throw new InvalidOperationException("memory.connectionString is required for the 'mssql' backend."));
         }
 
-        return new JsonCronStore(ConfigLoader.ExpandHome("~/.clawsharp"));
+        return new JsonCronStore(ConfigLoader.ExpandHome("~/.clawsharp"), NullLogger.Instance);
     }
 }

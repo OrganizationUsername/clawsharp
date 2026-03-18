@@ -37,7 +37,7 @@ public sealed class CostStorageTests : IDisposable
             Model = "gpt-4o",
             InputTokens = 1000,
             OutputTokens = 500,
-            CostUsd = 0.0125,
+            CostUsd = 0.0125m,
             Timestamp = DateTimeOffset.UtcNow
         };
 
@@ -51,7 +51,7 @@ public sealed class CostStorageTests : IDisposable
         records[0].Model.ShouldBe("gpt-4o");
         records[0].InputTokens.ShouldBe(1000);
         records[0].OutputTokens.ShouldBe(500);
-        records[0].CostUsd.ShouldBe(0.0125, tolerance: 0.0001);
+        records[0].CostUsd.ShouldBe(0.0125m);
     }
 
     [Test]

@@ -5,18 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Clawsharp.Tools.Ops;
 
-public sealed partial class GoalTool : Tool
+public sealed partial class GoalTool(GoalStorage storage, ILogger<GoalTool> logger) : Tool
 {
-    private readonly GoalStorage _storage;
-
-    private readonly ILogger<GoalTool> _logger;
-
-    public GoalTool(GoalStorage storage, ILogger<GoalTool> logger)
-    {
-        _storage = storage;
-        _logger = logger;
-    }
-
     public override string Name => "goal";
 
     public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
@@ -112,11 +102,11 @@ public sealed partial class GoalTool : Tool
             }
         }
 
-        var goals = await _storage.LoadAsync(ct);
+        var goals = await storage.LoadAsync(ct);
         goals.Add(goal);
-        await _storage.SaveAsync(goals, ct);
+        await storage.SaveAsync(goals, ct);
 
-        LogGoalCreated(_logger, goal.Id, goal.Title);
+        LogGoalCreated(logger, goal.Id, goal.Title);
 
         var sb = new StringBuilder();
         sb.Append($"Goal created: {goal.Id} — {goal.Title}");
@@ -131,7 +121,7 @@ public sealed partial class GoalTool : Tool
     private async Task<string> ListAsync(JsonElement args, CancellationToken ct)
     {
         var statusFilter = args.TryGetProperty("status", out var s) ? s.GetString() : "active";
-        var goals = await _storage.LoadAsync(ct);
+        var goals = await storage.LoadAsync(ct);
 
         var filtered = statusFilter switch
         {
@@ -182,7 +172,7 @@ public sealed partial class GoalTool : Tool
 
         var done = doneEl.GetBoolean();
 
-        var goals = await _storage.LoadAsync(ct);
+        var goals = await storage.LoadAsync(ct);
         var goal = goals.Find(g => string.Equals(g.Id, id, StringComparison.OrdinalIgnoreCase));
         if (goal is null)
         {
@@ -195,8 +185,8 @@ public sealed partial class GoalTool : Tool
         }
 
         goal.Steps[stepIndex].Done = done;
-        goal.UpdatedAt = DateTimeOffset.UtcNow.ToString("O");
-        await _storage.SaveAsync(goals, ct);
+        goal.UpdatedAt = DateTimeOffset.UtcNow;
+        await storage.SaveAsync(goals, ct);
 
         var stepText = goal.Steps[stepIndex].Text;
         return $"Step {stepIndex} of goal '{goal.Title}' marked as {(done ? "done" : "not done")}: {stepText}";
@@ -210,7 +200,7 @@ public sealed partial class GoalTool : Tool
             return $"Error: id is required for {newStatus.ToString().ToLowerInvariant()}.";
         }
 
-        var goals = await _storage.LoadAsync(ct);
+        var goals = await storage.LoadAsync(ct);
         var goal = goals.Find(g => string.Equals(g.Id, id, StringComparison.OrdinalIgnoreCase));
         if (goal is null)
         {
@@ -220,16 +210,22 @@ public sealed partial class GoalTool : Tool
         if (!Goal.CanTransition(goal.Status, newStatus))
         {
             var valid = Goal.GetValidTransitions(goal.Status);
-            var allowed = valid.Length > 0
-                ? string.Join(", ", valid.Select(s => s.ToString().ToLowerInvariant()))
-                : "none (terminal state)";
+            string allowed;
+            if (valid.Length > 0)
+            {
+                allowed = string.Join(", ", valid.Select(s => s.ToString().ToLowerInvariant()));
+            }
+            else
+            {
+                allowed = "none (terminal state)";
+            }
             return $"Error: cannot transition goal '{id}' from {goal.Status.ToString().ToLowerInvariant()} to " +
                    $"{newStatus.ToString().ToLowerInvariant()}. Valid transitions: {allowed}.";
         }
 
         goal.Status = newStatus;
-        goal.UpdatedAt = DateTimeOffset.UtcNow.ToString("O");
-        await _storage.SaveAsync(goals, ct);
+        goal.UpdatedAt = DateTimeOffset.UtcNow;
+        await storage.SaveAsync(goals, ct);
 
         return $"Goal {goal.Id} ({goal.Title}) marked as {newStatus.ToString().ToLowerInvariant()}.";
     }

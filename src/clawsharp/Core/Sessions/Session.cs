@@ -7,9 +7,15 @@ public sealed class Session
     public required string Id
     {
         get => _id;
-        init => _id = string.IsNullOrWhiteSpace(value)
-            ? throw new ArgumentException("Session Id must not be null or empty.", nameof(value))
-            : value;
+        init
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException("Session Id must not be null or empty.", nameof(value));
+            }
+
+            _id = value;
+        }
     }
 
     public List<ChatMessage> Messages { get; init; } = [];

@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Clawsharp.Security;
 
@@ -17,9 +17,11 @@ internal sealed partial class WebPairingGuard
 {
     private const int MaxFailedAttempts = 5;
 
+    private const int MaxFailureTrackingEntries = 10_000;
+
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(5);
 
-    private readonly ConcurrentDictionary<string, (int Count, DateTimeOffset LockedUntil)> _failures = new();
+    private readonly ConcurrentDictionary<IPAddress, (int Count, DateTimeOffset LockedUntil)> _failures = new();
 
     private readonly HashSet<string> _hashes = [];
 
@@ -31,9 +33,9 @@ internal sealed partial class WebPairingGuard
 
     private string? _pairingCode;
 
-    public WebPairingGuard(string persistPath, ILogger? logger = null)
+    public WebPairingGuard(string persistPath, ILogger logger)
     {
-        _logger = logger ?? NullLogger.Instance;
+        _logger = logger;
         _persistPath = persistPath;
         LoadFromDisk();
         if (_hashes.Count == 0)
@@ -86,10 +88,16 @@ internal sealed partial class WebPairingGuard
 
     /// <summary>
     ///     Attempts pairing with the supplied code from the given client IP.
-    ///     Returns the new bearer token on success; null on wrong code or lockout.
+    ///     Returns the new bearer token on success; null on wrong code, lockout, or null IP.
     /// </summary>
-    public string? TryPair(string clientIp, string code)
+    public string? TryPair(IPAddress? clientIp, string code)
     {
+        // No IP = can't pair (reject unknown clients)
+        if (clientIp is null)
+        {
+            return null;
+        }
+
         if (IsLockedOut(clientIp))
         {
             return null;
@@ -133,7 +141,7 @@ internal sealed partial class WebPairingGuard
     /// </summary>
     private void EvictExpiredEntries()
     {
-        if (_failures.Count <= 10_000)
+        if (_failures.Count <= MaxFailureTrackingEntries)
         {
             return;
         }
@@ -148,7 +156,7 @@ internal sealed partial class WebPairingGuard
         }
     }
 
-    private bool IsLockedOut(string ip)
+    private bool IsLockedOut(IPAddress ip)
     {
         EvictExpiredEntries();
 
@@ -167,14 +175,19 @@ internal sealed partial class WebPairingGuard
         return true;
     }
 
-    private void RecordFailure(string ip)
+    private void RecordFailure(IPAddress ip)
     {
         _failures.AddOrUpdate(ip,
             _ => (1, DateTimeOffset.UtcNow + LockoutDuration),
             (_, old) =>
             {
                 var c = old.Count + 1;
-                var until = c >= MaxFailedAttempts ? DateTimeOffset.UtcNow + LockoutDuration : old.LockedUntil;
+                var until = old.LockedUntil;
+                if (c >= MaxFailedAttempts)
+                {
+                    until = DateTimeOffset.UtcNow + LockoutDuration;
+                }
+
                 return (c, until);
             });
     }

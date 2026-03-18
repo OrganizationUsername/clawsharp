@@ -1,3 +1,4 @@
+using System.Net;
 using Clawsharp.Core.Services;
 using Microsoft.Extensions.Options;
 using Clawsharp.Config.Agent;
@@ -11,7 +12,7 @@ public sealed class RateLimiterTests
         var defaults = new AgentDefaults
         {
             RateLimitRequests = maxRequests,
-            RateLimitWindowSeconds = windowSeconds
+            RateLimitWindow = TimeSpan.FromSeconds(windowSeconds)
         };
         return new RateLimiter(Options.Create(defaults));
     }
@@ -66,7 +67,7 @@ public sealed class RateLimiterTests
         var defaults = new AgentDefaults
         {
             RateLimitRequests = 1,
-            RateLimitWindowSeconds = 1 // 1 second window
+            RateLimitWindow = TimeSpan.FromSeconds(1)
         };
         var shortLimiter = new RateLimiter(Options.Create(defaults));
 
@@ -106,12 +107,12 @@ public sealed class RateLimiterTests
     }
 
     [Test]
-    public void TryAcquire_ZeroWindowSeconds_DefaultsTo60()
+    public void TryAcquire_ZeroWindow_DefaultsTo60()
     {
         var defaults = new AgentDefaults
         {
             RateLimitRequests = 1,
-            RateLimitWindowSeconds = 0
+            RateLimitWindow = TimeSpan.Zero
         };
         var limiter = new RateLimiter(Options.Create(defaults));
 
@@ -138,7 +139,7 @@ public sealed class RateLimiterTests
     {
         var limiter = CreateLimiter(maxRequests: 2);
         // IP limit = 2 * 5 = 10
-        var ip = "192.168.1.1";
+        var ip = IPAddress.Parse("192.168.1.1");
 
         for (var i = 0; i < 10; i++)
         {
@@ -151,7 +152,7 @@ public sealed class RateLimiterTests
     {
         var limiter = CreateLimiter(maxRequests: 2);
         // IP limit = 2 * 5 = 10
-        var ip = "192.168.1.1";
+        var ip = IPAddress.Parse("192.168.1.1");
 
         for (var i = 0; i < 10; i++)
         {
@@ -169,11 +170,11 @@ public sealed class RateLimiterTests
 
         for (var i = 0; i < 5; i++)
         {
-            limiter.TryAcquireByIp("10.0.0.1").ShouldBeTrue();
+            limiter.TryAcquireByIp(IPAddress.Parse("10.0.0.1")).ShouldBeTrue();
         }
 
-        limiter.TryAcquireByIp("10.0.0.1").ShouldBeFalse(); // first IP exhausted
-        limiter.TryAcquireByIp("10.0.0.2").ShouldBeTrue(); // second IP still has quota
+        limiter.TryAcquireByIp(IPAddress.Parse("10.0.0.1")).ShouldBeFalse(); // first IP exhausted
+        limiter.TryAcquireByIp(IPAddress.Parse("10.0.0.2")).ShouldBeTrue(); // second IP still has quota
     }
 
     [Test]
@@ -186,7 +187,7 @@ public sealed class RateLimiterTests
         limiter.TryAcquire("session1").ShouldBeFalse();
 
         // IP limit should be unaffected (separate buckets)
-        limiter.TryAcquireByIp("192.168.1.1").ShouldBeTrue();
+        limiter.TryAcquireByIp(IPAddress.Parse("192.168.1.1")).ShouldBeTrue();
     }
 
     [Test]
@@ -201,7 +202,7 @@ public sealed class RateLimiterTests
     {
         var limiter = CreateLimiter(maxRequests: 4);
         // IP limit = 4 * 5 = 20
-        var ip = "10.0.0.1";
+        var ip = IPAddress.Parse("10.0.0.1");
 
         for (var i = 0; i < 20; i++)
         {

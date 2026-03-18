@@ -1,4 +1,5 @@
 using Clawsharp.Cron;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Clawsharp.Tests.Integration.Cron;
 
@@ -11,7 +12,7 @@ public sealed class JsonCronStoreTests : CronStoreContractTests
     {
         _tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_tempDir);
-        return Task.FromResult<ICronStore>(new JsonCronStore(_tempDir));
+        return Task.FromResult<ICronStore>(new JsonCronStore(_tempDir, NullLogger.Instance));
     }
 
     protected override Task ResetAsync()

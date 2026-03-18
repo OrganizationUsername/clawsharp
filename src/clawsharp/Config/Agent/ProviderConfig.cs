@@ -6,7 +6,7 @@ namespace Clawsharp.Config.Agent;
 public sealed class ProviderConfig
 {
     /// <summary>Provider type ("openai", "anthropic", "gemini", "ollama", "lmstudio").</summary>
-    public string Type { get; set; } = "openai";
+    public string Type { get; init; } = "openai";
 
     /// <summary>Parsed <see cref="LlmProviderType"/> value derived from <see cref="Type"/>.</summary>
     [JsonIgnore]
@@ -23,16 +23,16 @@ public sealed class ProviderConfig
     public string? ApiKey { get; set; }
 
     /// <summary>Custom base URL for the provider API.</summary>
-    public string? BaseUrl { get; set; }
+    public string? BaseUrl { get; init; }
 
     /// <summary>AWS Access Key ID (Bedrock only).</summary>
-    public string? AwsAccessKeyId { get; set; }
+    public string? AwsAccessKeyId { get; init; }
 
     /// <summary>AWS Secret Access Key (Bedrock only).</summary>
     public string? AwsSecretAccessKey { get; set; }
 
     /// <summary>AWS region (Bedrock only, default "us-east-1").</summary>
-    public string? AwsRegion { get; set; }
+    public string? AwsRegion { get; init; }
 
     /// <summary>
     /// Custom HTTP header name for API key authentication.
@@ -40,5 +40,5 @@ public sealed class ProviderConfig
     /// the default <c>Authorization: Bearer {ApiKey}</c>.
     /// Useful for Azure OpenAI (<c>"api-key"</c>) and similar non-standard auth schemes.
     /// </summary>
-    public string? AuthHeader { get; set; }
+    public string? AuthHeader { get; init; }
 }

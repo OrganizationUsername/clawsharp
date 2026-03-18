@@ -15,35 +15,35 @@ public sealed class FallbackModelEntry
     /// When specified as a plain string, this is the only field populated.
     /// </summary>
     [JsonPropertyName("provider")]
-    public string Provider { get; set; } = "";
+    public string Provider { get; init; } = "";
 
     /// <summary>
     /// Optional model override. When set, this model is used instead of whatever
     /// is configured as the default model for the agent.
     /// </summary>
     [JsonPropertyName("model")]
-    public string? Model { get; set; }
+    public string? Model { get; init; }
 
     /// <summary>
     /// Optional API key override. When set, this key is used instead of the
     /// provider's configured API key, enabling per-fallback authentication.
     /// </summary>
     [JsonPropertyName("apiKey")]
-    public string? ApiKey { get; set; }
+    public string? ApiKey { get; init; }
 
     /// <summary>
     /// Optional base URL override. When set, this URL is used instead of the
     /// provider's configured base URL.
     /// </summary>
     [JsonPropertyName("baseUrl")]
-    public string? BaseUrl { get; set; }
+    public string? BaseUrl { get; init; }
 
     /// <summary>
     /// Optional auth header override. When set, this header name is used instead of
     /// the provider's configured auth header (e.g. "api-key" for Azure OpenAI).
     /// </summary>
     [JsonPropertyName("authHeader")]
-    public string? AuthHeader { get; set; }
+    public string? AuthHeader { get; init; }
 }
 
 /// <summary>
@@ -62,12 +62,24 @@ public sealed class FallbackModelEntryConverter : JsonConverter<FallbackModelEnt
 
         if (reader.TokenType == JsonTokenType.StartObject)
         {
-            var entry = new FallbackModelEntry();
+            string provider = "";
+            string? model = null;
+            string? apiKey = null;
+            string? baseUrl = null;
+            string? authHeader = null;
+
             while (reader.Read())
             {
                 if (reader.TokenType == JsonTokenType.EndObject)
                 {
-                    return entry;
+                    return new FallbackModelEntry
+                    {
+                        Provider = provider,
+                        Model = model,
+                        ApiKey = apiKey,
+                        BaseUrl = baseUrl,
+                        AuthHeader = authHeader,
+                    };
                 }
 
                 if (reader.TokenType != JsonTokenType.PropertyName)
@@ -81,19 +93,19 @@ public sealed class FallbackModelEntryConverter : JsonConverter<FallbackModelEnt
                 switch (propertyName.ToLowerInvariant())
                 {
                     case "provider":
-                        entry.Provider = reader.GetString() ?? "";
+                        provider = reader.GetString() ?? "";
                         break;
                     case "model":
-                        entry.Model = reader.GetString();
+                        model = reader.GetString();
                         break;
                     case "apikey" or "api_key":
-                        entry.ApiKey = reader.GetString();
+                        apiKey = reader.GetString();
                         break;
                     case "baseurl" or "base_url":
-                        entry.BaseUrl = reader.GetString();
+                        baseUrl = reader.GetString();
                         break;
                     case "authheader" or "auth_header":
-                        entry.AuthHeader = reader.GetString();
+                        authHeader = reader.GetString();
                         break;
                     default:
                         reader.Skip();
@@ -101,7 +113,14 @@ public sealed class FallbackModelEntryConverter : JsonConverter<FallbackModelEnt
                 }
             }
 
-            return entry;
+            return new FallbackModelEntry
+            {
+                Provider = provider,
+                Model = model,
+                ApiKey = apiKey,
+                BaseUrl = baseUrl,
+                AuthHeader = authHeader,
+            };
         }
 
         throw new JsonException($"Expected string or object for FallbackModelEntry, got {reader.TokenType}.");

@@ -6,22 +6,12 @@ using Clawsharp.Security;
 
 namespace Clawsharp.Tools.Web;
 
-public sealed partial class WebFetchTool : Tool
+public sealed partial class WebFetchTool(
+    IHttpClientFactory httpFactory,
+    AuditLogger? auditLogger = null,
+    IReadOnlyList<string>? allowedDomains = null)
+    : Tool
 {
-    private readonly IHttpClientFactory _httpFactory;
-
-    private readonly AuditLogger? _auditLogger;
-
-    private readonly IReadOnlyList<string>? _allowedDomains;
-
-    public WebFetchTool(IHttpClientFactory httpFactory, AuditLogger? auditLogger = null,
-                        IReadOnlyList<string>? allowedDomains = null)
-    {
-        _httpFactory = httpFactory;
-        _auditLogger = auditLogger;
-        _allowedDomains = allowedDomains;
-    }
-
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
     public override string Name => "web_fetch";
@@ -59,9 +49,9 @@ public sealed partial class WebFetchTool : Tool
         var ssrfError = await SsrfGuard.CheckAsync(uri, ct).ConfigureAwait(false);
         if (ssrfError is not null)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogPolicyViolationAsync(
+                _ = auditLogger.LogPolicyViolationAsync(
                     $"SSRF blocked: {url}", ChannelName, ssrfBlocked: true, ct: ct);
             }
 
@@ -69,12 +59,12 @@ public sealed partial class WebFetchTool : Tool
         }
 
         // Domain allowlist check (when configured)
-        var domainError = SsrfGuard.CheckDomainAllowlist(uri, _allowedDomains);
+        var domainError = SsrfGuard.CheckDomainAllowlist(uri, allowedDomains);
         if (domainError is not null)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogPolicyViolationAsync(
+                _ = auditLogger.LogPolicyViolationAsync(
                     $"Domain blocked: {url}", ChannelName, ct: ct);
             }
 
@@ -83,19 +73,35 @@ public sealed partial class WebFetchTool : Tool
 
         try
         {
-            using var client = _httpFactory.CreateClient("tools");
-            using var resp = method.Equals("POST", StringComparison.OrdinalIgnoreCase) && body is not null
-                ? await client.PostAsync(uri, new StringContent(body, Encoding.UTF8, "application/json"), ct)
-                : await client.GetAsync(uri, ct);
+            using var client = httpFactory.CreateClient("tools");
 
-            var text = await resp.Content.ReadAsStringAsync(ct);
-            text = StripHtml(text);
-            if (text.Length > maxChars)
+            HttpResponseMessage resp;
+            if (method.Equals("POST", StringComparison.OrdinalIgnoreCase) && body is not null)
             {
-                text = text[..maxChars] + "\n... (truncated)";
+                resp = await client.PostAsync(uri, new StringContent(body, Encoding.UTF8, "application/json"), ct);
+            }
+            else
+            {
+                resp = await client.GetAsync(uri, ct);
             }
 
-            return $"[{(int)resp.StatusCode}] {text}";
+            using (resp)
+            {
+                var text = await resp.Content.ReadAsStringAsync(ct);
+                // Cap raw HTML before regex processing to prevent excessive scan time on huge responses.
+                if (text.Length > maxChars * 2)
+                {
+                    text = text[..(maxChars * 2)];
+                }
+
+                text = StripHtml(text);
+                if (text.Length > maxChars)
+                {
+                    text = text[..maxChars] + "\n... (truncated)";
+                }
+
+                return $"[{(int)resp.StatusCode}] {text}";
+            }
         }
         catch (Exception)
         {
@@ -112,15 +118,15 @@ public sealed partial class WebFetchTool : Tool
         return WebUtility.HtmlDecode(html).Trim();
     }
 
-    [GeneratedRegex(@"<script[^>]*>[\s\S]*?</script>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<script[^>]*>[\s\S]*?</script>", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ScriptTagRegex();
 
-    [GeneratedRegex(@"<style[^>]*>[\s\S]*?</style>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<style[^>]*>[\s\S]*?</style>", RegexOptions.IgnoreCase, 200)]
     private static partial Regex StyleTagRegex();
 
-    [GeneratedRegex(@"<[^>]+>")]
+    [GeneratedRegex(@"<[^>]+>", RegexOptions.None, 200)]
     private static partial Regex HtmlTagRegex();
 
-    [GeneratedRegex(@"\s{2,}")]
+    [GeneratedRegex(@"\s{2,}", RegexOptions.None, 200)]
     private static partial Regex MultiWhitespaceRegex();
 }

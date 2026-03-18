@@ -411,6 +411,6 @@ public static partial class ContextWindowGuard
     }
 
     /// <summary>Matches a date suffix like "-20260304" at the end of a model ID.</summary>
-    [GeneratedRegex(@"-\d{8}$")]
+    [GeneratedRegex(@"-\d{8}$", RegexOptions.None, 200)]
     private static partial Regex DateSuffixRegex();
 }

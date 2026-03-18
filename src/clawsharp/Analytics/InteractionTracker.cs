@@ -8,25 +8,12 @@ namespace Clawsharp.Analytics;
 /// Records complete LLM interactions for analytics and optionally stores
 /// concise summaries in the memory provider for later AI analysis.
 /// </summary>
-public sealed partial class InteractionTracker
+public sealed partial class InteractionTracker(
+    IInteractionStore store,
+    IMemory memory,
+    ILogger<InteractionTracker> logger,
+    bool storeInMemory = false)
 {
-    private readonly IInteractionStore _store;
-    private readonly IMemory _memory;
-    private readonly ILogger<InteractionTracker> _logger;
-    private readonly bool _storeInMemory;
-
-    public InteractionTracker(
-        IInteractionStore store,
-        IMemory memory,
-        ILogger<InteractionTracker> logger,
-        bool storeInMemory = false)
-    {
-        _store = store;
-        _memory = memory;
-        _logger = logger;
-        _storeInMemory = storeInMemory;
-    }
-
     /// <summary>
     /// Records a complete interaction after an LLM request-response cycle.
     /// </summary>
@@ -72,7 +59,7 @@ public sealed partial class InteractionTracker
 
         try
         {
-            await _store.AppendAsync(record, ct);
+            await store.AppendAsync(record, ct);
             LogInteractionRecorded(sessionId, model, cost, savings);
         }
         catch (Exception ex)
@@ -81,7 +68,7 @@ public sealed partial class InteractionTracker
             return; // Don't fail the main flow
         }
 
-        if (_storeInMemory)
+        if (storeInMemory)
         {
             await StoreMemoryFactAsync(record, ct);
         }
@@ -92,24 +79,30 @@ public sealed partial class InteractionTracker
         try
         {
             // Build a concise analytical fact for memory search
-            var cacheRate = record.InputTokens > 0
-                ? (double)record.CacheReadTokens / record.InputTokens * 100
-                : 0;
+            double cacheRate = 0;
+            if (record.InputTokens > 0)
+            {
+                cacheRate = (double)record.CacheReadTokens / record.InputTokens * 100;
+            }
 
-            var toolInfo = record.ToolCalls is { Count: > 0 }
-                ? $" Tools: {string.Join(", ", record.ToolCalls.Select(t => t.Name))}."
-                : "";
+            var toolInfo = "";
+            if (record.ToolCalls is { Count: > 0 })
+            {
+                toolInfo = $" Tools: {string.Join(", ", record.ToolCalls.Select(t => t.Name))}.";
+            }
 
-            var thinkingInfo = record.Thinking is { Length: > 0 }
-                ? $" Used {record.Thinking.Length:N0} chars of reasoning."
-                : "";
+            var thinkingInfo = "";
+            if (record.Thinking is { Length: > 0 })
+            {
+                thinkingInfo = $" Used {record.Thinking.Length:N0} chars of reasoning.";
+            }
 
             var fact = $"[Interaction {record.Timestamp:yyyy-MM-dd HH:mm}] " +
                        $"Session {record.SessionId} on {record.Channel} using {record.Model}: " +
                        $"{record.InputTokens:N0} in / {record.OutputTokens:N0} out tokens, " +
                        $"${record.CostUsd:F4} cost, ${record.CacheSavingsUsd:F4} cache savings ({cacheRate:F0}% cache hit).{toolInfo}{thinkingInfo}";
 
-            await _memory.AppendFactAsync(fact, ct);
+            await memory.AppendFactAsync(fact, ct);
         }
         catch (Exception ex)
         {
@@ -119,7 +112,7 @@ public sealed partial class InteractionTracker
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Debug,
         Message = "Interaction recorded: session={SessionId} model={Model} cost=${Cost:F4} savings=${Savings:F4}")]
-    private partial void LogInteractionRecorded(string sessionId, string model, double cost, double savings);
+    private partial void LogInteractionRecorded(string sessionId, string model, decimal cost, decimal savings);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Failed to record interaction: {Error}")]
     private partial void LogInteractionFailed(string error);

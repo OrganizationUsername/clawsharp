@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Clawsharp.Security;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Clawsharp.Config.Security;
 
@@ -30,24 +32,21 @@ public static class ClawsharpConfiguration
                       .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
                       .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: false);
 
-        // Legacy config.json paths — home-level first, then local (local wins)
+        // User config.json paths — home-level first, then local (local wins).
+        // Read through ConfigMigrator to rename legacy property names (e.g.
+        // "rateLimitWindowSeconds" → "rateLimitWindow") and convert numeric
+        // second values to TimeSpan strings before IConfiguration binding.
         var homeCfg = ConfigLoader.ExpandHome("~/.clawsharp/config.json");
-        if (File.Exists(homeCfg))
-        {
-            builder.AddJsonFile(homeCfg, optional: true, reloadOnChange: false);
-        }
+        AddMigratedJsonFile(builder, homeCfg);
 
         var localCfg = Path.GetFullPath("config.json");
-        if (File.Exists(localCfg))
-        {
-            builder.AddJsonFile(localCfg, optional: true, reloadOnChange: false);
-        }
+        AddMigratedJsonFile(builder, localCfg);
 
         // Custom env-var-specified config file
         var customCfgPath = Environment.GetEnvironmentVariable("CLAWSHARP_CONFIG");
-        if (!string.IsNullOrEmpty(customCfgPath) && File.Exists(customCfgPath))
+        if (!string.IsNullOrEmpty(customCfgPath))
         {
-            builder.AddJsonFile(customCfgPath, optional: true, reloadOnChange: false);
+            AddMigratedJsonFile(builder, customCfgPath);
         }
 
         // .env file
@@ -111,6 +110,28 @@ public static class ClawsharpConfiguration
         {
             // Best-effort — skip if permission check fails (e.g., on filesystems that don't support Unix modes)
         }
+    }
+
+    /// <summary>
+    /// Reads a JSON config file, applies <see cref="ConfigMigrator.MigrateLegacyKeys"/> to rename
+    /// deprecated property names and convert numeric second values to TimeSpan strings, then adds
+    /// the migrated JSON to the configuration builder via an in-memory stream.
+    /// </summary>
+    /// <remarks>
+    /// Migration warnings are suppressed in this path (NullLogger) because DI and logging are not
+    /// yet available during <see cref="Build"/>. Users running CLI commands (which go through
+    /// <see cref="ConfigLoader.LoadAsync"/>) will see the deprecation warnings there.
+    /// </remarks>
+    private static void AddMigratedJsonFile(IConfigurationBuilder builder, string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        var json = File.ReadAllText(path);
+        var migrated = ConfigMigrator.MigrateLegacyKeys(json, NullLogger.Instance);
+        builder.AddJsonStream(new MemoryStream(Encoding.UTF8.GetBytes(migrated)));
     }
 
     /// <summary>

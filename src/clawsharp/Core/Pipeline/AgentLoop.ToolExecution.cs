@@ -6,6 +6,9 @@ namespace Clawsharp.Core.Pipeline;
 
 public sealed partial class AgentLoop
 {
+    private const int ToolArgsLogPreviewLength = 100;
+
+    private const int InjectionLogPreviewLength = 50;
     /// <summary>
     ///     Executes tool calls returned by the LLM, applies prompt injection scanning,
     ///     and appends the tool result messages to the conversation. Shared between the
@@ -21,7 +24,7 @@ public sealed partial class AgentLoop
         if (toolCalls.Count == 1)
         {
             var tc = toolCalls[0];
-            LogToolExecution(_logger, tc.Name, tc.ArgumentsJson[..Math.Min(100, tc.ArgumentsJson.Length)]);
+            LogToolExecution(_logger, tc.Name, tc.ArgumentsJson[..Math.Min(ToolArgsLogPreviewLength, tc.ArgumentsJson.Length)]);
             var result = await _tools.ExecuteAsync(tc.Name, tc.ArgumentsJson, ct);
             result = ApplyToolResultGuard(tc, result, ct);
             messages.Add(new ChatMessage(MessageRole.Tool, result, ToolCallId: tc.Id, Name: tc.Name));
@@ -32,7 +35,7 @@ public sealed partial class AgentLoop
             for (var i = 0; i < toolCalls.Count; i++)
             {
                 var tc = toolCalls[i];
-                LogToolExecution(_logger, tc.Name, tc.ArgumentsJson[..Math.Min(100, tc.ArgumentsJson.Length)]);
+                LogToolExecution(_logger, tc.Name, tc.ArgumentsJson[..Math.Min(ToolArgsLogPreviewLength, tc.ArgumentsJson.Length)]);
                 tasks[i] = _tools.ExecuteAsync(tc.Name, tc.ArgumentsJson, ct);
             }
 
@@ -78,10 +81,10 @@ public sealed partial class AgentLoop
         }
 
         var injAction = PromptGuard.ScanToolResult(
-            ref result, tc.Name, "warn", _auditLogger, null, null, ct);
+            ref result, tc.Name, PromptGuardMode.Warn, _auditLogger, null, null, ct);
         if (injAction != InjectionAction.None)
         {
-            LogPotentialInjection($"tool result ({tc.Name})", result[..Math.Min(50, result.Length)]);
+            LogPotentialInjection($"tool result ({tc.Name})", result[..Math.Min(InjectionLogPreviewLength, result.Length)]);
             _suspicionTracker.RecordSuspicion(2);
         }
 

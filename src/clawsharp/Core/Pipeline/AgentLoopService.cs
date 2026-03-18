@@ -6,37 +6,26 @@ using Clawsharp.Core.Utilities;
 namespace Clawsharp.Core.Pipeline;
 
 /// <summary>Wraps AgentLoop as a Generic Host BackgroundService.</summary>
-public sealed partial class AgentLoopService : LifecycleBackgroundService
+public sealed partial class AgentLoopService(
+    AgentLoop agentLoop,
+    IReadOnlyList<IChannel> channels,
+    IMessageBus bus,
+    ILogger<AgentLoopService> logger)
+    : LifecycleBackgroundService
 {
-    private readonly AgentLoop _agentLoop;
-
-    private readonly IMessageBus _bus;
-
-    private readonly IReadOnlyList<IChannel> _channels;
-
-    private readonly ILogger<AgentLoopService> _logger;
-
-    public AgentLoopService(AgentLoop agentLoop, IReadOnlyList<IChannel> channels, IMessageBus bus, ILogger<AgentLoopService> logger)
-    {
-        _agentLoop = agentLoop;
-        _channels = channels;
-        _bus = bus;
-        _logger = logger;
-    }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        LogActiveChannels(_logger, string.Join(", ", _channels.Select(c => c.Name.Value)));
+        LogActiveChannels(logger, string.Join(", ", channels.Select(c => c.Name.Value)));
 
-        var nonCli = _channels.Where(c => c.Name != ChannelName.Cli).ToList();
+        var nonCli = channels.Where(c => c.Name != ChannelName.Cli).ToList();
         if (nonCli.Count > 1)
         {
-            LogMultipleChannelsWarning(_logger, string.Join(", ", nonCli.Select(c => c.Name.Value)));
+            LogMultipleChannelsWarning(logger, string.Join(", ", nonCli.Select(c => c.Name.Value)));
         }
 
         try
         {
-            await _agentLoop.RunAsync(_bus, stoppingToken);
+            await agentLoop.RunAsync(bus, stoppingToken);
         }
         catch (OperationCanceledException)
         {

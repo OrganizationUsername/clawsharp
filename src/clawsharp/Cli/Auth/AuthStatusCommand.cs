@@ -33,9 +33,14 @@ internal sealed class AuthStatusCommand : AsyncCommand
             string expires;
             if (token.IsExpired)
             {
-                status = token.RefreshToken is not null
-                    ? "[yellow]Expired (can refresh)[/]"
-                    : "[red]Expired[/]";
+                if (token.RefreshToken is not null)
+                {
+                    status = "[yellow]Expired (can refresh)[/]";
+                }
+                else
+                {
+                    status = "[red]Expired[/]";
+                }
                 expires = token.ExpiresAt?.ToString("u") ?? "-";
             }
             else

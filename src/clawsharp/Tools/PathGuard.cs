@@ -135,13 +135,23 @@ internal static class PathGuard
         if (File.Exists(path))
         {
             var target = File.ResolveLinkTarget(path, returnFinalTarget: true);
-            return target is not null ? Path.GetFullPath(target.FullName) : path;
+            if (target is not null)
+            {
+                return Path.GetFullPath(target.FullName);
+            }
+
+            return path;
         }
 
         if (Directory.Exists(path))
         {
             var target = new DirectoryInfo(path).ResolveLinkTarget(returnFinalTarget: true);
-            return target is not null ? Path.GetFullPath(target.FullName) : path;
+            if (target is not null)
+            {
+                return Path.GetFullPath(target.FullName);
+            }
+
+            return path;
         }
 
         // Path doesn't exist yet: walk up to find the deepest existing ancestor,
@@ -165,9 +175,15 @@ internal static class PathGuard
             {
                 // Found an existing ancestor — resolve its symlinks
                 var ancestorTarget = new DirectoryInfo(current).ResolveLinkTarget(returnFinalTarget: true);
-                var resolvedAncestor = ancestorTarget is not null
-                    ? Path.GetFullPath(ancestorTarget.FullName)
-                    : current;
+                string resolvedAncestor;
+                if (ancestorTarget is not null)
+                {
+                    resolvedAncestor = Path.GetFullPath(ancestorTarget.FullName);
+                }
+                else
+                {
+                    resolvedAncestor = current;
+                }
 
                 // Reconstruct with the non-existent tail
                 while (tailSegments.Count > 0)

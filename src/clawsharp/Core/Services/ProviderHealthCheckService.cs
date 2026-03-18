@@ -45,7 +45,7 @@ public sealed partial class ProviderHealthCheckService : LifecycleBackgroundServ
             await CheckAllProvidersAsync(isStartup: true, stoppingToken).ConfigureAwait(false);
         }
 
-        var interval = TimeSpan.FromSeconds(_healthCheckConfig.IntervalSeconds);
+        var interval = _healthCheckConfig.Interval;
 
         while (!stoppingToken.IsCancellationRequested)
         {

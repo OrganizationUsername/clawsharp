@@ -4,17 +4,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Clawsharp.Memory.MsSql;
 
-public sealed class MsSqlMemoryContext : MemoryDbContextBase
+[method: RequiresUnreferencedCode("EF Core uses reflection for model building. All entity types are statically referenced.")]
+[method: RequiresDynamicCode("EF Core requires dynamic code for query compilation. Use AOT-precompiled queries when possible.")]
+public sealed class MsSqlMemoryContext(DbContextOptions<MsSqlMemoryContext> options) : MemoryDbContextBase(options)
 {
     public DbSet<Fact> Facts { get; set; } = null!;
 
     public DbSet<HistoryEntry> History { get; set; } = null!;
-
-    [RequiresUnreferencedCode("EF Core uses reflection for model building. All entity types are statically referenced.")]
-    [RequiresDynamicCode("EF Core requires dynamic code for query compilation. Use AOT-precompiled queries when possible.")]
-    public MsSqlMemoryContext(DbContextOptions<MsSqlMemoryContext> options) : base(options)
-    {
-    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

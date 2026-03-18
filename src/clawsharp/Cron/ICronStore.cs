@@ -16,5 +16,5 @@ public interface ICronStore
     Task DeleteAsync(string id, CancellationToken ct = default);
 
     /// <summary>Update the last run timestamp and run count for a job.</summary>
-    Task UpdateRunStatsAsync(string id, string lastRunAt, int runCount, CancellationToken ct = default);
+    Task UpdateRunStatsAsync(string id, DateTimeOffset lastRunAt, int runCount, CancellationToken ct = default);
 }

@@ -13,26 +13,35 @@ public sealed class ConfigValidatorTests
     private static List<string> FilterKnownIntellenumBug(List<string> errors) =>
         errors.Where(e => !e.StartsWith("memory.backend must be one of:")).ToList();
 
-    private static AppConfig ValidConfig() => new()
+    private static AppConfig ValidConfig(
+        string defaultProvider = "ollama",
+        float temperature = 0.7f,
+        int maxToolIterations = 40,
+        int maxContextMessages = 50,
+        int consolidateEvery = 10,
+        string memoryBackend = "markdown",
+        string? connectionString = null,
+        Dictionary<string, ProviderConfig>? providers = null,
+        Dictionary<string, ChannelConfig>? channels = null) => new()
     {
         Agents = new AgentConfig
         {
             Defaults = new AgentDefaults
             {
-                Provider = "ollama",
+                Provider = defaultProvider,
                 Model = "llama3.2",
-                Temperature = 0.7f,
-                MaxToolIterations = 40,
-                MaxContextMessages = 50,
-                ConsolidateEvery = 10
+                Temperature = temperature,
+                MaxToolIterations = maxToolIterations,
+                MaxContextMessages = maxContextMessages,
+                ConsolidateEvery = consolidateEvery
             }
         },
-        Providers = new Dictionary<string, ProviderConfig>
+        Providers = providers ?? new Dictionary<string, ProviderConfig>
         {
             ["ollama"] = new() { Type = "ollama", BaseUrl = "http://localhost:11434" }
         },
-        Memory = new MemoryConfig { Backend = "markdown" },
-        Channels = new Dictionary<string, ChannelConfig>()
+        Memory = new MemoryConfig { Backend = memoryBackend, ConnectionString = connectionString },
+        Channels = channels ?? new Dictionary<string, ChannelConfig>()
     };
 
     // ── Valid config ──────────────────────────────────────────────────
@@ -48,8 +57,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_ProviderNotInDict_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Agents.Defaults.Provider = "nonexistent";
+        var config = ValidConfig("nonexistent");
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("nonexistent"));
     }
@@ -59,8 +67,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_MaxToolIterationsZero_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Agents.Defaults.MaxToolIterations = 0;
+        var config = ValidConfig(maxToolIterations: 0);
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("maxToolIterations"));
     }
@@ -68,8 +75,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_MaxContextMessagesZero_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Agents.Defaults.MaxContextMessages = 0;
+        var config = ValidConfig(maxContextMessages: 0);
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("maxContextMessages"));
     }
@@ -77,8 +83,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_ConsolidateEveryZero_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Agents.Defaults.ConsolidateEvery = 0;
+        var config = ValidConfig(consolidateEvery: 0);
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("consolidateEvery"));
     }
@@ -88,8 +93,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_TemperatureNegative_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Agents.Defaults.Temperature = -0.1f;
+        var config = ValidConfig(temperature: -0.1f);
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("temperature"));
     }
@@ -97,8 +101,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_TemperatureAboveTwo_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Agents.Defaults.Temperature = 2.1f;
+        var config = ValidConfig(temperature: 2.1f);
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("temperature"));
     }
@@ -106,8 +109,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_TemperatureZero_ReturnsNoError()
     {
-        var config = ValidConfig();
-        config.Agents.Defaults.Temperature = 0f;
+        var config = ValidConfig(temperature: 0f);
 
         ConfigValidator.Validate(config).ShouldNotContain(e => e.Contains("temperature"));
     }
@@ -115,8 +117,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_TemperatureTwoPointZero_ReturnsNoError()
     {
-        var config = ValidConfig();
-        config.Agents.Defaults.Temperature = 2.0f;
+        var config = ValidConfig(temperature: 2.0f);
 
         ConfigValidator.Validate(config).ShouldNotContain(e => e.Contains("temperature"));
     }
@@ -126,8 +127,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_UnknownMemoryBackend_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Memory.Backend = "redis";
+        var config = ValidConfig(memoryBackend: "redis");
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("memory.backend"));
     }
@@ -135,9 +135,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_PostgresWithoutConnectionString_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Memory.Backend = "postgres";
-        config.Memory.ConnectionString = null;
+        var config = ValidConfig(memoryBackend: "postgres", connectionString: null);
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("connectionString"));
     }
@@ -145,9 +143,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_MssqlWithoutConnectionString_ReturnsError()
     {
-        var config = ValidConfig();
-        config.Memory.Backend = "mssql";
-        config.Memory.ConnectionString = null;
+        var config = ValidConfig(memoryBackend: "mssql", connectionString: null);
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("connectionString"));
     }
@@ -296,7 +292,6 @@ public sealed class ConfigValidatorTests
     {
         var config = ValidConfig();
         config.Providers["main"] = new ProviderConfig { Type = providerType, ApiKey = null };
-        config.Agents.Defaults.Provider = "main";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldContain(e => e.Contains("'apiKey' is required") && e.Contains(providerType));
@@ -310,7 +305,6 @@ public sealed class ConfigValidatorTests
     {
         var config = ValidConfig();
         config.Providers["main"] = new ProviderConfig { Type = providerType, ApiKey = "sk-test-key" };
-        config.Agents.Defaults.Provider = "main";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldNotContain(e => e.Contains("'apiKey' is required"));
@@ -321,7 +315,6 @@ public sealed class ConfigValidatorTests
     {
         var config = ValidConfig();
         config.Providers["main"] = new ProviderConfig { Type = "openai", ApiKey = "enc2:someciphertext" };
-        config.Agents.Defaults.Provider = "main";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldNotContain(e => e.Contains("'apiKey' is required"));
@@ -332,7 +325,6 @@ public sealed class ConfigValidatorTests
     {
         var config = ValidConfig();
         config.Providers["main"] = new ProviderConfig { Type = "anthropic", ApiKey = "op://vault/item/field" };
-        config.Agents.Defaults.Provider = "main";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldNotContain(e => e.Contains("'apiKey' is required"));
@@ -343,7 +335,6 @@ public sealed class ConfigValidatorTests
     {
         var config = ValidConfig();
         config.Providers["main"] = new ProviderConfig { Type = "gemini", ApiKey = "bws:some-uuid" };
-        config.Agents.Defaults.Provider = "main";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldNotContain(e => e.Contains("'apiKey' is required"));
@@ -354,7 +345,6 @@ public sealed class ConfigValidatorTests
     {
         var config = ValidConfig();
         config.Providers["main"] = new ProviderConfig { Type = "openai", ApiKey = "" };
-        config.Agents.Defaults.Provider = "main";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldContain(e => e.Contains("'apiKey' is required") && e.Contains("openai"));
@@ -370,7 +360,6 @@ public sealed class ConfigValidatorTests
             AwsAccessKeyId = null,
             AwsSecretAccessKey = "secret"
         };
-        config.Agents.Defaults.Provider = "aws";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldContain(e => e.Contains("'awsAccessKeyId' is required") && e.Contains("bedrock"));
@@ -386,7 +375,6 @@ public sealed class ConfigValidatorTests
             AwsAccessKeyId = "AKIA...",
             AwsSecretAccessKey = null
         };
-        config.Agents.Defaults.Provider = "aws";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldContain(e => e.Contains("'awsSecretAccessKey' is required") && e.Contains("bedrock"));
@@ -402,7 +390,6 @@ public sealed class ConfigValidatorTests
             AwsAccessKeyId = null,
             AwsSecretAccessKey = null
         };
-        config.Agents.Defaults.Provider = "aws";
 
         var errors = ConfigValidator.Validate(config);
         errors.Count(e => e.Contains("providers.aws")).ShouldBe(2);
@@ -418,7 +405,6 @@ public sealed class ConfigValidatorTests
             AwsAccessKeyId = "AKIAIOSFODNN7EXAMPLE",
             AwsSecretAccessKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
         };
-        config.Agents.Defaults.Provider = "aws";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldNotContain(e => e.Contains("awsAccessKeyId"));
@@ -435,7 +421,6 @@ public sealed class ConfigValidatorTests
     {
         var config = ValidConfig();
         config.Providers["local"] = new ProviderConfig { Type = providerType, ApiKey = null };
-        config.Agents.Defaults.Provider = "local";
 
         var errors = ConfigValidator.Validate(config);
         errors.ShouldNotContain(e => e.Contains("'apiKey' is required"));

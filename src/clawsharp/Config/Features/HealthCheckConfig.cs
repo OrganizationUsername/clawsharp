@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Clawsharp.Config.Features;
 
 /// <summary>
@@ -9,8 +11,9 @@ public sealed class HealthCheckConfig
     /// <summary>Whether provider health checks are enabled.</summary>
     public bool Enabled { get; init; } = true;
 
-    /// <summary>Interval in seconds between periodic health checks.</summary>
-    public int IntervalSeconds { get; init; } = 300;
+    /// <summary>Interval between periodic health checks.</summary>
+    [JsonConverter(typeof(TimeSpanSecondsConverter))]
+    public TimeSpan Interval { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Whether to check provider health immediately on startup.</summary>
     public bool CheckOnStartup { get; init; } = true;

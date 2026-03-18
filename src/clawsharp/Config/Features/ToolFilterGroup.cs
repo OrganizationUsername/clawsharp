@@ -9,7 +9,7 @@ namespace Clawsharp.Config.Features;
 public sealed class ToolFilterGroup
 {
     /// <summary>Filter mode: "always" or "dynamic".</summary>
-    public string Mode { get; init; } = "always";
+    public string Mode { get; init; } = ToolFilterMode.Always;
 
     /// <summary>
     /// Glob patterns matching tool names (e.g. "mcp__brave*", "web_*").

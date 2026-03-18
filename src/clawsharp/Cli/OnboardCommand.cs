@@ -61,229 +61,20 @@ public sealed class OnboardCommand : AsyncCommand<OnboardCommand.Settings>
             AnsiConsole.MarkupLine("[bold]clawsharp onboard[/]");
             AnsiConsole.WriteLine();
 
-            // ── Provider ─────────────────────────────────────────────────────────────
-
-            var providerChoice = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("Which [cyan]LLM provider[/] do you want to use?")
-                    .AddChoices("openai", "anthropic", "ollama", "lmstudio", "gemini"));
-
-            providerType = LlmProviderType.TryFromValue(providerChoice, out var parsed)
-                ? parsed
-                : LlmProviderType.Ollama;
-
-            model = AnsiConsole.Prompt(
-                new TextPrompt<string>("[cyan]Model[/]")
-                    .DefaultValue(GetDefaultModel(providerType)));
-
-            apiKey = null;
-            if (providerType == LlmProviderType.OpenAi
-                || providerType == LlmProviderType.Anthropic
-                || providerType == LlmProviderType.Gemini)
-            {
-                var key = AnsiConsole.Prompt(
-                    new TextPrompt<string>($"[cyan]API key[/] for {providerType.Value}")
-                        .Secret()
-                        .AllowEmpty());
-                apiKey = string.IsNullOrEmpty(key) ? null : key;
-            }
-
-            // ── Channels ─────────────────────────────────────────────────────────────
-
-            var channelChoices = AnsiConsole.Prompt(
-                new MultiSelectionPrompt<string>()
-                    .Title("Which [cyan]channels[/] do you want to enable? (space to select, enter to confirm)")
-                    .NotRequired()
-                    .AddChoices("cli", "telegram", "discord", "slack", "matrix", "irc", "web"));
-
-            if (channelChoices.Count == 0)
-            {
-                channelChoices = ["cli"];
-            }
-            else if (!channelChoices.Contains("cli"))
-            {
-                channelChoices.Insert(0, "cli");
-            }
-
-            selectedChannels = channelChoices;
-            channelCreds = [];
-
-            foreach (var ch in selectedChannels)
-            {
-                var creds = new Dictionary<string, string?>();
-                switch (ch)
-                {
-                    case "telegram":
-                    {
-                        var tok = AnsiConsole.Prompt(
-                            new TextPrompt<string>("[cyan]Telegram bot token[/]")
-                                .Secret().AllowEmpty());
-                        if (!string.IsNullOrEmpty(tok))
-                        {
-                            creds["token"] = tok;
-                        }
-
-                        break;
-                    }
-                    case "discord":
-                    {
-                        var tok = AnsiConsole.Prompt(
-                            new TextPrompt<string>("[cyan]Discord bot token[/]")
-                                .Secret().AllowEmpty());
-                        if (!string.IsNullOrEmpty(tok))
-                        {
-                            creds["token"] = tok;
-                        }
-
-                        break;
-                    }
-                    case "slack":
-                    {
-                        var bot = AnsiConsole.Prompt(
-                            new TextPrompt<string>("[cyan]Slack bot token[/]")
-                                .Secret().AllowEmpty());
-                        var app = AnsiConsole.Prompt(
-                            new TextPrompt<string>("[cyan]Slack app token[/]")
-                                .Secret().AllowEmpty());
-                        if (!string.IsNullOrEmpty(bot))
-                        {
-                            creds["botToken"] = bot;
-                        }
-
-                        if (!string.IsNullOrEmpty(app))
-                        {
-                            creds["appToken"] = app;
-                        }
-
-                        break;
-                    }
-                    case "matrix":
-                    {
-                        var hs = AnsiConsole.Prompt(
-                            new TextPrompt<string>("[cyan]Matrix homeserver URL[/]")
-                                .AllowEmpty());
-                        var tok = AnsiConsole.Prompt(
-                            new TextPrompt<string>("[cyan]Matrix access token[/]")
-                                .Secret().AllowEmpty());
-                        if (!string.IsNullOrEmpty(hs))
-                        {
-                            creds["homeserver"] = hs;
-                        }
-
-                        if (!string.IsNullOrEmpty(tok))
-                        {
-                            creds["accessToken"] = tok;
-                        }
-
-                        break;
-                    }
-                    case "irc":
-                    {
-                        var host = AnsiConsole.Prompt(
-                            new TextPrompt<string>("[cyan]IRC server host[/]")
-                                .AllowEmpty());
-                        var nick = AnsiConsole.Prompt(
-                            new TextPrompt<string>("[cyan]IRC nickname[/]")
-                                .AllowEmpty());
-                        if (!string.IsNullOrEmpty(host))
-                        {
-                            creds["host"] = host;
-                        }
-
-                        if (!string.IsNullOrEmpty(nick))
-                        {
-                            creds["nick"] = nick;
-                        }
-
-                        break;
-                    }
-                    // cli, web: no credentials needed
-                }
-
-                if (creds.Count > 0)
-                {
-                    channelCreds[ch] = creds;
-                }
-            }
-
-            // ── Skills ───────────────────────────────────────────────────────────────
-
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[dim]Skills add behavioral guidelines and capabilities to your agent.[/]");
-            AnsiConsole.MarkupLine(
-                "[dim][green]skill-vetter[/] is always installed. [green]🟢 LOW[/] = safe, [yellow]🟡 MEDIUM[/] = review notes before installing.[/]");
-            AnsiConsole.WriteLine();
-
-            // Group headers — Risk/Summary intentionally empty so converter renders them as plain labels.
-            var grpSecurity = new SkillChoice("Security");
-            var grpProductivity = new SkillChoice("Productivity");
-            var grpMemory = new SkillChoice("Memory");
-            var grpDotnet = new SkillChoice(".NET");
-
-            SkillChoice[] securitySkills =
-            [
-                new("prompt-guard", "🟡", "MEDIUM", "650+ pattern injection defense.",
-                    RiskDetail:
-                    "Makes optional outbound calls to pg-secure-api.vercel.app to fetch pattern updates (pull-only, no user data sent). Disable with PG_API_ENABLED=false for fully offline use."),
-                new("dont-hack-me", "🟡", "MEDIUM", "Config security audit with auto-fix.",
-                    RiskDetail:
-                    "Reads ~/.clawsharp/config.json (may contain tokens), runs chmod and openssl, and writes config changes on your confirmation."),
-            ];
-            SkillChoice[] productivitySkills =
-            [
-                new("self-improvement", "🟢", "LOW", "Logs corrections and learnings across sessions."),
-                new("qmd", "🟢", "LOW", "Local file search (BM25 + vector). Requires qmd CLI."),
-                new("brave-search", "🟡", "MEDIUM", "Web search + page extraction via Brave.",
-                    RiskDetail:
-                    "Scrapes search.brave.com with a fake browser User-Agent and fetches arbitrary URLs. Requires Node.js and npm ci after install."),
-                new("proactive-research", "🟡", "MEDIUM", "Scheduled topic monitoring with smart alerts.",
-                    RiskDetail:
-                    "Writes cron jobs to your system scheduler for automated monitoring. Posts alerts to user-configured Discord webhooks or email SMTP. Requires Python 3.8+ and requests library."),
-            ];
-            SkillChoice[] memorySkills =
-            [
-                new("supermemory", "🟡", "MEDIUM", "Cloud memory store via SuperMemory API.",
-                    RiskDetail:
-                    "Every memory you store is sent to api.supermemory.ai. Requires SUPERMEMORY_API_KEY env var. Data leaves your machine."),
-            ];
-            SkillChoice[] dotnetSkills =
-            [
-                new("dotnet", "🟢", "LOW", "Core C#/.NET coding skills (scripts, P/Invoke, NuGet)."),
-                new("dotnet-data", "🟢", "LOW", "EF Core and data access skills."),
-                new("dotnet-diag", "🟢", "LOW", "Performance investigation, debugging, and diagnostics."),
-                new("dotnet-msbuild", "🟢", "LOW", "Build failure diagnosis, perf optimization, modernization."),
-                new("dotnet-upgrade", "🟢", "LOW", "Migration and upgrade across .NET versions."),
-            ];
-
-            var extraSkills = AnsiConsole.Prompt(
-                new MultiSelectionPrompt<SkillChoice>()
-                    .Title("Additional [cyan]skills[/] to install?")
-                    .NotRequired()
-                    .InstructionsText("[grey](Press [blue]<space>[/] to toggle, [green]<enter>[/] to accept)[/]")
-                    .UseConverter(s => string.IsNullOrEmpty(s.Risk)
-                        ? s.Name
-                        : string.IsNullOrEmpty(s.RiskDetail)
-                            ? $"{s.Name,-20} {s.RiskEmoji} {s.Risk,-8}  {s.Summary}"
-                            : $"{s.Name,-20} {s.RiskEmoji} {s.Risk,-8}  {s.Summary}  |  ⚠ {s.RiskDetail}")
-                    .AddChoiceGroup(grpSecurity, securitySkills)
-                    .AddChoiceGroup(grpProductivity, productivitySkills)
-                    .AddChoiceGroup(grpMemory, memorySkills)
-                    .AddChoiceGroup(grpDotnet, dotnetSkills));
-
-            skillsToInstall = ["skill-vetter"];
-            foreach (var s in extraSkills)
-            {
-                if (!skillsToInstall.Contains(s.Name, StringComparer.Ordinal))
-                {
-                    skillsToInstall.Add(s.Name);
-                }
-            }
+            (providerType, model, apiKey) = PromptProvider();
+            (selectedChannels, channelCreds) = PromptChannels();
+            skillsToInstall = PromptSkills();
         }
         else
         {
-            providerType = LlmProviderType.TryFromValue(settings.Provider ?? "ollama", out var parsed)
-                ? parsed
-                : LlmProviderType.Ollama;
+            if (LlmProviderType.TryFromValue(settings.Provider ?? "ollama", out var parsed))
+            {
+                providerType = parsed;
+            }
+            else
+            {
+                providerType = LlmProviderType.Ollama;
+            }
             apiKey = settings.ApiKey;
             model = GetDefaultModel(providerType);
             selectedChannels = ["cli"];
@@ -291,21 +82,281 @@ public sealed class OnboardCommand : AsyncCommand<OnboardCommand.Settings>
             skillsToInstall = ["skill-vetter"];
         }
 
-        // ── Install skills ───────────────────────────────────────────────────────
-
         AnsiConsole.WriteLine();
         await SkillRegistry.InstallSkillsAsync(skillsToInstall, cancellationToken);
 
-        // ── Write config ─────────────────────────────────────────────────────────
+        await WriteConfigAndPrintSummary(
+            providerType, model, apiKey, selectedChannels, channelCreds, skillsToInstall, cancellationToken);
 
+        PrintOpenAccessWarnings(selectedChannels, channelCreds);
+        PrintChannelSecurityAdvisories(selectedChannels);
+        PrintSecretsSecurityAdvisor(providerType, selectedChannels, apiKey is not null);
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("Run [cyan]clawsharp[/] to start the gateway.");
+        AnsiConsole.MarkupLine("[dim]Tip: run inside Docker or Podman for an isolated, safer environment.[/]");
+        return 0;
+    }
+
+    private static (LlmProviderType Provider, string Model, string? ApiKey) PromptProvider()
+    {
+        var providerChoice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Which [cyan]LLM provider[/] do you want to use?")
+                .AddChoices("openai", "anthropic", "ollama", "lmstudio", "gemini"));
+
+        LlmProviderType providerType;
+        if (LlmProviderType.TryFromValue(providerChoice, out var parsed))
+        {
+            providerType = parsed;
+        }
+        else
+        {
+            providerType = LlmProviderType.Ollama;
+        }
+
+        var model = AnsiConsole.Prompt(
+            new TextPrompt<string>("[cyan]Model[/]")
+                .DefaultValue(GetDefaultModel(providerType)));
+
+        string? apiKey = null;
+        if (providerType == LlmProviderType.OpenAi
+            || providerType == LlmProviderType.Anthropic
+            || providerType == LlmProviderType.Gemini)
+        {
+            var key = AnsiConsole.Prompt(
+                new TextPrompt<string>($"[cyan]API key[/] for {providerType.Value}")
+                    .Secret()
+                    .AllowEmpty());
+            apiKey = string.IsNullOrEmpty(key) ? null : key;
+        }
+
+        return (providerType, model, apiKey);
+    }
+
+    private static (IReadOnlyList<string> Channels, Dictionary<string, Dictionary<string, string?>> Creds) PromptChannels()
+    {
+        var channelChoices = AnsiConsole.Prompt(
+            new MultiSelectionPrompt<string>()
+                .Title("Which [cyan]channels[/] do you want to enable? (space to select, enter to confirm)")
+                .NotRequired()
+                .AddChoices("cli", "telegram", "discord", "slack", "matrix", "irc", "web"));
+
+        if (channelChoices.Count == 0)
+        {
+            channelChoices = ["cli"];
+        }
+        else if (!channelChoices.Contains("cli"))
+        {
+            channelChoices.Insert(0, "cli");
+        }
+
+        var channelCreds = new Dictionary<string, Dictionary<string, string?>>();
+
+        foreach (var ch in channelChoices)
+        {
+            var creds = PromptChannelCredentials(ch);
+            if (creds.Count > 0)
+            {
+                channelCreds[ch] = creds;
+            }
+        }
+
+        return (channelChoices, channelCreds);
+    }
+
+    private static Dictionary<string, string?> PromptChannelCredentials(string channel)
+    {
+        var creds = new Dictionary<string, string?>();
+        switch (channel)
+        {
+            case "telegram":
+            {
+                var tok = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]Telegram bot token[/]")
+                        .Secret().AllowEmpty());
+                if (!string.IsNullOrEmpty(tok))
+                {
+                    creds["token"] = tok;
+                }
+
+                break;
+            }
+            case "discord":
+            {
+                var tok = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]Discord bot token[/]")
+                        .Secret().AllowEmpty());
+                if (!string.IsNullOrEmpty(tok))
+                {
+                    creds["token"] = tok;
+                }
+
+                break;
+            }
+            case "slack":
+            {
+                var bot = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]Slack bot token[/]")
+                        .Secret().AllowEmpty());
+                var app = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]Slack app token[/]")
+                        .Secret().AllowEmpty());
+                if (!string.IsNullOrEmpty(bot))
+                {
+                    creds["botToken"] = bot;
+                }
+
+                if (!string.IsNullOrEmpty(app))
+                {
+                    creds["appToken"] = app;
+                }
+
+                break;
+            }
+            case "matrix":
+            {
+                var hs = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]Matrix homeserver URL[/]")
+                        .AllowEmpty());
+                var tok = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]Matrix access token[/]")
+                        .Secret().AllowEmpty());
+                if (!string.IsNullOrEmpty(hs))
+                {
+                    creds["homeserver"] = hs;
+                }
+
+                if (!string.IsNullOrEmpty(tok))
+                {
+                    creds["accessToken"] = tok;
+                }
+
+                break;
+            }
+            case "irc":
+            {
+                var host = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]IRC server host[/]")
+                        .AllowEmpty());
+                var nick = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[cyan]IRC nickname[/]")
+                        .AllowEmpty());
+                if (!string.IsNullOrEmpty(host))
+                {
+                    creds["host"] = host;
+                }
+
+                if (!string.IsNullOrEmpty(nick))
+                {
+                    creds["nick"] = nick;
+                }
+
+                break;
+            }
+            // cli, web: no credentials needed
+        }
+
+        return creds;
+    }
+
+    private static List<string> PromptSkills()
+    {
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[dim]Skills add behavioral guidelines and capabilities to your agent.[/]");
+        AnsiConsole.MarkupLine(
+            "[dim][green]skill-vetter[/] is always installed. [green]🟢 LOW[/] = safe, [yellow]🟡 MEDIUM[/] = review notes before installing.[/]");
+        AnsiConsole.WriteLine();
+
+        var grpSecurity = new SkillChoice("Security");
+        var grpProductivity = new SkillChoice("Productivity");
+        var grpMemory = new SkillChoice("Memory");
+        var grpDotnet = new SkillChoice(".NET");
+
+        SkillChoice[] securitySkills =
+        [
+            new("prompt-guard", "🟡", "MEDIUM", "650+ pattern injection defense.",
+                RiskDetail:
+                "Makes optional outbound calls to pg-secure-api.vercel.app to fetch pattern updates (pull-only, no user data sent). Disable with PG_API_ENABLED=false for fully offline use."),
+            new("dont-hack-me", "🟡", "MEDIUM", "Config security audit with auto-fix.",
+                RiskDetail:
+                "Reads ~/.clawsharp/config.json (may contain tokens), runs chmod and openssl, and writes config changes on your confirmation."),
+        ];
+        SkillChoice[] productivitySkills =
+        [
+            new("self-improvement", "🟢", "LOW", "Logs corrections and learnings across sessions."),
+            new("qmd", "🟢", "LOW", "Local file search (BM25 + vector). Requires qmd CLI."),
+            new("brave-search", "🟡", "MEDIUM", "Web search + page extraction via Brave.",
+                RiskDetail:
+                "Scrapes search.brave.com with a fake browser User-Agent and fetches arbitrary URLs. Requires Node.js and npm ci after install."),
+            new("proactive-research", "🟡", "MEDIUM", "Scheduled topic monitoring with smart alerts.",
+                RiskDetail:
+                "Writes cron jobs to your system scheduler for automated monitoring. Posts alerts to user-configured Discord webhooks or email SMTP. Requires Python 3.8+ and requests library."),
+        ];
+        SkillChoice[] memorySkills =
+        [
+            new("supermemory", "🟡", "MEDIUM", "Cloud memory store via SuperMemory API.",
+                RiskDetail:
+                "Every memory you store is sent to api.supermemory.ai. Requires SUPERMEMORY_API_KEY env var. Data leaves your machine."),
+        ];
+        SkillChoice[] dotnetSkills =
+        [
+            new("dotnet", "🟢", "LOW", "Core C#/.NET coding skills (scripts, P/Invoke, NuGet)."),
+            new("dotnet-data", "🟢", "LOW", "EF Core and data access skills."),
+            new("dotnet-diag", "🟢", "LOW", "Performance investigation, debugging, and diagnostics."),
+            new("dotnet-msbuild", "🟢", "LOW", "Build failure diagnosis, perf optimization, modernization."),
+            new("dotnet-upgrade", "🟢", "LOW", "Migration and upgrade across .NET versions."),
+        ];
+
+        var extraSkills = AnsiConsole.Prompt(
+            new MultiSelectionPrompt<SkillChoice>()
+                .Title("Additional [cyan]skills[/] to install?")
+                .NotRequired()
+                .InstructionsText("[grey](Press [blue]<space>[/] to toggle, [green]<enter>[/] to accept)[/]")
+                .UseConverter(s =>
+                {
+                    if (string.IsNullOrEmpty(s.Risk))
+                    {
+                        return s.Name;
+                    }
+
+                    if (string.IsNullOrEmpty(s.RiskDetail))
+                    {
+                        return $"{s.Name,-20} {s.RiskEmoji} {s.Risk,-8}  {s.Summary}";
+                    }
+
+                    return $"{s.Name,-20} {s.RiskEmoji} {s.Risk,-8}  {s.Summary}  |  ⚠ {s.RiskDetail}";
+                })
+                .AddChoiceGroup(grpSecurity, securitySkills)
+                .AddChoiceGroup(grpProductivity, productivitySkills)
+                .AddChoiceGroup(grpMemory, memorySkills)
+                .AddChoiceGroup(grpDotnet, dotnetSkills));
+
+        var skillsToInstall = new List<string> { "skill-vetter" };
+        foreach (var s in extraSkills)
+        {
+            if (!skillsToInstall.Contains(s.Name, StringComparer.Ordinal))
+            {
+                skillsToInstall.Add(s.Name);
+            }
+        }
+
+        return skillsToInstall;
+    }
+
+    private static async Task WriteConfigAndPrintSummary(
+        LlmProviderType providerType, string model, string? apiKey,
+        IReadOnlyList<string> selectedChannels,
+        Dictionary<string, Dictionary<string, string?>> channelCreds,
+        List<string> skillsToInstall,
+        CancellationToken cancellationToken)
+    {
         var configPath = ConfigLoader.ExpandHome("~/.clawsharp/config.json");
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
 
-        // Auto-generate (or load) the encryption key before writing so all
-        // secret fields are stored as enc2: ciphertext from the very first run.
         var store = new SecretStore(Options.Create(new AppConfig()));
         var json = BuildConfigJson(providerType, model, apiKey, selectedChannels, channelCreds, store);
-        await File.WriteAllTextAsync(configPath, json, cancellationToken);
+        await File.WriteAllTextAsync(configPath, json, cancellationToken).ConfigureAwait(false);
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[green]Config written to:[/] {Markup.Escape(configPath)}");
@@ -318,18 +369,6 @@ public sealed class OnboardCommand : AsyncCommand<OnboardCommand.Settings>
 
         AnsiConsole.MarkupLine($"  [cyan]Channels[/] : {string.Join(", ", selectedChannels)}");
         AnsiConsole.MarkupLine($"  [cyan]Skills[/]   : {string.Join(", ", skillsToInstall)}");
-
-        // ── P4: open-access channel warnings ────────────────────────────────────
-        PrintOpenAccessWarnings(selectedChannels, channelCreds);
-        PrintChannelSecurityAdvisories(selectedChannels);
-
-        // ── Secrets security advisor ─────────────────────────────────────────
-        PrintSecretsSecurityAdvisor(providerType, selectedChannels, apiKey is not null);
-
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("Run [cyan]clawsharp[/] to start the gateway.");
-        AnsiConsole.MarkupLine("[dim]Tip: run inside Docker or Podman for an isolated, safer environment.[/]");
-        return 0;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -593,15 +632,31 @@ public sealed class OnboardCommand : AsyncCommand<OnboardCommand.Settings>
             || provider == LlmProviderType.Anthropic
             || provider == LlmProviderType.Gemini)
         {
-            var encApiKey = apiKey is not null ? store.Encrypt(apiKey) : null;
-            var key = encApiKey is not null ? $"\"{EscapeJson(encApiKey)}\"" : "\"\"";
+            string? encApiKey = null;
+            if (apiKey is not null)
+            {
+                encApiKey = store.Encrypt(apiKey);
+            }
+
+            var key = "\"\"";
+            if (encApiKey is not null)
+            {
+                key = $"\"{EscapeJson(encApiKey)}\"";
+            }
+
             sb.AppendLine($"    \"{name}\": {{ \"type\": \"{name}\", \"apiKey\": {key} }}");
         }
         else
         {
-            var baseUrl = provider == LlmProviderType.LmStudio
-                ? ClawsharpConstants.LmStudioDefaultBaseUrl
-                : ClawsharpConstants.OllamaDefaultBaseUrl;
+            string baseUrl;
+            if (provider == LlmProviderType.LmStudio)
+            {
+                baseUrl = ClawsharpConstants.LmStudioDefaultBaseUrl;
+            }
+            else
+            {
+                baseUrl = ClawsharpConstants.OllamaDefaultBaseUrl;
+            }
             sb.AppendLine($"    \"{name}\": {{ \"type\": \"{name}\", \"baseUrl\": \"{baseUrl}\" }}");
         }
 

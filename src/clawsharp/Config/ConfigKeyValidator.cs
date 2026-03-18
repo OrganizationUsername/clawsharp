@@ -26,7 +26,8 @@ internal static class ConfigKeyValidator
             "agents.defaults.maxContextMessages",
             "agents.defaults.consolidateEvery",
             "agents.defaults.rateLimitRequests",
-            "agents.defaults.rateLimitWindowSeconds",
+            "agents.defaults.rateLimitWindow",
+            "agents.defaults.rateLimitWindowSeconds", // legacy alias (pre-TimeSpan migration)
             "agents.defaults.allowSubagents",
             "agents.defaults.promptInjectionGuard",
             "agents.defaults.enableProviderFallback",
@@ -166,10 +167,12 @@ internal static class ConfigKeyValidator
             "secrets.encrypt",
             "secrets.onePassword.tokenEnvVar",
             "secrets.onePassword.cliBinary",
-            "secrets.onePassword.timeoutSeconds",
+            "secrets.onePassword.timeout",
+            "secrets.onePassword.timeoutSeconds", // legacy alias (pre-TimeSpan migration)
             "secrets.bitwarden.tokenEnvVar",
             "secrets.bitwarden.cliBinary",
-            "secrets.bitwarden.timeoutSeconds",
+            "secrets.bitwarden.timeout",
+            "secrets.bitwarden.timeoutSeconds", // legacy alias (pre-TimeSpan migration)
 
             // httpRequest
             "httpRequest.proxy",

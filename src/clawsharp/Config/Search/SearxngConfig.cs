@@ -4,5 +4,5 @@ namespace Clawsharp.Config.Search;
 public sealed class SearxngConfig
 {
     /// <summary>Base URL of the SearXNG instance (e.g. "https://searxng.example.com").</summary>
-    public string? BaseUrl { get; set; }
+    public string? BaseUrl { get; init; }
 }

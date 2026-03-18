@@ -8,6 +8,8 @@ using Clawsharp.Core.Sessions;
 using Clawsharp.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 using Clawsharp.Config.Channels;
 
 namespace Clawsharp.Channels.Irc;
@@ -18,9 +20,9 @@ public sealed partial class IrcChannel : LifecycleBackgroundService, IChannel
 
     private const int InterChunkDelayMs = 500;
 
-    private const int ReconnectBaseDelayMs = 5_000;
+    private readonly ResiliencePipeline _retryPipeline;
 
-    private const int ReconnectMaxDelayMs = 60_000;
+    private static readonly TimeSpan PipelineExhaustionDelay = TimeSpan.FromMinutes(1);
 
     private readonly IMessageBus _bus;
 
@@ -44,11 +46,12 @@ public sealed partial class IrcChannel : LifecycleBackgroundService, IChannel
 
     private StreamWriter? _writer;
 
-    public IrcChannel(IOptions<AppConfig> options, IMessageBus bus, ILogger<IrcChannel> logger, ApprovedSendersStore approvedSenders)
+    public IrcChannel(IOptions<AppConfig> options, IMessageBus bus, ILogger<IrcChannel> logger, ApprovedSendersStore approvedSenders, ResiliencePipelineProvider<string> pipelineProvider)
     {
         _bus = bus;
         _logger = logger;
         _approvedSenders = approvedSenders;
+        _retryPipeline = pipelineProvider.GetPipeline(ChannelName.Irc.Value);
         _cfg = options.Value.Channels.GetValueOrDefault(ChannelName.Irc.Value);
         _enabled = _cfg is { Enabled: true };
         _allowPolicy = new AllowListPolicy(_cfg?.AllowFrom);
@@ -64,23 +67,16 @@ public sealed partial class IrcChannel : LifecycleBackgroundService, IChannel
             return;
         }
 
-        var backoffMs = ReconnectBaseDelayMs;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await RunAsync(stoppingToken);
-                backoffMs = ReconnectBaseDelayMs; // reset on clean exit
+                await _retryPipeline.ExecuteAsync(async ct => await RunAsync(ct), stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                break;
-            }
-            catch (Exception ex)
-            {
-                LogConnectionError(_logger, backoffMs, ex);
-                await Task.Delay(backoffMs, stoppingToken);
-                backoffMs = Math.Min(backoffMs * 2, ReconnectMaxDelayMs);
+                LogPipelineExhausted(_logger, ex);
+                await Task.Delay(PipelineExhaustionDelay, stoppingToken);
             }
         }
     }
@@ -97,8 +93,16 @@ public sealed partial class IrcChannel : LifecycleBackgroundService, IChannel
         var text = message.Text;
         while (text.Length > 0)
         {
-            var chunk = text.Length > MaxChunkLen ? text[..MaxChunkLen] : text;
-            text = text.Length > MaxChunkLen ? text[MaxChunkLen..] : "";
+            var chunk = text;
+            if (text.Length > MaxChunkLen)
+            {
+                chunk = text[..MaxChunkLen];
+                text = text[MaxChunkLen..];
+            }
+            else
+            {
+                text = "";
+            }
             await SendRawAsync($"PRIVMSG {target} :{chunk}", ct);
             if (text.Length > 0)
             {
@@ -191,7 +195,12 @@ public sealed partial class IrcChannel : LifecycleBackgroundService, IChannel
     {
         if (line.StartsWith("PING", StringComparison.Ordinal))
         {
-            var token = line.Length > 5 ? line[5..] : "";
+            var token = "";
+            if (line.Length > 5)
+            {
+                token = line[5..];
+            }
+
             await SendRawAsync($"PONG :{token}", ct);
             return;
         }
@@ -262,9 +271,11 @@ public sealed partial class IrcChannel : LifecycleBackgroundService, IChannel
             return;
         }
 
-        var cleanText = hasNickPrefix
-            ? text[(nick.Length + 1)..].Trim()
-            : text;
+        var cleanText = text;
+        if (hasNickPrefix)
+        {
+            cleanText = text[(nick.Length + 1)..].Trim();
+        }
         if (string.IsNullOrWhiteSpace(cleanText))
         {
             return;
@@ -316,9 +327,6 @@ public sealed partial class IrcChannel : LifecycleBackgroundService, IChannel
         }
     }
 
-    [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Connection error, reconnecting in {BackoffMs}ms")]
-    private static partial void LogConnectionError(ILogger logger, int backoffMs, Exception exception);
-
     [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Connected to {Host}:{Port} as {Nick}")]
     private static partial void LogConnected(ILogger logger, string host, int port, string nick);
 
@@ -332,4 +340,8 @@ public sealed partial class IrcChannel : LifecycleBackgroundService, IChannel
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Debug, Message = "IRC >> {Line}")]
     private static partial void LogOutgoingLine(ILogger logger, string line);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Critical,
+        Message = "All retry attempts exhausted, restarting pipeline in 60s")]
+    private static partial void LogPipelineExhausted(ILogger logger, Exception exception);
 }

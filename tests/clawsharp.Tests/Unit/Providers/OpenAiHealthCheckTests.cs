@@ -205,23 +205,13 @@ public sealed class OpenAiHealthCheckTests
 /// HTTP message handler that returns a configurable status code and body.
 /// Also captures the last request URI and authorization header for assertions.
 /// </summary>
-internal sealed class ConfigurableHttpHandler : HttpMessageHandler
+internal sealed class ConfigurableHttpHandler(HttpStatusCode statusCode, string responseBody) : HttpMessageHandler
 {
-    private readonly HttpStatusCode _statusCode;
-
-    private readonly string _responseBody;
-
     public Uri? LastRequestUri { get; private set; }
 
     public string? LastAuthorizationHeader { get; private set; }
 
     public Dictionary<string, string> LastCustomHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
-
-    public ConfigurableHttpHandler(HttpStatusCode statusCode, string responseBody)
-    {
-        _statusCode = statusCode;
-        _responseBody = responseBody;
-    }
 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
@@ -244,9 +234,9 @@ internal sealed class ConfigurableHttpHandler : HttpMessageHandler
             }
         }
 
-        var response = new HttpResponseMessage(_statusCode)
+        var response = new HttpResponseMessage(statusCode)
         {
-            Content = new StringContent(_responseBody, System.Text.Encoding.UTF8, "application/json")
+            Content = new StringContent(responseBody, System.Text.Encoding.UTF8, "application/json")
         };
         return Task.FromResult(response);
     }
@@ -255,33 +245,19 @@ internal sealed class ConfigurableHttpHandler : HttpMessageHandler
 /// <summary>
 /// HTTP message handler that always throws a configured exception.
 /// </summary>
-internal sealed class ThrowingHttpHandler : HttpMessageHandler
+internal sealed class ThrowingHttpHandler(Exception exception) : HttpMessageHandler
 {
-    private readonly Exception _exception;
-
-    public ThrowingHttpHandler(Exception exception)
-    {
-        _exception = exception;
-    }
-
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        throw _exception;
+        throw exception;
     }
 }
 
 /// <summary>
 /// IHttpClientFactory that returns HttpClients backed by a single handler.
 /// </summary>
-internal sealed class SingleHandlerHttpClientFactory : IHttpClientFactory
+internal sealed class SingleHandlerHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
 {
-    private readonly HttpMessageHandler _handler;
-
-    public SingleHandlerHttpClientFactory(HttpMessageHandler handler)
-    {
-        _handler = handler;
-    }
-
-    public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
+    public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
 }

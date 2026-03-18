@@ -8,14 +8,10 @@ namespace Clawsharp.Providers.LmStudio;
 ///     Thin wrapper: delegates to OpenAiProvider pointed at LM Studio's OpenAI-compatible endpoint.
 ///     Inherits streaming support via <see cref="IStreamingProvider" /> from the inner provider.
 /// </summary>
-public sealed class LmStudioProvider : IProvider, IStreamingProvider
+public sealed class LmStudioProvider(IHttpClientFactory httpClientFactory, string baseUrl = ClawsharpConstants.LmStudioDefaultBaseUrl)
+    : IProvider, IStreamingProvider
 {
-    private readonly OpenAiProvider _inner;
-
-    public LmStudioProvider(IHttpClientFactory httpClientFactory, string baseUrl = ClawsharpConstants.LmStudioDefaultBaseUrl)
-    {
-        _inner = new OpenAiProvider(httpClientFactory, baseUrl.TrimEnd('/') + "/v1", "", "lmstudio");
-    }
+    private readonly OpenAiProvider _inner = new(httpClientFactory, baseUrl.TrimEnd('/') + "/v1", "", "lmstudio");
 
     public string Name => "lmstudio";
 

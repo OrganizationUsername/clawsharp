@@ -22,6 +22,32 @@ namespace clawsharp.Analytics.Postgres.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Clawsharp.Analytics.Entities.ConversationThread", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId")
+                        .IsUnique();
+
+                    b.ToTable("ConversationThreads", (string)null);
+                });
+
             modelBuilder.Entity("Clawsharp.Analytics.Entities.InteractionEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -33,8 +59,9 @@ namespace clawsharp.Analytics.Postgres.Migrations
                     b.Property<long>("CacheReadTokens")
                         .HasColumnType("bigint");
 
-                    b.Property<double>("CacheSavingsUsd")
-                        .HasColumnType("double precision");
+                    b.Property<decimal>("CacheSavingsUsd")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<long>("CacheWriteTokens")
                         .HasColumnType("bigint");
@@ -44,8 +71,12 @@ namespace clawsharp.Analytics.Postgres.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<double>("CostUsd")
-                        .HasColumnType("double precision");
+                    b.Property<long?>("ConversationThreadId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CostUsd")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
@@ -97,6 +128,8 @@ namespace clawsharp.Analytics.Postgres.Migrations
 
                     b.HasIndex("Channel");
 
+                    b.HasIndex("ConversationThreadId");
+
                     b.HasIndex("Model");
 
                     b.HasIndex("SessionId");
@@ -104,6 +137,60 @@ namespace clawsharp.Analytics.Postgres.Migrations
                     b.HasIndex("Timestamp");
 
                     b.ToTable("Interactions", (string)null);
+                });
+
+            modelBuilder.Entity("Clawsharp.Analytics.Entities.InteractionMessageEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("InteractionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("Timestamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InteractionId");
+
+                    b.HasIndex("MessageType");
+
+                    b.ToTable("InteractionMessages", (string)null);
+                });
+
+            modelBuilder.Entity("Clawsharp.Analytics.Entities.InteractionEntity", b =>
+                {
+                    b.HasOne("Clawsharp.Analytics.Entities.ConversationThread", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationThreadId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Clawsharp.Analytics.Entities.InteractionMessageEntity", b =>
+                {
+                    b.HasOne("Clawsharp.Analytics.Entities.InteractionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("InteractionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

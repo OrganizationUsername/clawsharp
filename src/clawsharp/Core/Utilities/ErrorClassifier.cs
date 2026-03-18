@@ -136,30 +136,30 @@ public static partial class ErrorClassifier
 
     // ── Source-generated regex patterns ──────────────────────────────────────
 
-    [GeneratedRegex(@"rate[_ ]limit", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"rate[_ ]limit", RegexOptions.IgnoreCase, 200)]
     private static partial Regex RateLimitRegex();
 
-    [GeneratedRegex(@"exceeded.*quota", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"exceeded.*quota", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ExceededQuotaRegex();
 
-    [GeneratedRegex(@"resource has been exhausted", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"resource has been exhausted", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ResourceExhaustedRegex();
 
-    [GeneratedRegex(@"resource.*exhausted", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"resource.*exhausted", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ResourceExhausted2Regex();
 
-    [GeneratedRegex(@"\b402\b")]
+    [GeneratedRegex(@"\b402\b", RegexOptions.None, 200)]
     private static partial Regex Status402Regex();
 
-    [GeneratedRegex(@"invalid[_ ]?api[_ ]?key", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"invalid[_ ]?api[_ ]?key", RegexOptions.IgnoreCase, 200)]
     private static partial Regex InvalidApiKeyRegex();
 
-    [GeneratedRegex(@"\b401\b")]
+    [GeneratedRegex(@"\b401\b", RegexOptions.None, 200)]
     private static partial Regex Status401Regex();
 
-    [GeneratedRegex(@"\b403\b")]
+    [GeneratedRegex(@"\b403\b", RegexOptions.None, 200)]
     private static partial Regex Status403Regex();
 
-    [GeneratedRegex(@"overloaded_error", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"overloaded_error", RegexOptions.IgnoreCase, 200)]
     private static partial Regex OverloadedErrorRegex();
 }

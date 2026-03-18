@@ -34,9 +34,15 @@ public sealed class MemoryListCommand : AsyncCommand
 
         foreach (var fact in facts)
         {
-            var created = fact.CreatedAt != default
-                ? fact.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")
-                : "-";
+            string created;
+            if (fact.CreatedAt != default)
+            {
+                created = fact.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                created = "-";
+            }
             table.AddRow(
                 fact.Id.ToString(),
                 Markup.Escape(Truncate(fact.Content, 80)),
@@ -48,6 +54,13 @@ public sealed class MemoryListCommand : AsyncCommand
         return 0;
     }
 
-    private static string Truncate(string value, int maxLen) =>
-        value.Length > maxLen ? string.Concat(value.AsSpan(0, maxLen - 1), "~") : value;
+    private static string Truncate(string value, int maxLen)
+    {
+        if (value.Length > maxLen)
+        {
+            return string.Concat(value.AsSpan(0, maxLen - 1), "~");
+        }
+
+        return value;
+    }
 }

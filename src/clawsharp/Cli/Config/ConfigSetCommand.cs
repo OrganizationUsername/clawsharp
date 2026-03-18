@@ -143,14 +143,10 @@ public sealed class ConfigSetCommand : AsyncCommand<ConfigSetCommand.Settings>
 
         // Auto-detect: bool only — everything else stays as string to avoid
         // corrupting API keys and other numeric-looking string fields.
-        if (string.Equals(value, "true", StringComparison.OrdinalIgnoreCase))
+        // Use exact match (no whitespace tolerance) to avoid unintended coercion.
+        if (bool.TryParse(value, out var boolValue) && value.Length == value.AsSpan().Trim().Length)
         {
-            return JsonValue.Create(true);
-        }
-
-        if (string.Equals(value, "false", StringComparison.OrdinalIgnoreCase))
-        {
-            return JsonValue.Create(false);
+            return JsonValue.Create(boolValue);
         }
 
         return JsonValue.Create(value)!;

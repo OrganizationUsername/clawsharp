@@ -194,15 +194,12 @@ public sealed class InteractionAnalyticsIntegrationTests
         try { File.Delete(dbPath + "-shm"); } catch { /* best-effort */ }
     }
 
-    private sealed class TestDbContextFactory : IDbContextFactory<SqliteAnalyticsContext>
+    private sealed class TestDbContextFactory(string dbPath) : IDbContextFactory<SqliteAnalyticsContext>
     {
-        private readonly string _dbPath;
-        public TestDbContextFactory(string dbPath) => _dbPath = dbPath;
-
         public SqliteAnalyticsContext CreateDbContext()
         {
             var opts = new DbContextOptionsBuilder<SqliteAnalyticsContext>()
-                .UseSqlite($"Data Source={_dbPath}")
+                .UseSqlite($"Data Source={dbPath}")
                 .Options;
             return new SqliteAnalyticsContext(opts);
         }

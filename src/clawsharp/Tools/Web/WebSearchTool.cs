@@ -12,6 +12,10 @@ namespace Clawsharp.Tools.Web;
 
 public sealed partial class WebSearchTool : Tool
 {
+    private const int MaxSnippetLength = 150;
+
+    private const int MaxResponseTextLength = 50_000;
+
     private readonly IHttpClientFactory _httpFactory;
 
     private readonly string? _braveApiKey;
@@ -84,15 +88,24 @@ public sealed partial class WebSearchTool : Tool
         _glmModel = config.Glm?.Model;
         _auditLogger = auditLogger;
 
-        _activeProvider = _braveApiKey is { Length: > 0 } ? SearchProvider.Brave
-            : _exaApiKey is { Length: > 0 } ? SearchProvider.Exa
-            : _tavilyApiKey is { Length: > 0 } ? SearchProvider.Tavily
-            : _searxngBaseUrl is { Length: > 0 } ? SearchProvider.Searxng
-            : _jinaApiKey is { Length: > 0 } ? SearchProvider.Jina
-            : _firecrawlApiKey is { Length: > 0 } ? SearchProvider.Firecrawl
-            : _perplexityApiKey is { Length: > 0 } ? SearchProvider.Perplexity
-            : _glmApiKey is { Length: > 0 } ? SearchProvider.Glm
-            : SearchProvider.DuckDuckGo;
+        if (_braveApiKey is { Length: > 0 })
+            _activeProvider = SearchProvider.Brave;
+        else if (_exaApiKey is { Length: > 0 })
+            _activeProvider = SearchProvider.Exa;
+        else if (_tavilyApiKey is { Length: > 0 })
+            _activeProvider = SearchProvider.Tavily;
+        else if (_searxngBaseUrl is { Length: > 0 })
+            _activeProvider = SearchProvider.Searxng;
+        else if (_jinaApiKey is { Length: > 0 })
+            _activeProvider = SearchProvider.Jina;
+        else if (_firecrawlApiKey is { Length: > 0 })
+            _activeProvider = SearchProvider.Firecrawl;
+        else if (_perplexityApiKey is { Length: > 0 })
+            _activeProvider = SearchProvider.Perplexity;
+        else if (_glmApiKey is { Length: > 0 })
+            _activeProvider = SearchProvider.Glm;
+        else
+            _activeProvider = SearchProvider.DuckDuckGo;
     }
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
@@ -185,7 +198,12 @@ public sealed partial class WebSearchTool : Tool
             }
         }
 
-        return results.Count > 0 ? string.Join("\n\n", results) : "No results found.";
+        if (results.Count > 0)
+        {
+            return string.Join("\n\n", results);
+        }
+
+        return "No results found.";
     }
 
     // ──────────────────────────────────────────────
@@ -215,11 +233,21 @@ public sealed partial class WebSearchTool : Tool
             var title = r.TryGetProperty("title", out var t) ? t.GetString() : "";
             var rUrl = r.TryGetProperty("url", out var u) ? u.GetString() : "";
             var text = r.TryGetProperty("text", out var tx) ? tx.GetString() : "";
-            var snippet = text is { Length: > 150 } ? text[..150] + "..." : text;
+            var snippet = text ?? "";
+            if (text is { Length: > MaxSnippetLength })
+            {
+                snippet = text[..MaxSnippetLength] + "...";
+            }
+
             sb.AppendLine($"**{title}**\n{snippet}\n{rUrl}");
         }
 
-        return sb.Length > 0 ? sb.ToString().Trim() : "No results found.";
+        if (sb.Length > 0)
+        {
+            return sb.ToString().Trim();
+        }
+
+        return "No results found.";
     }
 
     // ──────────────────────────────────────────────
@@ -248,11 +276,21 @@ public sealed partial class WebSearchTool : Tool
             var title = r.TryGetProperty("title", out var t) ? t.GetString() : "";
             var rUrl = r.TryGetProperty("url", out var u) ? u.GetString() : "";
             var content = r.TryGetProperty("content", out var cv) ? cv.GetString() : "";
-            var snippet = content is { Length: > 150 } ? content[..150] + "..." : content;
+            var snippet = content ?? "";
+            if (content is { Length: > MaxSnippetLength })
+            {
+                snippet = content[..MaxSnippetLength] + "...";
+            }
+
             sb.AppendLine($"**{title}**\n{snippet}\n{rUrl}");
         }
 
-        return sb.Length > 0 ? sb.ToString().Trim() : "No results found.";
+        if (sb.Length > 0)
+        {
+            return sb.ToString().Trim();
+        }
+
+        return "No results found.";
     }
 
     // ──────────────────────────────────────────────
@@ -288,7 +326,12 @@ public sealed partial class WebSearchTool : Tool
             sb.AppendLine($"**{title}**\n{content}\n{rUrl}");
         }
 
-        return sb.Length > 0 ? sb.ToString().Trim() : "No results found.";
+        if (sb.Length > 0)
+        {
+            return sb.ToString().Trim();
+        }
+
+        return "No results found.";
     }
 
     // ──────────────────────────────────────────────
@@ -312,7 +355,12 @@ public sealed partial class WebSearchTool : Tool
         resp.EnsureSuccessStatusCode();
 
         var text = await resp.Content.ReadAsStringAsync(ct);
-        return text.Length > 50_000 ? text[..50_000] + "\n...[truncated]" : text;
+        if (text.Length > MaxResponseTextLength)
+        {
+            return text[..MaxResponseTextLength] + "\n...[truncated]";
+        }
+
+        return text;
     }
 
     // ──────────────────────────────────────────────
@@ -354,12 +402,22 @@ public sealed partial class WebSearchTool : Tool
                 var title = r.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
                 var rUrl = r.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "";
                 var description = r.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
-                var snippet = description.Length > 150 ? description[..150] + "..." : description;
+                var snippet = description;
+                if (description.Length > MaxSnippetLength)
+                {
+                    snippet = description[..MaxSnippetLength] + "...";
+                }
+
                 sb.AppendLine($"**{title}**\n{snippet}\n{rUrl}");
             }
         }
 
-        return sb.Length > 0 ? sb.ToString().Trim() : "No results found.";
+        if (sb.Length > 0)
+        {
+            return sb.ToString().Trim();
+        }
+
+        return "No results found.";
     }
 
     // ──────────────────────────────────────────────
@@ -392,7 +450,12 @@ public sealed partial class WebSearchTool : Tool
             msg.TryGetProperty("content", out var content))
         {
             var text = content.GetString() ?? "No results found.";
-            return text.Length > 50_000 ? text[..50_000] + "\n...[truncated]" : text;
+            if (text.Length > MaxResponseTextLength)
+            {
+                return text[..MaxResponseTextLength] + "\n...[truncated]";
+            }
+
+            return text;
         }
 
         return "No results found.";
@@ -429,7 +492,12 @@ public sealed partial class WebSearchTool : Tool
             msg.TryGetProperty("content", out var content))
         {
             var text = content.GetString() ?? "No results found.";
-            return text.Length > 50_000 ? text[..50_000] + "\n...[truncated]" : text;
+            if (text.Length > MaxResponseTextLength)
+            {
+                return text[..MaxResponseTextLength] + "\n...[truncated]";
+            }
+
+            return text;
         }
 
         return "No results found.";
@@ -515,26 +583,37 @@ public sealed partial class WebSearchTool : Tool
         {
             var link = WebUtility.HtmlDecode(links[i].Groups[1].Value);
             var title = WebUtility.HtmlDecode(links[i].Groups[2].Value).Trim();
-            var snippet = i < snippets.Count
-                ? HtmlTagRegex().Replace(WebUtility.HtmlDecode(snippets[i].Groups[1].Value), "").Trim()
-                : "";
+            string snippet;
+            if (i < snippets.Count)
+            {
+                snippet = HtmlTagRegex().Replace(WebUtility.HtmlDecode(snippets[i].Groups[1].Value), "").Trim();
+            }
+            else
+            {
+                snippet = "";
+            }
             results.Add($"**{title}**\n{snippet}\n{link}");
         }
 
-        return results.Count > 0 ? string.Join("\n\n", results) : "No results found.";
+        if (results.Count > 0)
+        {
+            return string.Join("\n\n", results);
+        }
+
+        return "No results found.";
     }
 
     // ──────────────────────────────────────────────
     // Compiled regex (DuckDuckGo HTML parsing)
     // ──────────────────────────────────────────────
 
-    [GeneratedRegex(@"<a[^>]+class=""result-link""[^>]*href=""([^""]+)""[^>]*>([^<]+)</a>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<a[^>]+class=""result-link""[^>]*href=""([^""]+)""[^>]*>([^<]+)</a>", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ResultLinkRegex();
 
-    [GeneratedRegex(@"<td[^>]+class=""result-snippet""[^>]*>([\s\S]+?)</td>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<td[^>]+class=""result-snippet""[^>]*>([\s\S]+?)</td>", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ResultSnippetRegex();
 
-    [GeneratedRegex(@"<[^>]+>")]
+    [GeneratedRegex(@"<[^>]+>", RegexOptions.None, 200)]
     private static partial Regex HtmlTagRegex();
 }
 

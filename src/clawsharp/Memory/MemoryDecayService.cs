@@ -10,20 +10,10 @@ namespace Clawsharp.Memory;
 ///     configured TTL. Uses exponential-decay scoring for soft relevance loss
 ///     and hard deletion for facts exceeding the TTL threshold.
 /// </summary>
-public sealed partial class MemoryDecayService : LifecycleBackgroundService
+public sealed partial class MemoryDecayService(IMemory memory, IOptions<MemoryConfig> config, ILogger<MemoryDecayService> logger)
+    : LifecycleBackgroundService
 {
-    private readonly IMemory _memory;
-
-    private readonly MemoryConfig _config;
-
-    private readonly ILogger<MemoryDecayService> _logger;
-
-    public MemoryDecayService(IMemory memory, IOptions<MemoryConfig> config, ILogger<MemoryDecayService> logger)
-    {
-        _memory = memory;
-        _config = config.Value;
-        _logger = logger;
-    }
+    private readonly MemoryConfig _config = config.Value;
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -42,7 +32,7 @@ public sealed partial class MemoryDecayService : LifecycleBackgroundService
             {
                 await Task.Delay(TimeSpan.FromHours(decay.PruneIntervalHours), ct);
 
-                var pruned = await _memory.PruneExpiredFactsAsync(TimeSpan.FromDays(decay.TtlDays), ct);
+                var pruned = await memory.PruneExpiredFactsAsync(TimeSpan.FromDays(decay.TtlDays), ct);
                 if (pruned > 0)
                 {
                     LogPruned(pruned, decay.TtlDays);

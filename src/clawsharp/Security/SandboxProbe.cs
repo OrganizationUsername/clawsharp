@@ -22,7 +22,13 @@ public sealed partial class SandboxProbe
 
         if (_effective != SandboxBackend.None)
         {
-            LogSandboxBackend(logger, _effective, _effective == SandboxBackend.Docker ? _dockerImage : "N/A (local binary)");
+            var image = "N/A (local binary)";
+            if (_effective == SandboxBackend.Docker)
+            {
+                image = _dockerImage;
+            }
+
+            LogSandboxBackend(logger, _effective, image);
         }
         else
         {
@@ -85,21 +91,39 @@ public sealed partial class SandboxProbe
     private static SandboxBackend Resolve(SandboxBackend requested) => requested switch
     {
         SandboxBackend.None => SandboxBackend.None,
-        SandboxBackend.Bubblewrap => OperatingSystem.IsLinux() && IsBubblewrapAvailable()
-            ? SandboxBackend.Bubblewrap
-            : SandboxBackend.None,
-        SandboxBackend.Firejail => IsFirejailAvailable() ? SandboxBackend.Firejail : SandboxBackend.None,
-        SandboxBackend.Docker => IsDockerAvailable() ? SandboxBackend.Docker : SandboxBackend.None,
-        SandboxBackend.Auto => OperatingSystem.IsLinux()
-            ? IsBubblewrapAvailable() ? SandboxBackend.Bubblewrap
-            : IsFirejailAvailable() ? SandboxBackend.Firejail
-            : IsDockerAvailable() ? SandboxBackend.Docker
-            : SandboxBackend.None
-            : IsDockerAvailable()
-                ? SandboxBackend.Docker
-                : SandboxBackend.None,
+        SandboxBackend.Bubblewrap when OperatingSystem.IsLinux() && IsBubblewrapAvailable()
+            => SandboxBackend.Bubblewrap,
+        SandboxBackend.Bubblewrap => SandboxBackend.None,
+        SandboxBackend.Firejail when IsFirejailAvailable() => SandboxBackend.Firejail,
+        SandboxBackend.Firejail => SandboxBackend.None,
+        SandboxBackend.Docker when IsDockerAvailable() => SandboxBackend.Docker,
+        SandboxBackend.Docker => SandboxBackend.None,
+        SandboxBackend.Auto => ResolveAuto(),
         _ => SandboxBackend.None,
     };
+
+    private static SandboxBackend ResolveAuto()
+    {
+        if (OperatingSystem.IsLinux())
+        {
+            if (IsBubblewrapAvailable())
+            {
+                return SandboxBackend.Bubblewrap;
+            }
+
+            if (IsFirejailAvailable())
+            {
+                return SandboxBackend.Firejail;
+            }
+        }
+
+        if (IsDockerAvailable())
+        {
+            return SandboxBackend.Docker;
+        }
+
+        return SandboxBackend.None;
+    }
 
     private static bool IsBubblewrapAvailable() => IsToolAvailable("bwrap", "--version", timeoutMs: 3000);
 

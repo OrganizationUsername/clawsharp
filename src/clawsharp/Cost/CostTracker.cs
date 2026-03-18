@@ -8,18 +8,17 @@ namespace Clawsharp.Cost;
 /// Singleton service that tracks LLM costs and enforces budget limits.
 /// Uses in-memory aggregation with JSONL persistence and day/month boundary resets.
 /// </summary>
-public sealed partial class CostTracker
+public sealed partial class CostTracker(
+    CostStorage storage,
+    IOptions<CostConfig> config,
+    ILogger<CostTracker> logger)
 {
-    private readonly CostStorage _storage;
-
-    private readonly CostConfig _config;
-
-    private readonly ILogger<CostTracker> _logger;
+    private readonly CostConfig _config = config.Value;
 
     // In-memory aggregation cache
-    private double _dailyTotal;
+    private decimal _dailyTotal;
 
-    private double _monthlyTotal;
+    private decimal _monthlyTotal;
 
     private DateOnly _currentDay;
 
@@ -31,18 +30,8 @@ public sealed partial class CostTracker
 
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public CostTracker(
-        CostStorage storage,
-        IOptions<CostConfig> config,
-        ILogger<CostTracker> logger)
-    {
-        _storage = storage;
-        _config = config.Value;
-        _logger = logger;
-    }
-
     /// <summary>Check budget before a request. Returns immediately if cost tracking is disabled.</summary>
-    public async Task<BudgetCheckResult> CheckBudgetAsync(double estimatedCost, CancellationToken ct = default)
+    public async Task<BudgetCheckResult> CheckBudgetAsync(decimal estimatedCost, CancellationToken ct = default)
     {
         if (!_config.Enabled)
         {
@@ -80,7 +69,7 @@ public sealed partial class CostTracker
             }
 
             // Check warning thresholds
-            var warnFraction = _config.WarnAtPercent / 100.0;
+            var warnFraction = _config.WarnAtPercent / 100.0m;
 
             if (_config.DailyLimitUsd > 0 && projectedDaily >= _config.DailyLimitUsd * warnFraction)
             {
@@ -135,6 +124,12 @@ public sealed partial class CostTracker
         var (cost, savings) = DefaultPricing.CalculateCostWithCaching(
             model, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, _config.Prices);
 
+        var cacheSavings = 0.0m;
+        if (savings > 0)
+        {
+            cacheSavings = savings;
+        }
+
         var record = new CostRecord
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -144,12 +139,12 @@ public sealed partial class CostTracker
             OutputTokens = outputTokens,
             CacheReadTokens = cacheReadTokens,
             CacheWriteTokens = cacheWriteTokens,
-            CacheSavingsUsd = savings > 0 ? savings : 0.0,
+            CacheSavingsUsd = cacheSavings,
             CostUsd = cost,
             Timestamp = DateTimeOffset.UtcNow,
         };
 
-        await _storage.AppendAsync(record, ct);
+        await storage.AppendAsync(record, ct);
 
         await _lock.WaitAsync(ct);
         try
@@ -171,8 +166,8 @@ public sealed partial class CostTracker
         CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
-        double daily;
-        double monthly;
+        decimal daily;
+        decimal monthly;
         try
         {
             await EnsureInitializedAsync(ct);
@@ -186,12 +181,12 @@ public sealed partial class CostTracker
         }
 
         // Savings and session totals are not tracked in memory — scan disk for those.
-        var session = 0.0;
-        var dailySavings = 0.0;
-        var monthlySavings = 0.0;
-        var sessionSavings = 0.0;
+        var session = 0.0m;
+        var dailySavings = 0.0m;
+        var monthlySavings = 0.0m;
+        var sessionSavings = 0.0m;
 
-        var records = await _storage.ReadAllAsync(ct);
+        var records = await storage.ReadAllAsync(ct);
         var now = DateTimeOffset.UtcNow;
         var todayUtc = DateOnly.FromDateTime(now.UtcDateTime);
 
@@ -249,7 +244,7 @@ public sealed partial class CostTracker
             return;
         }
 
-        var records = await _storage.ReadAllAsync(ct);
+        var records = await storage.ReadAllAsync(ct);
         var now = DateTimeOffset.UtcNow;
         var todayUtc = DateOnly.FromDateTime(now.UtcDateTime);
         _currentDay = todayUtc;
@@ -278,19 +273,19 @@ public sealed partial class CostTracker
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Information,
         Message = "Cost tracker initialized: daily=${DailyTotal:F4}, monthly=${MonthlyTotal:F4}, {RecordCount} records")]
-    private partial void LogInitialized(double dailyTotal, double monthlyTotal, int recordCount);
+    private partial void LogInitialized(decimal dailyTotal, decimal monthlyTotal, int recordCount);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Debug,
         Message =
             "Usage recorded: {Model} in={InputTokens} out={OutputTokens} cacheRead={CacheRead} cacheWrite={CacheWrite} cost=${Cost:F6} savings=${Savings:F6}")]
-    private partial void LogUsageRecorded(string model, long inputTokens, long outputTokens, long cacheRead, long cacheWrite, double cost,
-                                          double savings);
+    private partial void LogUsageRecorded(string model, long inputTokens, long outputTokens, long cacheRead, long cacheWrite, decimal cost,
+                                          decimal savings);
 
     [LoggerMessage(EventId = 3, Level = LogLevel.Warning,
         Message = "Budget {Period} exceeded: projected ${Projected:F4} > limit ${Limit:F2}")]
-    private partial void LogBudgetExceeded(string period, double projected, double limit);
+    private partial void LogBudgetExceeded(string period, decimal projected, decimal limit);
 
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning,
         Message = "Budget {Period} warning: projected ${Projected:F4} approaching limit ${Limit:F2}")]
-    private partial void LogBudgetWarning(string period, double projected, double limit);
+    private partial void LogBudgetWarning(string period, decimal projected, decimal limit);
 }

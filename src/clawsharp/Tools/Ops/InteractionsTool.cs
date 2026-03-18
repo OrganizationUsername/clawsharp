@@ -4,15 +4,9 @@ using Clawsharp.Analytics;
 
 namespace Clawsharp.Tools.Ops;
 
-public sealed class InteractionsTool : Tool
+public sealed class InteractionsTool(IInteractionStore store) : Tool
 {
-    private readonly IInteractionStore _store;
-
-    public InteractionsTool(IInteractionStore store)
-    {
-        _store = store;
-    }
-
+    private const int MaxPreviewLength = 80;
     public override string Name => "interactions";
     public override string Description => "Query interaction analytics — cost, cache savings, prompt/response data, and usage patterns across sessions, models, and channels.";
     public override ToolSensitivity Sensitivity => ToolSensitivity.Low;
@@ -33,7 +27,7 @@ public sealed class InteractionsTool : Tool
     public override async Task<string> ExecuteAsync(JsonElement arguments, CancellationToken ct = default)
     {
         var query = arguments.GetProperty("query").GetString() ?? "summary";
-        var records = await _store.ReadAllAsync(ct);
+        var records = await store.ReadAllAsync(ct);
 
         if (records.Count == 0)
         {
@@ -103,8 +97,18 @@ public sealed class InteractionsTool : Tool
         var sb = new StringBuilder();
         foreach (var r in recent)
         {
-            var prompt = r.UserPrompt.Length > 80 ? r.UserPrompt[..80] + "..." : r.UserPrompt;
-            var response = r.Response.Length > 80 ? r.Response[..80] + "..." : r.Response;
+            var prompt = r.UserPrompt;
+            if (r.UserPrompt.Length > MaxPreviewLength)
+            {
+                prompt = r.UserPrompt[..MaxPreviewLength] + "...";
+            }
+
+            var response = r.Response;
+            if (r.Response.Length > MaxPreviewLength)
+            {
+                response = r.Response[..MaxPreviewLength] + "...";
+            }
+
             sb.AppendLine($"[{r.Timestamp:MM-dd HH:mm}] {r.SessionId} ({r.Model})");
             sb.AppendLine($"  Prompt: {prompt}");
             sb.AppendLine($"  Response: {response}");
@@ -202,7 +206,9 @@ public sealed class InteractionsTool : Tool
 
         var totalCost = records.Sum(r => r.CostUsd);
         var totalSavings = records.Sum(r => r.CacheSavingsUsd);
-        sb.AppendLine($"\nTotal: ${totalSavings:F4} saved out of ${totalCost + totalSavings:F4} potential cost ({(totalCost + totalSavings > 0 ? totalSavings / (totalCost + totalSavings) * 100 : 0):F1}% reduction)");
+        var potentialCost = totalCost + totalSavings;
+        var reductionPct = potentialCost > 0 ? totalSavings / potentialCost * 100 : 0;
+        sb.AppendLine($"\nTotal: ${totalSavings:F4} saved out of ${potentialCost:F4} potential cost ({reductionPct:F1}% reduction)");
         return sb.ToString();
     }
 

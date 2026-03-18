@@ -11,15 +11,9 @@ namespace Clawsharp.Tools.Browser;
 /// Manages one Playwright browser session: IPlaywright, IBrowser, IBrowserContext, and IPage.
 /// Thread-safe via SemaphoreSlim. Disposes resources and optionally persists session state.
 /// </summary>
-public sealed partial class BrowserSession : IAsyncDisposable
+public sealed partial class BrowserSession(string stateFilePath, bool headless, ILogger logger) : IAsyncDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
-
-    private readonly string _stateFilePath;
-
-    private readonly bool _headless;
-
-    private readonly ILogger _logger;
 
     private IPlaywright? _playwright;
 
@@ -30,13 +24,6 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private IPage? _page;
 
     private bool _disposed;
-
-    public BrowserSession(string stateFilePath, bool headless, ILogger logger)
-    {
-        _stateFilePath = stateFilePath;
-        _headless = headless;
-        _logger = logger;
-    }
 
     /// <summary>
     /// Returns the active page, lazily creating Playwright/Browser/Context/Page on first call.
@@ -68,21 +55,21 @@ public sealed partial class BrowserSession : IAsyncDisposable
         _playwright = await Playwright.CreateAsync().ConfigureAwait(false);
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
-            Headless = _headless,
+            Headless = headless,
         }).ConfigureAwait(false);
 
         // Load saved session state (cookies, localStorage) if it exists.
         var contextOptions = new BrowserNewContextOptions();
-        if (File.Exists(_stateFilePath))
+        if (File.Exists(stateFilePath))
         {
             try
             {
-                contextOptions.StorageStatePath = _stateFilePath;
-                LogStateRestored(_logger, _stateFilePath);
+                contextOptions.StorageStatePath = stateFilePath;
+                LogStateRestored(logger, stateFilePath);
             }
             catch (Exception ex)
             {
-                LogRestoreStateFailed(_logger, ex, _stateFilePath);
+                LogRestoreStateFailed(logger, ex, stateFilePath);
             }
         }
 
@@ -100,7 +87,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
 
         try
         {
-            var dir = Path.GetDirectoryName(_stateFilePath);
+            var dir = Path.GetDirectoryName(stateFilePath);
             if (dir is not null)
             {
                 Directory.CreateDirectory(dir);
@@ -108,12 +95,12 @@ public sealed partial class BrowserSession : IAsyncDisposable
 
             await _context.StorageStateAsync(new BrowserContextStorageStateOptions
             {
-                Path = _stateFilePath,
+                Path = stateFilePath,
             }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            LogSaveStateFailed(_logger, ex, _stateFilePath);
+            LogSaveStateFailed(logger, ex, stateFilePath);
         }
     }
 
@@ -182,21 +169,14 @@ public sealed partial class BrowserSession : IAsyncDisposable
 /// Singleton manager that creates and caches <see cref="BrowserSession"/> instances
 /// keyed by session ID (typically "{channel}:{senderId}").
 /// </summary>
-public sealed partial class BrowserSessionManager : IAsyncDisposable
+public sealed partial class BrowserSessionCache(
+    IOptions<AppConfig> configOptions,
+    ILogger<BrowserSessionCache> logger)
+    : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, BrowserSession> _sessions = new(StringComparer.Ordinal);
 
-    private readonly BrowserConfig _config;
-
-    private readonly ILogger<BrowserSessionManager> _logger;
-
-    public BrowserSessionManager(
-        IOptions<AppConfig> configOptions,
-        ILogger<BrowserSessionManager> logger)
-    {
-        _config = configOptions.Value.Tools.Browser;
-        _logger = logger;
-    }
+    private readonly BrowserConfig _config = configOptions.Value.Tools.Browser;
 
     /// <summary>
     /// Gets or creates a <see cref="BrowserSession"/> for the given session ID.
@@ -208,8 +188,8 @@ public sealed partial class BrowserSessionManager : IAsyncDisposable
             var sessionsDir = ConfigLoader.ExpandHome(_config.SessionsDir);
             Directory.CreateDirectory(sessionsDir);
             var stateFile = Path.Combine(sessionsDir, $"browser-{SanitizeSessionId(id)}.json");
-            LogSessionCreating(_logger, id, stateFile);
-            return new BrowserSession(stateFile, _config.Headless, _logger);
+            LogSessionCreating(logger, id, stateFile);
+            return new BrowserSession(stateFile, _config.Headless, logger);
         });
     }
 
@@ -219,7 +199,7 @@ public sealed partial class BrowserSessionManager : IAsyncDisposable
         if (_sessions.TryRemove(sessionId, out var session))
         {
             await session.DisposeAsync().ConfigureAwait(false);
-            LogSessionClosed(_logger, sessionId);
+            LogSessionClosed(logger, sessionId);
         }
     }
 

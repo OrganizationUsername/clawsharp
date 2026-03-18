@@ -45,10 +45,10 @@ internal sealed partial class TagStripFilter
 
     // ── Pre-compiled regexes for known tag pairs ────────────────────────────
 
-    [GeneratedRegex(@"<think(?:ing)?>.*?</think(?:ing)?>", RegexOptions.Singleline)]
+    [GeneratedRegex(@"<think(?:ing)?>.*?</think(?:ing)?>", RegexOptions.Singleline, 200)]
     private static partial Regex ThinkingTagRegex();
 
-    [GeneratedRegex(@"<tool_(?:call|result)>.*?</tool_(?:call|result)>", RegexOptions.Singleline)]
+    [GeneratedRegex(@"<tool_(?:call|result)>.*?</tool_(?:call|result)>", RegexOptions.Singleline, 200)]
     private static partial Regex ToolTagRegex();
 
     // ── Static (complete text) ───────────────────────────────────────────────
@@ -68,7 +68,7 @@ internal sealed partial class TagStripFilter
         var result = text;
         foreach (var tag in tagNames)
         {
-            result = Regex.Replace(result, $@"<{Regex.Escape(tag)}>.*?</{Regex.Escape(tag)}>", string.Empty, RegexOptions.Singleline);
+            result = Regex.Replace(result, $@"<{Regex.Escape(tag)}>.*?</{Regex.Escape(tag)}>", string.Empty, RegexOptions.Singleline, TimeSpan.FromMilliseconds(200));
         }
 
         return result;

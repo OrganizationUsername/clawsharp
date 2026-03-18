@@ -29,6 +29,9 @@ ENV HOME=/home/app \
 WORKDIR /app
 COPY --from=build /app/publish .
 
+# Npgsql requires libgssapi-krb5-2 for GSSAPI auth negotiation (even when using password auth).
+RUN apt-get update && apt-get install -y --no-install-recommends libgssapi-krb5-2 && rm -rf /var/lib/apt/lists/*
+
 # Install Playwright Chromium and its system dependencies (~140 MB).
 # MED-06: Install as root for system deps, then set PLAYWRIGHT_BROWSERS_PATH to a
 # shared location and fix ownership so the app user can write temp files at runtime.

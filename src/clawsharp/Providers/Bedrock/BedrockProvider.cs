@@ -9,33 +9,19 @@ namespace Clawsharp.Providers.Bedrock;
 ///     AWS Bedrock provider using the Converse API with SigV4 request signing.
 ///     Implements <see cref="IStreamingProvider"/> for both non-streaming and streaming responses.
 /// </summary>
-public sealed class BedrockProvider : IStreamingProvider
+public sealed class BedrockProvider(
+    IHttpClientFactory httpClientFactory,
+    string accessKeyId,
+    string secretAccessKey,
+    string region,
+    string name = "bedrock")
+    : IStreamingProvider
 {
     private const string Service = "bedrock-runtime";
 
-    private readonly IHttpClientFactory _httpFactory;
+    private const int MaxErrorBodyBytes = 4096;
 
-    private readonly string _accessKeyId;
-
-    private readonly string _secretAccessKey;
-
-    private readonly string _region;
-
-    public BedrockProvider(
-        IHttpClientFactory httpClientFactory,
-        string accessKeyId,
-        string secretAccessKey,
-        string region,
-        string name = "bedrock")
-    {
-        _httpFactory = httpClientFactory;
-        _accessKeyId = accessKeyId;
-        _secretAccessKey = secretAccessKey;
-        _region = region;
-        Name = name;
-    }
-
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <inheritdoc />
     public bool SupportsVision => true;
@@ -47,17 +33,15 @@ public sealed class BedrockProvider : IStreamingProvider
 
         // URL-encode the model ID (handles "/" in model ARNs and cross-region IDs)
         var encodedModel = Uri.EscapeDataString(request.Model);
-        var endpoint = $"https://{Service}.{_region}.amazonaws.com/model/{encodedModel}/converse";
+        var endpoint = $"https://{Service}.{region}.amazonaws.com/model/{encodedModel}/converse";
         var uri = new Uri(endpoint);
 
         // Sign the request with SigV4
-        var headers = AwsSigV4Signer.Sign("POST", uri, json, _accessKeyId, _secretAccessKey, _region, Service, DateTimeOffset.UtcNow);
+        var headers = AwsSigV4Signer.Sign("POST", uri, json, accessKeyId, secretAccessKey, region, Service, DateTimeOffset.UtcNow);
 
-        using var http = _httpFactory.CreateClient("llm");
-        using var httpReq = new HttpRequestMessage(HttpMethod.Post, uri)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json")
-        };
+        using var http = httpClientFactory.CreateClient("llm");
+        using var httpReq = new HttpRequestMessage(HttpMethod.Post, uri);
+        httpReq.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
         foreach (var (key, value) in headers)
         {
@@ -68,9 +52,14 @@ public sealed class BedrockProvider : IStreamingProvider
         if (!resp.IsSuccessStatusCode)
         {
             var errBytes = await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
-            var limitedBytes = errBytes.Length > 4096 ? errBytes[..4096] : errBytes;
+            var limitedBytes = errBytes;
+            if (errBytes.Length > MaxErrorBodyBytes)
+            {
+                limitedBytes = errBytes[..MaxErrorBodyBytes];
+            }
+
             var err = Encoding.UTF8.GetString(limitedBytes);
-            throw new HttpRequestException($"Bedrock Converse API error {resp.StatusCode}: {ProviderHttpHelper.SanitizeErrorBody(err)}");
+            throw new HttpRequestException($"Bedrock Converse API error {resp.StatusCode}: {ProviderRequestHandler.SanitizeErrorBody(err)}");
         }
 
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -92,16 +81,14 @@ public sealed class BedrockProvider : IStreamingProvider
         var json = JsonSerializer.Serialize(converseRequest, BedrockJsonContext.Default.BedrockConverseRequest);
 
         var encodedModel = Uri.EscapeDataString(request.Model);
-        var endpoint = $"https://{Service}.{_region}.amazonaws.com/model/{encodedModel}/converse-stream";
+        var endpoint = $"https://{Service}.{region}.amazonaws.com/model/{encodedModel}/converse-stream";
         var uri = new Uri(endpoint);
 
-        var headers = AwsSigV4Signer.Sign("POST", uri, json, _accessKeyId, _secretAccessKey, _region, Service, DateTimeOffset.UtcNow);
+        var headers = AwsSigV4Signer.Sign("POST", uri, json, accessKeyId, secretAccessKey, region, Service, DateTimeOffset.UtcNow);
 
-        using var http = _httpFactory.CreateClient("llm");
-        using var httpReq = new HttpRequestMessage(HttpMethod.Post, uri)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json")
-        };
+        using var http = httpClientFactory.CreateClient("llm");
+        using var httpReq = new HttpRequestMessage(HttpMethod.Post, uri);
+        httpReq.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
         foreach (var (key, value) in headers)
         {
@@ -112,10 +99,15 @@ public sealed class BedrockProvider : IStreamingProvider
         if (!resp.IsSuccessStatusCode)
         {
             var errBytes = await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
-            var limitedBytes = errBytes.Length > 4096 ? errBytes[..4096] : errBytes;
+            var limitedBytes = errBytes;
+            if (errBytes.Length > MaxErrorBodyBytes)
+            {
+                limitedBytes = errBytes[..MaxErrorBodyBytes];
+            }
+
             var err = Encoding.UTF8.GetString(limitedBytes);
             throw new HttpRequestException(
-                $"Bedrock ConverseStream API error {resp.StatusCode}: {ProviderHttpHelper.SanitizeErrorBody(err)}");
+                $"Bedrock ConverseStream API error {resp.StatusCode}: {ProviderRequestHandler.SanitizeErrorBody(err)}");
         }
 
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -180,7 +172,7 @@ public sealed class BedrockProvider : IStreamingProvider
                         var errorPayload = Encoding.UTF8.GetString(payload.Span);
                         yield return new StreamDoneChunk();
                         throw new InvalidOperationException(
-                            $"Bedrock stream exception '{eventType}': {ProviderHttpHelper.SanitizeErrorBody(errorPayload)}");
+                            $"Bedrock stream exception '{eventType}': {ProviderRequestHandler.SanitizeErrorBody(errorPayload)}");
                     }
 
                     break;
@@ -339,7 +331,14 @@ public sealed class BedrockProvider : IStreamingProvider
             {
                 if (block.Text is { Length: > 0 })
                 {
-                    textContent = textContent is null ? block.Text : $"{textContent}\n{block.Text}";
+                    if (textContent is null)
+                    {
+                        textContent = block.Text;
+                    }
+                    else
+                    {
+                        textContent = $"{textContent}\n{block.Text}";
+                    }
                 }
 
                 if (block.ToolUse is { } toolUse)
@@ -362,12 +361,17 @@ public sealed class BedrockProvider : IStreamingProvider
             _ => FinishReason.Stop
         };
 
-        var cacheRead = response.Usage?.CacheReadInputTokenCount is > 0
-            ? response.Usage.CacheReadInputTokenCount
-            : (int?)null;
-        var cacheWrite = response.Usage?.CacheWriteInputTokenCount is > 0
-            ? response.Usage.CacheWriteInputTokenCount
-            : (int?)null;
+        int? cacheRead = null;
+        if (response.Usage?.CacheReadInputTokenCount is > 0)
+        {
+            cacheRead = response.Usage.CacheReadInputTokenCount;
+        }
+
+        int? cacheWrite = null;
+        if (response.Usage?.CacheWriteInputTokenCount is > 0)
+        {
+            cacheWrite = response.Usage.CacheWriteInputTokenCount;
+        }
 
         return new ChatResponse(
             textContent,

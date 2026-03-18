@@ -9,20 +9,12 @@ namespace Clawsharp.Core.Sessions;
 /// Stores pending pairing requests (6-digit code to sender info) in ~/.clawsharp/pending-pairs.json.
 /// Thread-safe via <see cref="JsonFileStore{T}"/>.
 /// </summary>
-public sealed partial class PairingStore : IDisposable
+public sealed partial class PairingStore(ILogger<PairingStore> logger) : IDisposable
 {
     private static readonly string StorePath = Path.Combine(
         ConfigLoader.ExpandHome("~/.clawsharp"), "pending-pairs.json");
 
-    private readonly JsonFileStore<List<PendingPair>> _store;
-
-    private readonly ILogger<PairingStore> _logger;
-
-    public PairingStore(ILogger<PairingStore> logger)
-    {
-        _logger = logger;
-        _store = new JsonFileStore<List<PendingPair>>(StorePath, PairingJsonContext.Default.ListPendingPair);
-    }
+    private readonly JsonFileStore<List<PendingPair>> _store = new(StorePath, PairingJsonContext.Default.ListPendingPair);
 
     /// <inheritdoc />
     public void Dispose() => _store.Dispose();
@@ -77,7 +69,7 @@ public sealed partial class PairingStore : IDisposable
             pairs.Add(pair);
             resultCode = code;
 
-            LogPairingCodeCreated(_logger, code, channel, senderId, senderName);
+            LogPairingCodeCreated(logger, code, channel, senderId, senderName);
 
             return true; // save
         }, ct).ConfigureAwait(false);
@@ -115,7 +107,7 @@ public sealed partial class PairingStore : IDisposable
             approved = pairs[index];
             pairs.RemoveAt(index);
 
-            LogPairingCodeApproved(_logger, approved.Code, approved.Channel, approved.SenderId, approved.SenderName);
+            LogPairingCodeApproved(logger, approved.Code, approved.Channel, approved.SenderId, approved.SenderName);
 
             return true; // save
         }, ct).ConfigureAwait(false);

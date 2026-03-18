@@ -5,22 +5,14 @@ using Clawsharp.Security;
 
 namespace Clawsharp.Tools.Ops;
 
-public sealed class GitTool : Tool
+public sealed class GitTool(string workspace, AuditLogger? auditLogger = null) : Tool
 {
     private const int MaxOutputBytes = 100 * 1024; // 100 KB
 
     private static readonly FrozenSet<string> AllowedOps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         { "status", "log", "diff", "add", "commit", "branch", "checkout", "stash", "show" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    private readonly string _workspace;
-
-    private readonly AuditLogger? _auditLogger;
-
-    public GitTool(string workspace, AuditLogger? auditLogger = null)
-    {
-        _workspace = Path.GetFullPath(workspace);
-        _auditLogger = auditLogger;
-    }
+    private readonly string _workspace = Path.GetFullPath(workspace);
 
     public string? ChannelName => ToolRegistry.CurrentChannelName;
 
@@ -68,9 +60,15 @@ public sealed class GitTool : Tool
             return $"Error: operation '{operation}' is not allowed. Allowed: {string.Join(", ", AllowedOps)}";
         }
 
-        var repoPath = args.TryGetProperty("path", out var pathEl)
-            ? pathEl.GetString() ?? _workspace
-            : _workspace;
+        string repoPath;
+        if (args.TryGetProperty("path", out var pathEl))
+        {
+            repoPath = pathEl.GetString() ?? _workspace;
+        }
+        else
+        {
+            repoPath = _workspace;
+        }
 
         // Expand home dir
         if (repoPath.StartsWith("~/", StringComparison.Ordinal))
@@ -87,9 +85,9 @@ public sealed class GitTool : Tool
         }
         catch (InvalidOperationException)
         {
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogPolicyViolationAsync(
+                _ = auditLogger.LogPolicyViolationAsync(
                     $"GitTool path traversal blocked: {repoPath}", ChannelName, ct: ct);
             }
 
@@ -177,14 +175,19 @@ public sealed class GitTool : Tool
                 combined = combined[..MaxOutputBytes] + "\n...[truncated]";
             }
 
-            if (_auditLogger is not null)
+            if (auditLogger is not null)
             {
-                _ = _auditLogger.LogCommandAsync(
+                _ = auditLogger.LogCommandAsync(
                     $"git {operation}", ChannelName, userId: null,
                     allowed: true, success: proc.ExitCode == 0, exitCode: proc.ExitCode, ct: ct);
             }
 
-            return combined.Length > 0 ? combined : "(no output)";
+            if (combined.Length > 0)
+            {
+                return combined;
+            }
+
+            return "(no output)";
         }
         catch (OperationCanceledException)
         {

@@ -1,4 +1,5 @@
 using Clawsharp.Core;
+using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Tools;
 
@@ -8,7 +9,7 @@ public interface IToolRegistry
     /// <summary>Registers a tool dynamically (e.g. from an MCP server).</summary>
     void Register(Tool tool);
 
-    void SetChannelContext(string channelName, int spawnDepth = 0, string? sessionId = null);
+    void SetChannelContext(ChannelName channelName, int spawnDepth = 0, string? sessionId = null);
 
     IReadOnlyList<ToolDefinition> GetDefinitions();
 

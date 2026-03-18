@@ -8,14 +8,10 @@ namespace Clawsharp.Providers.Ollama;
 ///     Thin wrapper: delegates to OpenAiProvider pointed at Ollama's OpenAI-compatible endpoint.
 ///     Inherits streaming support via <see cref="IStreamingProvider" /> from the inner provider.
 /// </summary>
-public sealed class OllamaProvider : IProvider, IStreamingProvider
+public sealed class OllamaProvider(IHttpClientFactory httpClientFactory, string baseUrl = ClawsharpConstants.OllamaDefaultBaseUrl)
+    : IProvider, IStreamingProvider
 {
-    private readonly OpenAiProvider _inner;
-
-    public OllamaProvider(IHttpClientFactory httpClientFactory, string baseUrl = ClawsharpConstants.OllamaDefaultBaseUrl)
-    {
-        _inner = new OpenAiProvider(httpClientFactory, baseUrl.TrimEnd('/') + "/v1", "", "ollama");
-    }
+    private readonly OpenAiProvider _inner = new(httpClientFactory, baseUrl.TrimEnd('/') + "/v1", "", "ollama");
 
     public string Name => "ollama";
 

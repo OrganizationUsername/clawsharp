@@ -10,7 +10,7 @@ namespace Clawsharp.Security;
 /// Format: "enc2:&lt;hex(nonce || ciphertext || tag)&gt;" where nonce=12 bytes, tag=16 bytes.
 /// Key file: ~/.clawsharp/.secret_key (32-byte key, hex-encoded, chmod 0600 on Unix).
 /// </summary>
-public sealed class SecretStore : IDisposable
+public sealed class SecretStore(IOptions<AppConfig> options) : IDisposable
 {
     private const int KeyLen = 32;
 
@@ -20,15 +20,9 @@ public sealed class SecretStore : IDisposable
 
     private const string Prefix = "enc2:";
 
-    private readonly bool _enabled;
+    private readonly bool _enabled = options.Value.Secrets?.Encrypt ?? true;
 
-    private readonly Lazy<byte[]> _key;
-
-    public SecretStore(IOptions<AppConfig> options)
-    {
-        _enabled = options.Value.Secrets?.Encrypt ?? true;
-        _key = new Lazy<byte[]>(LoadOrCreateKey);
-    }
+    private readonly Lazy<byte[]> _key = new(LoadOrCreateKey);
 
     /// <summary>
     /// Encrypt a plaintext value. Returns the plaintext unchanged if encryption is disabled,

@@ -11,14 +11,14 @@ public sealed class DefaultPricingTests
         // gpt-4o: $5/1M input, $15/1M output
         // 1000 input + 500 output = $0.005 + $0.0075 = $0.0125
         var cost = DefaultPricing.CalculateCost("gpt-4o", 1000, 500);
-        cost.ShouldBe(0.0125, tolerance: 0.0001);
+        cost.ShouldBe(0.0125m);
     }
 
     [Test]
     public void CalculateCost_UnknownModel_ReturnsZero()
     {
         var cost = DefaultPricing.CalculateCost("totally-unknown-model-xyz", 5000, 2000);
-        cost.ShouldBe(0.0);
+        cost.ShouldBe(0.0m);
     }
 
     [Test]
@@ -37,7 +37,7 @@ public sealed class DefaultPricingTests
     public void CalculateCost_ZeroTokens_ReturnsZero()
     {
         var cost = DefaultPricing.CalculateCost("gpt-4o", 0, 0);
-        cost.ShouldBe(0.0);
+        cost.ShouldBe(0.0m);
     }
 
     [Test]
@@ -46,7 +46,7 @@ public sealed class DefaultPricingTests
         // gpt-4o-mini: $0.15/1M input
         // 1_000_000 input tokens = $0.15
         var cost = DefaultPricing.CalculateCost("gpt-4o-mini", 1_000_000, 0);
-        cost.ShouldBe(0.15, tolerance: 0.001);
+        cost.ShouldBe(0.15m);
     }
 
     [Test]
@@ -55,7 +55,7 @@ public sealed class DefaultPricingTests
         // gpt-4o-mini: $0.60/1M output
         // 1_000_000 output tokens = $0.60
         var cost = DefaultPricing.CalculateCost("gpt-4o-mini", 0, 1_000_000);
-        cost.ShouldBe(0.60, tolerance: 0.001);
+        cost.ShouldBe(0.60m);
     }
 
     [Test]
@@ -63,12 +63,12 @@ public sealed class DefaultPricingTests
     {
         var overrides = new Dictionary<string, ModelPricing>
         {
-            ["gpt-4o"] = new() { Input = 99.0, Output = 199.0 }
+            ["gpt-4o"] = new() { Input = 99.0m, Output = 199.0m }
         };
 
         // 1000 input at $99/1M = $0.099; 1000 output at $199/1M = $0.199
         var cost = DefaultPricing.CalculateCost("gpt-4o", 1000, 1000, overrides);
-        cost.ShouldBe(0.298, tolerance: 0.001);
+        cost.ShouldBe(0.298m);
     }
 
     [Test]
@@ -76,12 +76,12 @@ public sealed class DefaultPricingTests
     {
         var overrides = new Dictionary<string, ModelPricing>
         {
-            ["my-custom-model"] = new() { Input = 1.0, Output = 2.0 }
+            ["my-custom-model"] = new() { Input = 1.0m, Output = 2.0m }
         };
 
         // 1_000_000 input = $1.00; 1_000_000 output = $2.00
         var cost = DefaultPricing.CalculateCost("my-custom-model", 1_000_000, 1_000_000, overrides);
-        cost.ShouldBe(3.0, tolerance: 0.001);
+        cost.ShouldBe(3.0m);
     }
 
     [Test]
@@ -113,7 +113,7 @@ public sealed class DefaultPricingTests
         // claude-opus-4-6: $15/1M input, $75/1M output
         // 10000 input + 5000 output = $0.15 + $0.375 = $0.525
         var cost = DefaultPricing.CalculateCost("claude-opus-4-6", 10_000, 5_000);
-        cost.ShouldBe(0.525, tolerance: 0.001);
+        cost.ShouldBe(0.525m);
     }
 
     [Test]
@@ -122,6 +122,33 @@ public sealed class DefaultPricingTests
         // deepseek-chat: $0.27/1M input, $1.10/1M output
         // 100000 input + 50000 output = $0.027 + $0.055 = $0.082
         var cost = DefaultPricing.CalculateCost("deepseek-chat", 100_000, 50_000);
-        cost.ShouldBe(0.082, tolerance: 0.001);
+        cost.ShouldBe(0.082m);
+    }
+
+    [TestCase("glm-4.7")]
+    [TestCase("qwen-max")]
+    [TestCase("moonshot-v1-8k")]
+    [TestCase("kimi-k2-0711-preview")]
+    [TestCase("MiniMax-Text-01")]
+    [TestCase("doubao-1-5-pro-32k-250115")]
+    [TestCase("deepseek-ai/DeepSeek-V3")]
+    [TestCase("Qwen/Qwen2.5-72B-Instruct")]
+    public void GetPrice_ChineseProviderModels_ReturnsNonZero(string model)
+    {
+        var (input, output) = DefaultPricing.GetPrice(model);
+        (input + output).ShouldBeGreaterThan(0, $"Model {model} should have non-zero pricing");
+    }
+
+    [Test]
+    public void GetPrice_AnthropicDotNotation_NormalizesToHyphens()
+    {
+        var (input, output) = DefaultPricing.GetPrice("claude-sonnet-4.6");
+        input.ShouldBeGreaterThan(0m);
+        output.ShouldBeGreaterThan(0m);
+
+        // Should match the hyphenated version exactly
+        var (inputHyphen, outputHyphen) = DefaultPricing.GetPrice("claude-sonnet-4-6");
+        input.ShouldBe(inputHyphen);
+        output.ShouldBe(outputHyphen);
     }
 }

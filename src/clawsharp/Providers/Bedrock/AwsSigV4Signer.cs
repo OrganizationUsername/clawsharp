@@ -41,7 +41,11 @@ internal static class AwsSigV4Signer
 
         // Signed headers (alphabetically sorted)
         const string signedHeaders = "content-type;host;x-amz-content-sha256;x-amz-date";
-        var host = uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}";
+        var host = uri.Host;
+        if (!uri.IsDefaultPort)
+        {
+            host = $"{uri.Host}:{uri.Port}";
+        }
 
         var canonicalRequest = string.Join('\n',
             method,

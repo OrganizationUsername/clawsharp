@@ -12,15 +12,14 @@ namespace Clawsharp.Tools.Mcp;
 /// Monitors connections and restarts them with exponential backoff on failure.
 /// Supports stdio, SSE, and StreamableHTTP transports.
 /// </summary>
-public sealed partial class McpHostedService : LifecycleBackgroundService
+public sealed partial class McpHostedService(
+    IOptions<AppConfig> options,
+    IToolRegistry toolRegistry,
+    IHttpClientFactory httpClientFactory,
+    ILogger<McpHostedService> logger)
+    : LifecycleBackgroundService
 {
-    private readonly AppConfig _config;
-
-    private readonly IToolRegistry _toolRegistry;
-
-    private readonly IHttpClientFactory _httpClientFactory;
-
-    private readonly ILogger<McpHostedService> _logger;
+    private readonly AppConfig _config = options.Value;
 
     private readonly List<ManagedMcpServer> _servers = [];
 
@@ -33,27 +32,15 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
     /// <summary>How often the watchdog polls for crashed processes.</summary>
     private static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(5);
 
-    public McpHostedService(
-        IOptions<AppConfig> options,
-        IToolRegistry toolRegistry,
-        IHttpClientFactory httpClientFactory,
-        ILogger<McpHostedService> logger)
-    {
-        _config = options.Value;
-        _toolRegistry = toolRegistry;
-        _httpClientFactory = httpClientFactory;
-        _logger = logger;
-    }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (_config.McpServers is not { Count: > 0 })
         {
-            LogNoServersConfigured(_logger);
+            LogNoServersConfigured(logger);
             return;
         }
 
-        LogStartingServers(_logger, _config.McpServers.Count);
+        LogStartingServers(logger, _config.McpServers.Count);
 
         foreach (var (serverName, serverConfig) in _config.McpServers)
         {
@@ -66,11 +53,11 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
             }
             catch (Exception ex)
             {
-                LogServerStartFailed(_logger, serverName, ex);
+                LogServerStartFailed(logger, serverName, ex);
             }
         }
 
-        LogInitializationComplete(_logger,
+        LogInitializationComplete(logger,
             _servers.Count(s => s.Client is not null),
             _servers.Where(s => s.Client is not null).Sum(s => s.Client!.Tools.Count));
 
@@ -82,10 +69,16 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
     private async Task StartServerAsync(ManagedMcpServer managed, CancellationToken ct)
     {
         var transportType = managed.Config.ResolveTransportType();
-        LogServerStarting(_logger, managed.Name, transportType,
-            transportType == "stdio"
-                ? $"{managed.Config.Command} {(managed.Config.Args is not null ? string.Join(" ", managed.Config.Args) : "")}"
-                : managed.Config.Url ?? "");
+        string transportDetail;
+        if (transportType == "stdio")
+        {
+            transportDetail = $"{managed.Config.Command} {string.Join(" ", managed.Config.Args ?? [])}";
+        }
+        else
+        {
+            transportDetail = managed.Config.Url ?? "";
+        }
+        LogServerStarting(logger, managed.Name, transportType, transportDetail);
 
         var transport = await CreateTransportAsync(managed.Name, managed.Config, transportType, ct)
             .ConfigureAwait(false);
@@ -93,7 +86,7 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
         McpClient client;
         try
         {
-            client = await McpClient.StartAsync(managed.Name, transport, _logger, ct).ConfigureAwait(false);
+            client = await McpClient.StartAsync(managed.Name, transport, logger, ct).ConfigureAwait(false);
         }
         catch
         {
@@ -110,7 +103,7 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
             }
             catch (Exception ex)
             {
-                LogServerDisposeFailed(_logger, managed.Name, ex);
+                LogServerDisposeFailed(logger, managed.Name, ex);
             }
         }
 
@@ -121,8 +114,8 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
         foreach (var tool in client.Tools)
         {
             var adapter = new McpToolAdapter(client, tool);
-            _toolRegistry.Register(adapter);
-            LogToolRegistered(_logger, tool.Name, managed.Name);
+            toolRegistry.Register(adapter);
+            LogToolRegistered(logger, tool.Name, managed.Name);
         }
     }
 
@@ -142,9 +135,9 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
                         $"MCP server '{serverName}' has transport type 'sse' but no URL configured.");
                 }
 
-                var httpClient = _httpClientFactory.CreateClient("mcp");
+                var httpClient = httpClientFactory.CreateClient("mcp");
                 var sseUri = new Uri(config.Url);
-                var transport = new SseMcpTransport(httpClient, sseUri, serverName, config.Headers, _logger);
+                var transport = new SseMcpTransport(httpClient, sseUri, serverName, config.Headers, logger);
                 await transport.ConnectAsync(ct).ConfigureAwait(false);
                 return transport;
             }
@@ -157,9 +150,9 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
                         $"MCP server '{serverName}' has transport type 'streamableHttp' but no URL configured.");
                 }
 
-                var httpClient = _httpClientFactory.CreateClient("mcp");
+                var httpClient = httpClientFactory.CreateClient("mcp");
                 var endpointUri = new Uri(config.Url);
-                return new StreamableHttpMcpTransport(httpClient, endpointUri, serverName, config.Headers, _logger);
+                return new StreamableHttpMcpTransport(httpClient, endpointUri, serverName, config.Headers, logger);
             }
 
             case "stdio":
@@ -171,7 +164,7 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
                         $"MCP server '{serverName}' has transport type 'stdio' but no command configured.");
                 }
 
-                return StdioMcpTransport.Start(serverName, config, _logger);
+                return StdioMcpTransport.Start(serverName, config, logger);
             }
         }
     }
@@ -207,7 +200,7 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
                     continue;
                 }
 
-                LogServerCrashed(_logger, managed.Name, managed.Client.ExitCode);
+                LogServerCrashed(logger, managed.Name, managed.Client.ExitCode);
                 await TryRestartAsync(managed, stoppingToken).ConfigureAwait(false);
             }
         }
@@ -219,7 +212,7 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
         managed.RestartCount++;
         var delay = CalculateBackoff(managed.RestartCount);
 
-        LogServerRestarting(_logger, managed.Name, managed.RestartCount, (int)delay.TotalSeconds);
+        LogServerRestarting(logger, managed.Name, managed.RestartCount, (int)delay.TotalSeconds);
 
         try
         {
@@ -233,11 +226,11 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
         try
         {
             await StartServerAsync(managed, ct).ConfigureAwait(false);
-            LogServerRestarted(_logger, managed.Name, managed.RestartCount);
+            LogServerRestarted(logger, managed.Name, managed.RestartCount);
         }
         catch (Exception ex)
         {
-            LogServerRestartFailed(_logger, managed.Name, managed.RestartCount, ex);
+            LogServerRestartFailed(logger, managed.Name, managed.RestartCount, ex);
         }
     }
 
@@ -250,7 +243,7 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        LogStoppingServers(_logger, _servers.Count);
+        LogStoppingServers(logger, _servers.Count);
 
         foreach (var managed in _servers)
         {
@@ -262,11 +255,11 @@ public sealed partial class McpHostedService : LifecycleBackgroundService
             try
             {
                 await managed.Client.DisposeAsync().ConfigureAwait(false);
-                LogServerStopped(_logger, managed.Name);
+                LogServerStopped(logger, managed.Name);
             }
             catch (Exception ex)
             {
-                LogServerStopFailed(_logger, managed.Name, ex);
+                LogServerStopFailed(logger, managed.Name, ex);
             }
         }
 

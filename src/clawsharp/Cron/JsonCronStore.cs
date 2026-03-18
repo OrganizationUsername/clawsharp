@@ -1,22 +1,15 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Clawsharp.Cron;
 
-public sealed partial class JsonCronStore : ICronStore
+public sealed partial class JsonCronStore(string baseDir, ILogger logger) : ICronStore
 {
-    private readonly string _filePath;
+    private readonly string _filePath = Path.Combine(baseDir, "cron", "jobs.json");
 
-    private readonly ILogger _logger;
+    private readonly ILogger _logger = logger;
 
     private readonly SemaphoreSlim _lock = new(1, 1);
-
-    public JsonCronStore(string baseDir, ILogger? logger = null)
-    {
-        _filePath = Path.Combine(baseDir, "cron", "jobs.json");
-        _logger = logger ?? NullLogger.Instance;
-    }
 
     public Task InitAsync(CancellationToken ct = default)
     {
@@ -76,7 +69,7 @@ public sealed partial class JsonCronStore : ICronStore
         }
     }
 
-    public async Task UpdateRunStatsAsync(string id, string lastRunAt, int runCount, CancellationToken ct = default)
+    public async Task UpdateRunStatsAsync(string id, DateTimeOffset lastRunAt, int runCount, CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
         try

@@ -48,10 +48,10 @@ public sealed class InteractionRecord
     public long CacheWriteTokens { get; init; }
 
     [JsonPropertyName("cost_usd")]
-    public double CostUsd { get; init; }
+    public decimal CostUsd { get; init; }
 
     [JsonPropertyName("cache_savings_usd")]
-    public double CacheSavingsUsd { get; init; }
+    public decimal CacheSavingsUsd { get; init; }
 
     [JsonPropertyName("duration_ms")]
     public long DurationMs { get; init; }

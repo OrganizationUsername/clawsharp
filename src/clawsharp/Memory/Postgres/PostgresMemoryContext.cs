@@ -6,21 +6,16 @@ using Clawsharp.Config.Memory;
 
 namespace Clawsharp.Memory.Postgres;
 
-public sealed class PostgresMemoryContext : MemoryDbContextBase
+[method: RequiresUnreferencedCode("EF Core uses reflection for model building. All entity types are statically referenced.")]
+[method: RequiresDynamicCode("EF Core requires dynamic code for query compilation. Use AOT-precompiled queries when possible.")]
+public sealed class PostgresMemoryContext(DbContextOptions<PostgresMemoryContext> options, IOptions<MemoryConfig>? memoryConfig = null)
+    : MemoryDbContextBase(options)
 {
     public DbSet<Fact> Facts { get; set; } = null!;
 
     public DbSet<HistoryEntry> History { get; set; } = null!;
 
-    private readonly int _embeddingDimension;
-
-    [RequiresUnreferencedCode("EF Core uses reflection for model building. All entity types are statically referenced.")]
-    [RequiresDynamicCode("EF Core requires dynamic code for query compilation. Use AOT-precompiled queries when possible.")]
-    public PostgresMemoryContext(DbContextOptions<PostgresMemoryContext> options, IOptions<MemoryConfig>? memoryConfig = null)
-        : base(options)
-    {
-        _embeddingDimension = memoryConfig?.Value.EmbeddingDimension ?? 1536;
-    }
+    private readonly int _embeddingDimension = memoryConfig?.Value.EmbeddingDimension ?? 1536;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

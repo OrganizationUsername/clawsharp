@@ -127,9 +127,14 @@ public static class ServiceCommand
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             var plistPath = LaunchdPlistPath();
-            AnsiConsole.MarkupLine(File.Exists(plistPath)
-                ? $"[[service]] Service plist installed at: {Markup.Escape(plistPath)}"
-                : "[[service]] Service not installed.");
+            if (File.Exists(plistPath))
+            {
+                AnsiConsole.MarkupLine($"[[service]] Service plist installed at: {Markup.Escape(plistPath)}");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[[service]] Service not installed.");
+            }
             return 0;
         }
 
@@ -211,10 +216,16 @@ public static class ServiceCommand
         await RunAsync("systemctl", $"{systemctlArgs} stop {ServiceName}", ct);
         await RunAsync("systemctl", $"{systemctlArgs} disable {ServiceName}", ct);
 
-        var unitDir = system
-            ? "/etc/systemd/system"
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        string unitDir;
+        if (system)
+        {
+            unitDir = "/etc/systemd/system";
+        }
+        else
+        {
+            unitDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 ".config", "systemd", "user");
+        }
 
         var unitPath = Path.Combine(unitDir, $"{ServiceName}.service");
         if (File.Exists(unitPath))
@@ -230,9 +241,15 @@ public static class ServiceCommand
 
     private static string SystemdUnit(string binaryPath, string? configPath, bool system)
     {
-        var envLine = configPath is not null
-            ? $"\nEnvironment=CLAWSHARP_CONFIG={configPath}"
-            : "";
+        string envLine;
+        if (configPath is not null)
+        {
+            envLine = $"\nEnvironment=CLAWSHARP_CONFIG={configPath}";
+        }
+        else
+        {
+            envLine = "";
+        }
 
         var wantedBy = system ? "multi-user.target" : "default.target";
 
@@ -312,15 +329,21 @@ public static class ServiceCommand
 
     private static string LaunchdPlist(string binaryPath, string? configPath)
     {
-        var envBlock = configPath is not null
-            ? $"""
-                   <key>EnvironmentVariables</key>
-                   <dict>
-                       <key>CLAWSHARP_CONFIG</key>
-                       <string>{configPath}</string>
-                   </dict>
-               """
-            : "";
+        string envBlock;
+        if (configPath is not null)
+        {
+            envBlock = $"""
+                            <key>EnvironmentVariables</key>
+                            <dict>
+                                <key>CLAWSHARP_CONFIG</key>
+                                <string>{configPath}</string>
+                            </dict>
+                        """;
+        }
+        else
+        {
+            envBlock = "";
+        }
 
         return $"""
                 <?xml version="1.0" encoding="UTF-8"?>

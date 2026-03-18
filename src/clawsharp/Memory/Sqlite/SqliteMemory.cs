@@ -14,7 +14,12 @@ namespace Clawsharp.Memory.Sqlite;
 ///     When sqlite-vec is available, uses vec0 virtual table for O(log N) ANN search;
 ///     otherwise falls back to FTS5 pre-filter + in-process cosine scoring.
 /// </summary>
-public sealed partial class SqliteMemory : IMemory
+public sealed partial class SqliteMemory(
+    IDbContextFactory<SqliteMemoryContext> contextFactory,
+    ILogger<SqliteMemory> logger,
+    IEmbeddingProvider? embeddingProvider = null,
+    IOptions<MemoryConfig>? memoryConfig = null)
+    : IMemory
 {
     private const int CandidateLimit = 500;
 
@@ -33,19 +38,13 @@ public sealed partial class SqliteMemory : IMemory
 
     private const string EmbeddingJsonColumn = "embedding";
 
-    private readonly IDbContextFactory<SqliteMemoryContext> _contextFactory;
+    private readonly double _halfLifeDays = memoryConfig?.Value.Decay?.HalfLifeDays ?? 0;
 
-    private readonly IEmbeddingProvider? _embeddingProvider;
-
-    private readonly double _halfLifeDays;
-
-    private readonly int _embeddingDimension;
+    private readonly int _embeddingDimension = memoryConfig?.Value.EmbeddingDimension ?? 1536;
 
     private volatile Task? _initTask;
 
     private readonly SemaphoreSlim _initLock = new(1, 1);
-
-    private readonly ILogger<SqliteMemory> _logger;
 
     /// <summary>Whether the vec0 virtual table was successfully created during init.</summary>
     private bool _vecTableReady;
@@ -85,23 +84,10 @@ public sealed partial class SqliteMemory : IMemory
               .OrderByDescending(f => f.Id)
               .Select(f => f));
 
-    public SqliteMemory(
-        IDbContextFactory<SqliteMemoryContext> contextFactory,
-        ILogger<SqliteMemory> logger,
-        IEmbeddingProvider? embeddingProvider = null,
-        IOptions<MemoryConfig>? memoryConfig = null)
-    {
-        _contextFactory = contextFactory;
-        _logger = logger;
-        _embeddingProvider = embeddingProvider;
-        _halfLifeDays = memoryConfig?.Value.Decay?.HalfLifeDays ?? 0;
-        _embeddingDimension = memoryConfig?.Value.EmbeddingDimension ?? 1536;
-    }
-
     public async Task<string?> GetContextAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var facts = new List<string>();
         await foreach (var content in GetRecentContentQuery(context).WithCancellation(ct))
         {
@@ -114,7 +100,7 @@ public sealed partial class SqliteMemory : IMemory
     public async Task AppendFactAsync(string fact, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
 
         // Wrap fact + FTS insert in a transaction to prevent orphaned data on crash
         await using var transaction = await context.Database.BeginTransactionAsync(ct);
@@ -125,44 +111,41 @@ public sealed partial class SqliteMemory : IMemory
             await context.SaveChangesAsync(ct);
 
             // Keep the FTS5 shadow table in sync
-            await context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO {FtsTable}(rowid, {Fact.ContentColumn}) VALUES ({{0}}, {{1}})",
-                new object[] { entity.Id, fact }, ct);
+            await context.Database.ExecuteSqlAsync(
+                $"INSERT INTO Facts_fts(rowid, Content) VALUES ({entity.Id}, {fact})", ct);
 
             await transaction.CommitAsync(ct);
 
             // Embed and store vector if provider is configured (outside transaction — non-critical)
-            if (_embeddingProvider is not null)
+            if (embeddingProvider is not null)
             {
                 try
                 {
-                    var embedding = await _embeddingProvider.EmbedAsync(fact, ct);
+                    var embedding = await embeddingProvider.EmbedAsync(fact, ct);
                     var json = EmbeddingMath.Serialize(embedding);
 
                     // Store in TEXT column (legacy, used by fallback path)
-                    await context.Database.ExecuteSqlRawAsync(
-                        $"UPDATE {Fact.TableName} SET {EmbeddingJsonColumn} = {{0}} WHERE \"Id\" = {{1}}",
-                        new object[] { json, entity.Id }, ct);
+                    await context.Database.ExecuteSqlAsync(
+                        $"""UPDATE Facts SET embedding = {json} WHERE "Id" = {entity.Id}""", ct);
 
                     // Also insert into vec0 virtual table if available
                     if (_vecTableReady && SqliteVecConnectionInterceptor.VecExtensionLoaded)
                     {
                         try
                         {
-                            await context.Database.ExecuteSqlRawAsync(
-                                $"INSERT INTO {VecTable}(rowid, {EmbeddingJsonColumn}) VALUES ({{0}}, {{1}})",
-                                new object[] { entity.Id, json }, ct);
+                            await context.Database.ExecuteSqlAsync(
+                                $"INSERT INTO Facts_vec(rowid, embedding) VALUES ({entity.Id}, {json})", ct);
                         }
                         catch (Exception ex)
                         {
-                            LogVecInsertFailed(_logger, ex, entity.Id, ex.Message);
+                            LogVecInsertFailed(logger, ex, entity.Id, ex.Message);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
                     // Embedding failure is non-fatal — fact is still stored without a vector
-                    LogMemoryOperationFailed(_logger, ex, ex.Message);
+                    LogMemoryOperationFailed(logger, ex, ex.Message);
                 }
             }
         }
@@ -176,7 +159,7 @@ public sealed partial class SqliteMemory : IMemory
     public async Task AppendHistoryAsync(string summary, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         context.History.Add(new HistoryEntry(summary, DateTimeOffset.UtcNow));
         await context.SaveChangesAsync(ct);
     }
@@ -184,23 +167,27 @@ public sealed partial class SqliteMemory : IMemory
     public async Task<IReadOnlyList<string>> SearchAsync(string query, int n = 5, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         try
         {
+            var ftsQuery = SanitizeFtsQuery(query);
+            FormattableString sql =
+                $"""
+                SELECT f.Content AS "Value" FROM Facts_fts
+                JOIN Facts f ON Facts_fts.rowid = f."Id"
+                WHERE Facts_fts MATCH {ftsQuery}
+                ORDER BY rank
+                LIMIT {n}
+                """;
+
             return await context.Database
-                                .SqlQueryRaw<string>($$"""
-                                                       SELECT f.{{Fact.ContentColumn}} AS "Value" FROM {{FtsTable}}
-                                                       JOIN {{Fact.TableName}} f ON {{FtsTable}}.rowid = f."Id"
-                                                       WHERE {{FtsTable}} MATCH {0}
-                                                       ORDER BY rank
-                                                       LIMIT {1}
-                                                       """, SanitizeFtsQuery(query), n)
+                                .SqlQuery<string>(sql)
                                 .ToListAsync(ct);
         }
         catch (Exception ex)
         {
             // FTS5 match error (e.g. syntax) -- fall back to LIKE
-            LogMemoryOperationFailed(_logger, ex, ex.Message);
+            LogMemoryOperationFailed(logger, ex, ex.Message);
             var pattern = $"%{EscapeLikePattern(query)}%";
             var results = new List<string>();
             await foreach (var content in SearchLikeFallbackQuery(context, pattern, n).WithCancellation(ct))
@@ -216,7 +203,7 @@ public sealed partial class SqliteMemory : IMemory
                                                              CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
 
         // If no query embedding, fall back to LIKE search returning Fact objects
         if (queryEmbedding is null || queryEmbedding.Length == 0)
@@ -240,7 +227,7 @@ public sealed partial class SqliteMemory : IMemory
             }
             catch (Exception ex)
             {
-                LogVecAnnSearchFailed(_logger, ex, ex.Message);
+                LogVecAnnSearchFailed(logger, ex, ex.Message);
             }
         }
 
@@ -264,14 +251,18 @@ public sealed partial class SqliteMemory : IMemory
     {
         var queryJson = EmbeddingMath.Serialize(queryEmbedding);
 
+        var knn = topK * OversampleFactor;
+        FormattableString sql =
+            $"""
+            SELECT v.rowid AS "Id", v.distance AS "Distance"
+            FROM Facts_vec v
+            WHERE v.embedding MATCH {queryJson}
+              AND k = {knn}
+            ORDER BY v.distance
+            """;
+
         var vecResults = await context.Database
-                                      .SqlQueryRaw<VecResult>($$"""
-                                                                SELECT v.rowid AS "Id", v.distance AS "Distance"
-                                                                FROM {{VecTable}} v
-                                                                WHERE v.{{EmbeddingJsonColumn}} MATCH {0}
-                                                                  AND k = {1}
-                                                                ORDER BY v.distance
-                                                                """, queryJson, topK * OversampleFactor)
+                                      .SqlQuery<VecResult>(sql)
                                       .ToListAsync(ct);
 
         if (vecResults.Count == 0)
@@ -327,43 +318,53 @@ public sealed partial class SqliteMemory : IMemory
         List<FactWithEmbedding> rows;
         try
         {
+            var ftsQuery = SanitizeFtsQuery(query);
+            FormattableString ftsSql =
+                $"""
+                SELECT f."Id", f."Content", f."CreatedAt",
+                       f.AccessCount AS "AccessCount", f.LastAccessedAt AS "LastAccessedAt",
+                       f.embedding AS "EmbeddingJson"
+                FROM Facts_fts
+                JOIN Facts f ON Facts_fts.rowid = f."Id"
+                WHERE Facts_fts MATCH {ftsQuery}
+                ORDER BY rank
+                LIMIT {CandidateLimit}
+                """;
+
             rows = await context.Database
-                                .SqlQueryRaw<FactWithEmbedding>($$"""
-                                                                  SELECT f."Id", f."Content", f."CreatedAt",
-                                                                         f.{{Fact.AccessCountColumn}} AS "AccessCount", f.{{Fact.LastAccessedAtColumn}} AS "LastAccessedAt",
-                                                                         f.{{EmbeddingJsonColumn}} AS "EmbeddingJson"
-                                                                  FROM {{FtsTable}}
-                                                                  JOIN {{Fact.TableName}} f ON {{FtsTable}}.rowid = f."Id"
-                                                                  WHERE {{FtsTable}} MATCH {0}
-                                                                  ORDER BY rank
-                                                                  LIMIT {{CandidateLimit}}
-                                                                  """, SanitizeFtsQuery(query))
+                                .SqlQuery<FactWithEmbedding>(ftsSql)
                                 .ToListAsync(ct);
 
             // FTS5 may return 0 results on no match — fall back to most-recent facts
             if (rows.Count == 0)
             {
+                FormattableString recentSql =
+                    $"""
+                    SELECT "Id", "Content", "CreatedAt",
+                           AccessCount AS "AccessCount", LastAccessedAt AS "LastAccessedAt",
+                           embedding AS "EmbeddingJson"
+                    FROM Facts ORDER BY "Id" DESC LIMIT {CandidateLimit}
+                    """;
+
                 rows = await context.Database
-                                    .SqlQuery<FactWithEmbedding>($"""
-                                                                  SELECT "Id", "Content", "CreatedAt",
-                                                                         {Fact.AccessCountColumn} AS "AccessCount", {Fact.LastAccessedAtColumn} AS "LastAccessedAt",
-                                                                         {EmbeddingJsonColumn} AS "EmbeddingJson"
-                                                                  FROM {Fact.TableName} ORDER BY "Id" DESC LIMIT {CandidateLimit}
-                                                                  """)
+                                    .SqlQuery<FactWithEmbedding>(recentSql)
                                     .ToListAsync(ct);
             }
         }
         catch (Exception ex)
         {
             // FTS5 syntax error — fall back to most-recent N facts
-            LogMemoryOperationFailed(_logger, ex, ex.Message);
+            LogMemoryOperationFailed(logger, ex, ex.Message);
+            FormattableString recentSql =
+                $"""
+                SELECT "Id", "Content", "CreatedAt",
+                       AccessCount AS "AccessCount", LastAccessedAt AS "LastAccessedAt",
+                       embedding AS "EmbeddingJson"
+                FROM Facts ORDER BY "Id" DESC LIMIT {CandidateLimit}
+                """;
+
             rows = await context.Database
-                                .SqlQueryRaw<FactWithEmbedding>($"""
-                                                                 SELECT "Id", "Content", "CreatedAt",
-                                                                        {Fact.AccessCountColumn} AS "AccessCount", {Fact.LastAccessedAtColumn} AS "LastAccessedAt",
-                                                                        {EmbeddingJsonColumn} AS "EmbeddingJson"
-                                                                 FROM {Fact.TableName} ORDER BY "Id" DESC LIMIT {CandidateLimit}
-                                                                 """)
+                                .SqlQuery<FactWithEmbedding>(recentSql)
                                 .ToListAsync(ct);
         }
 
@@ -415,7 +416,7 @@ public sealed partial class SqliteMemory : IMemory
     public async Task<IReadOnlyList<Fact>> ListFactsAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         var facts = new List<Fact>();
         await foreach (var fact in ListAllFactsQuery(context).WithCancellation(ct))
         {
@@ -428,24 +429,24 @@ public sealed partial class SqliteMemory : IMemory
     public async Task ClearAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
-        await context.Database.ExecuteSqlRawAsync($"DELETE FROM {FtsTable}", ct);
+        await context.Database.ExecuteSqlAsync($"DELETE FROM Facts_fts", ct);
 
         // Clear vec0 table if available
         if (_vecTableReady && SqliteVecConnectionInterceptor.VecExtensionLoaded)
         {
             try
             {
-                await context.Database.ExecuteSqlRawAsync($"DELETE FROM {VecTable}", ct);
+                await context.Database.ExecuteSqlAsync($"DELETE FROM Facts_vec", ct);
             }
             catch (Exception ex)
             {
-                LogVecClearFailed(_logger, ex, ex.Message);
+                LogVecClearFailed(logger, ex, ex.Message);
             }
         }
 
-        await context.Database.ExecuteSqlRawAsync($"DELETE FROM {Fact.TableName}", ct);
+        await context.Facts.ExecuteDeleteAsync(ct);
         // History entries are WORM (write-once read-many) — never deleted.
         // They represent immutable compaction snapshots and are preserved across clears.
     }
@@ -453,16 +454,14 @@ public sealed partial class SqliteMemory : IMemory
     public async Task<int> PruneExpiredFactsAsync(TimeSpan maxAge, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
-        var cutoff = (DateTimeOffset.UtcNow - maxAge).ToString("O");
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
+        var cutoff = DateTimeOffset.UtcNow - maxAge;
 
-        // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
-        // SQLite cannot translate DateTimeOffset comparisons in LINQ — use raw SQL.
-        // SQLite stores DateTimeOffset as ISO 8601 text; string comparison works for ordering.
-        var expired = await context.Database
-                                   .SqlQueryRaw<long>($$"""
-                                                        SELECT "Id" AS "Value" FROM {{Fact.TableName}} WHERE "CreatedAt" < {0}
-                                                        """, cutoff)
+        // ValueConverter stores DateTimeOffset as ISO 8601 text — lexicographic comparison works for same-offset values.
+        var expired = await context.Facts
+                                   .AsNoTracking()
+                                   .Where(f => f.CreatedAt < cutoff)
+                                   .Select(f => f.Id)
                                    .ToListAsync(ct);
 
         if (expired.Count == 0)
@@ -471,7 +470,7 @@ public sealed partial class SqliteMemory : IMemory
         }
 
         // Batch delete from FTS5 shadow table, vec0 table, and facts atomically to prevent index desync on crash.
-        // IDs are long values so string joining is safe (no injection risk) — same pattern as UpdateAccessCountsAsync.
+        // IDs are long values so string joining is safe (no injection risk).
         var idList = string.Join(",", expired);
         await using var transaction = await context.Database.BeginTransactionAsync(ct);
         try
@@ -488,12 +487,11 @@ public sealed partial class SqliteMemory : IMemory
                 }
                 catch (Exception ex)
                 {
-                    LogVecBatchDeleteFailed(_logger, ex, ex.Message);
+                    LogVecBatchDeleteFailed(logger, ex, ex.Message);
                 }
             }
 
-            await context.Database.ExecuteSqlRawAsync(
-                $"DELETE FROM \"{Fact.TableName}\" WHERE \"Id\" IN ({idList})", ct);
+            await context.Facts.Where(f => expired.Contains(f.Id)).ExecuteDeleteAsync(ct);
 
             await transaction.CommitAsync(ct);
         }
@@ -510,19 +508,18 @@ public sealed partial class SqliteMemory : IMemory
     {
         try
         {
-            await using var ctx = await _contextFactory.CreateDbContextAsync(ct);
-            var now = DateTimeOffset.UtcNow.ToString("O");
-            // NOTE: Raw SQL bypasses EF WORM validation; database triggers enforce the constraint at DB level.
-            // Batch update — IDs are long values so string joining is safe (no injection risk)
-            var idList = string.Join(",", ids);
-            await ctx.Database.ExecuteSqlRawAsync(
-                $"UPDATE {Fact.TableName} SET {Fact.AccessCountColumn} = {Fact.AccessCountColumn} + 1, {Fact.LastAccessedAtColumn} = {{0}} WHERE \"Id\" IN ({idList})",
-                new object[] { now }, ct);
+            await using var ctx = await contextFactory.CreateDbContextAsync(ct);
+            var now = DateTimeOffset.UtcNow;
+            await ctx.Facts
+                     .Where(f => ids.Contains(f.Id))
+                     .ExecuteUpdateAsync(s => s
+                         .SetProperty(f => f.AccessCount, f => f.AccessCount + 1)
+                         .SetProperty(f => f.LastAccessedAt, now), ct);
         }
         catch (Exception ex)
         {
             // Non-fatal — access tracking failure does not affect search results
-            LogMemoryOperationFailed(_logger, ex, ex.Message);
+            LogMemoryOperationFailed(logger, ex, ex.Message);
         }
     }
 
@@ -570,7 +567,7 @@ public sealed partial class SqliteMemory : IMemory
         "EF Core MigrateAsync builds the design-time model at runtime. Not compatible with NativeAOT; use migration bundles for AOT deployment.")]
     private async Task InitSchemaAsync(CancellationToken ct)
     {
-        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
         // MigrateAsync applies pending migrations. For existing databases originally created via
         // EnsureCreated, the __EFMigrationsHistory table will be created and the initial migration
         // marked as applied if the schema already matches.
@@ -578,14 +575,12 @@ public sealed partial class SqliteMemory : IMemory
         migrationCts.CancelAfter(TimeSpan.FromSeconds(30));
         await context.Database.MigrateAsync(migrationCts.Token);
         // FTS5 virtual table (content-table backed by facts)
-        await context.Database.ExecuteSqlRawAsync($"""
-                                                   CREATE VIRTUAL TABLE IF NOT EXISTS {FtsTable}
-                                                   USING fts5({Fact.ContentColumn}, content={Fact.TableName}, content_rowid=id);
-                                                   """);
+        await context.Database.ExecuteSqlAsync(
+            $"CREATE VIRTUAL TABLE IF NOT EXISTS Facts_fts USING fts5(Content, content=Facts, content_rowid=id)");
         // Add embedding column if not present (graceful migration)
         try
         {
-            await context.Database.ExecuteSqlRawAsync($"ALTER TABLE {Fact.TableName} ADD COLUMN {EmbeddingJsonColumn} TEXT");
+            await context.Database.ExecuteSqlAsync($"ALTER TABLE Facts ADD COLUMN embedding TEXT");
         }
         catch
         {
@@ -595,8 +590,7 @@ public sealed partial class SqliteMemory : IMemory
         // Add access tracking columns if not present (graceful migration)
         try
         {
-            await context.Database.ExecuteSqlRawAsync(
-                $"ALTER TABLE {Fact.TableName} ADD COLUMN {Fact.AccessCountColumn} INTEGER NOT NULL DEFAULT 0");
+            await context.Database.ExecuteSqlAsync($"ALTER TABLE Facts ADD COLUMN AccessCount INTEGER NOT NULL DEFAULT 0");
         }
         catch
         {
@@ -605,7 +599,7 @@ public sealed partial class SqliteMemory : IMemory
 
         try
         {
-            await context.Database.ExecuteSqlRawAsync($"ALTER TABLE {Fact.TableName} ADD COLUMN {Fact.LastAccessedAtColumn} TEXT");
+            await context.Database.ExecuteSqlAsync($"ALTER TABLE Facts ADD COLUMN LastAccessedAt TEXT");
         }
         catch
         {
@@ -622,12 +616,12 @@ public sealed partial class SqliteMemory : IMemory
                 var ddl = $"CREATE VIRTUAL TABLE IF NOT EXISTS {VecTable} USING vec0({EmbeddingJsonColumn} float[{dim}])";
                 await context.Database.ExecuteSqlRawAsync(ddl);
                 _vecTableReady = true;
-                LogSqliteVecLoaded(_logger, dim);
+                LogSqliteVecLoaded(logger, dim);
             }
             catch (Exception ex)
             {
                 _vecTableReady = false;
-                LogVecTableCreateFailed(_logger, ex, ex.Message);
+                LogVecTableCreateFailed(logger, ex, ex.Message);
             }
         }
     }

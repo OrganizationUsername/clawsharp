@@ -10,17 +10,15 @@ namespace Clawsharp.Tools.Mcp;
 /// Connects to an SSE endpoint to receive JSON-RPC responses,
 /// and POSTs JSON-RPC requests to a message endpoint provided by the server.
 /// </summary>
-internal sealed partial class SseMcpTransport : IMcpTransport
+internal sealed partial class SseMcpTransport(
+    HttpClient httpClient,
+    Uri sseUri,
+    string serverName,
+    Dictionary<string, string>? headers,
+    ILogger logger)
+    : IMcpTransport
 {
-    private readonly HttpClient _httpClient;
-
-    private readonly Uri _sseUri;
-
-    private readonly string _serverName;
-
-    private readonly ILogger _logger;
-
-    private readonly Dictionary<string, string> _headers;
+    private readonly Dictionary<string, string> _headers = headers ?? [];
 
     private readonly ConcurrentDictionary<int, TaskCompletionSource<McpResponse>> _pending = new();
 
@@ -37,20 +35,6 @@ internal sealed partial class SseMcpTransport : IMcpTransport
     private Task? _listenerTask;
 
     public bool IsConnected => _connected;
-
-    public SseMcpTransport(
-        HttpClient httpClient,
-        Uri sseUri,
-        string serverName,
-        Dictionary<string, string>? headers,
-        ILogger logger)
-    {
-        _httpClient = httpClient;
-        _sseUri = sseUri;
-        _serverName = serverName;
-        _logger = logger;
-        _headers = headers ?? [];
-    }
 
     /// <summary>
     /// Opens the SSE connection and waits for the server to send the message endpoint.
@@ -71,17 +55,17 @@ internal sealed partial class SseMcpTransport : IMcpTransport
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             throw new TimeoutException(
-                $"MCP SSE server '{_serverName}' did not send the endpoint event within 30s.");
+                $"MCP SSE server '{serverName}' did not send the endpoint event within 30s.");
         }
 
         if (_messageEndpoint is null)
         {
             throw new InvalidOperationException(
-                $"MCP SSE server '{_serverName}' SSE stream ended without sending an endpoint event.");
+                $"MCP SSE server '{serverName}' SSE stream ended without sending an endpoint event.");
         }
 
         _connected = true;
-        LogConnected(_logger, _serverName, _messageEndpoint);
+        LogConnected(logger, serverName, _messageEndpoint);
     }
 
     public async Task<McpResponse> SendRequestAsync(string method, JsonElement? parameters, CancellationToken ct)
@@ -89,7 +73,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
         if (_messageEndpoint is null)
         {
             throw new InvalidOperationException(
-                $"MCP SSE server '{_serverName}' is not connected (no message endpoint).");
+                $"MCP SSE server '{serverName}' is not connected (no message endpoint).");
         }
 
         var id = Interlocked.Increment(ref _nextId);
@@ -106,7 +90,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
         try
         {
             var json = JsonSerializer.Serialize(request, McpJsonContext.Default.McpRequest);
-            LogOutbound(_logger, _serverName, json);
+            LogOutbound(logger, serverName, json);
 
             var endpointUri = ResolveEndpointUri(_messageEndpoint);
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpointUri)
@@ -119,7 +103,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
                 httpRequest.Headers.TryAddWithoutValidation(key, value);
             }
 
-            using var httpResponse = await _httpClient.SendAsync(httpRequest, ct).ConfigureAwait(false);
+            using var httpResponse = await httpClient.SendAsync(httpRequest, ct).ConfigureAwait(false);
             httpResponse.EnsureSuccessStatusCode();
 
             // Response comes via the SSE stream, not the HTTP response body.
@@ -132,7 +116,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             throw new TimeoutException(
-                $"MCP SSE server '{_serverName}' did not respond to '{method}' within 30s.");
+                $"MCP SSE server '{serverName}' did not respond to '{method}' within 30s.");
         }
         finally
         {
@@ -145,7 +129,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
         if (_messageEndpoint is null)
         {
             throw new InvalidOperationException(
-                $"MCP SSE server '{_serverName}' is not connected (no message endpoint).");
+                $"MCP SSE server '{serverName}' is not connected (no message endpoint).");
         }
 
         var notification = new McpRequest
@@ -156,7 +140,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
         };
 
         var json = JsonSerializer.Serialize(notification, McpJsonContext.Default.McpRequest);
-        LogOutboundNotification(_logger, _serverName, json);
+        LogOutboundNotification(logger, serverName, json);
 
         var endpointUri = ResolveEndpointUri(_messageEndpoint);
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpointUri)
@@ -169,7 +153,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
             httpRequest.Headers.TryAddWithoutValidation(key, value);
         }
 
-        using var httpResponse = await _httpClient.SendAsync(httpRequest, ct).ConfigureAwait(false);
+        using var httpResponse = await httpClient.SendAsync(httpRequest, ct).ConfigureAwait(false);
         httpResponse.EnsureSuccessStatusCode();
     }
 
@@ -184,7 +168,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
             return absoluteUri;
         }
 
-        return new Uri(_sseUri, endpoint);
+        return new Uri(sseUri, endpoint);
     }
 
     /// <summary>
@@ -194,7 +178,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, _sseUri);
+            using var request = new HttpRequestMessage(HttpMethod.Get, sseUri);
             request.Headers.Accept.ParseAdd("text/event-stream");
 
             foreach (var (key, value) in _headers)
@@ -202,7 +186,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
                 request.Headers.TryAddWithoutValidation(key, value);
             }
 
-            using var response = await _httpClient.SendAsync(
+            using var response = await httpClient.SendAsync(
                 request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
@@ -270,7 +254,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
         }
         catch (Exception ex)
         {
-            LogListenerError(_logger, _serverName, ex);
+            LogListenerError(logger, serverName, ex);
         }
         finally
         {
@@ -280,7 +264,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
             foreach (var (id, tcs) in _pending)
             {
                 tcs.TrySetException(new InvalidOperationException(
-                    $"MCP SSE server '{_serverName}' connection closed while waiting for response to request {id}."));
+                    $"MCP SSE server '{serverName}' connection closed while waiting for response to request {id}."));
             }
 
             _pending.Clear();
@@ -292,11 +276,11 @@ internal sealed partial class SseMcpTransport : IMcpTransport
     /// </summary>
     private void ProcessSseEvent(string? eventType, string data)
     {
-        if (string.Equals(eventType, "endpoint", StringComparison.Ordinal))
+        if (string.Equals(eventType, McpSseEventType.Endpoint, StringComparison.Ordinal))
         {
             // The server sends the message endpoint URL
             _messageEndpoint = data.Trim();
-            LogEndpointReceived(_logger, _serverName, _messageEndpoint);
+            LogEndpointReceived(logger, serverName, _messageEndpoint);
 
             // Signal that the endpoint is ready
             try
@@ -313,9 +297,9 @@ internal sealed partial class SseMcpTransport : IMcpTransport
 
         // Default event type or "message" -- parse as JSON-RPC response
         if (string.IsNullOrEmpty(eventType)
-            || string.Equals(eventType, "message", StringComparison.Ordinal))
+            || string.Equals(eventType, McpSseEventType.Message, StringComparison.Ordinal))
         {
-            LogInbound(_logger, _serverName, data);
+            LogInbound(logger, serverName, data);
 
             McpResponse? response;
             try
@@ -324,7 +308,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
             }
             catch (JsonException ex)
             {
-                LogParseError(_logger, _serverName, ex);
+                LogParseError(logger, serverName, ex);
                 return;
             }
 
@@ -353,7 +337,7 @@ internal sealed partial class SseMcpTransport : IMcpTransport
                 }
                 catch (Exception ex)
                 {
-                    LogDisposeError(_logger, _serverName, ex);
+                    LogDisposeError(logger, serverName, ex);
                 }
             }
         }

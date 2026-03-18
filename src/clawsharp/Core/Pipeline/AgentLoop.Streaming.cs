@@ -28,9 +28,15 @@ public sealed partial class AgentLoop
         CancellationToken ct,
         IProvider? providerOverride = null)
     {
-        var streamingCandidates = providerOverride is IStreamingProvider sp
-            ? [(sp.Name, sp)]
-            : GetStreamingFallbackCandidates();
+        IReadOnlyList<(string Name, IStreamingProvider Provider)> streamingCandidates;
+        if (providerOverride is IStreamingProvider sp)
+        {
+            streamingCandidates = [(sp.Name, sp)];
+        }
+        else
+        {
+            streamingCandidates = GetStreamingFallbackCandidates();
+        }
         long totalCacheRead = 0;
         long totalCacheWrite = 0;
         string? lastThinking = null;
@@ -93,7 +99,11 @@ public sealed partial class AgentLoop
 
             // Reconstruct tool calls from the builders.
             var toolCalls = ReconstructToolCalls(result.ToolBuilders);
-            var assistantText = result.Text.Length > 0 ? result.Text.ToString() : null;
+            string? assistantText = null;
+            if (result.Text.Length > 0)
+            {
+                assistantText = result.Text.ToString();
+            }
 
             if (toolCalls?.Count > 0)
             {
@@ -263,10 +273,16 @@ public sealed partial class AgentLoop
 
         return toolBuilders
                .OrderBy(kv => kv.Key)
-               .Select(kv => new ToolCall(
-                   kv.Value.Id,
-                   kv.Value.Name,
-                   kv.Value.Args.Length > 0 ? kv.Value.Args.ToString() : "{}"))
+               .Select(kv =>
+               {
+                   var args = "{}";
+                   if (kv.Value.Args.Length > 0)
+                   {
+                       args = kv.Value.Args.ToString();
+                   }
+
+                   return new ToolCall(kv.Value.Id, kv.Value.Name, args);
+               })
                .ToList();
     }
 
