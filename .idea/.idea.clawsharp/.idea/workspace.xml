@@ -18,10 +18,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c6ae6c98-609d-4435-9296-388289a08aa2" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.clawsharp/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.clawsharp/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Email/EmailChannel.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Email/EmailChannel.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/clawsharp/Channels/Mattermost/MattermostChannel.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Channels/Mattermost/MattermostChannel.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/clawsharp/Cli/GatewayHost.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Cli/GatewayHost.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.Pipeline.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.Pipeline.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.SlashCommands.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/AgentLoop.SlashCommands.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/SlashCommandRouter.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Core/Pipeline/SlashCommandRouter.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Memory/Redis/RedisMemory.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Memory/Redis/RedisMemory.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Providers/Anthropic/AnthropicProvider.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Providers/Anthropic/AnthropicProvider.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Providers/OpenAi/OpenAiProvider.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Providers/OpenAi/OpenAiProvider.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/SpawnTool.cs" beforeDir="false" afterPath="$PROJECT_DIR$/src/clawsharp/Tools/Ops/SpawnTool.cs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,6 +48,7 @@
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/8b3941da12e33bbbd3c947c3ecf16ad6e73a9ebef3f83ed2b886b46e2cd7322/ServiceCollectionHostedServiceExtensions.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/c7d2d0793edc79fa7247b02dcb8a48f43fea46ab817e9b44b22a243e8b09fad/CommandAppOfT.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$USER_HOME$/.nuget/packages/sqlite-vec/0.1.7-alpha.2.1/contentFiles/cs/netstandard2.0/Vector/Vector.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/global.json" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/src/clawsharp/bin/Debug/net10.0/clawsharp.deps.json" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/tests/clawsharp.Tests/AgentLoopTests.cs" root0="FORCE_HIGHLIGHTING" />
   </component>
@@ -64,39 +69,39 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;.NET Project.clawsharp agent.executor&quot;: &quot;Debug&quot;,
-    &quot;.NET Project.clawsharp gateway.executor&quot;: &quot;Debug&quot;,
-    &quot;.NET Project.clawsharp.executor&quot;: &quot;Run&quot;,
-    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;Docker.compose.yaml: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Git.Working.Tree.Tab.closed.by.user&quot;: &quot;closed&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Publish to IIS.clawsharp: linux-x64.executor&quot;: &quot;Run&quot;,
-    &quot;Publish to folder.clawsharp - Publish - Linux x64.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;analytics-schema-and-tests&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/chase/Coding/Scufpad&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/home/chase/Coding/CSharp/Personal/Agents/clawsharp/src/clawsharp-web/node_modules/typescript/lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    ".NET Project.clawsharp agent.executor": "Debug",
+    ".NET Project.clawsharp gateway.executor": "Debug",
+    ".NET Project.clawsharp.executor": "Run",
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "Docker.compose.yaml: Compose Deployment.executor": "Run",
+    "Git.Working.Tree.Tab.closed.by.user": "closed",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Publish to IIS.clawsharp: linux-x64.executor": "Run",
+    "Publish to folder.clawsharp - Publish - Linux x64.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "cidr.known.project.marker": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "sibling-feature-sync",
+    "last_opened_file_path": "/home/chase/Coding/Scufpad",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "preferences.lookFeel",
+    "ts.external.directory.path": "/home/chase/Coding/CSharp/Personal/Agents/clawsharp/src/clawsharp-web/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
-  <component name="RunManager" selected="Docker.compose.yaml: Compose Deployment">
+}]]></component>
+  <component name="RunManager" selected=".NET Project.clawsharp">
     <configuration name="clawsharp - Publish - Linux x64" type="DotNetFolderPublish" factoryName="Publish to folder">
       <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" self_contained="true" target_folder="$PROJECT_DIR$/dist/linux-x64" target_framework="net10.0" uuid_high="-6493738158586881504" uuid_low="1373885070056178611">
         <runtimes>

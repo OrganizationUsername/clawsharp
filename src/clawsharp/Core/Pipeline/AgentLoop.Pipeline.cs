@@ -117,7 +117,8 @@ public sealed partial class AgentLoop
                 UserText: messages.LastOrDefault(m => m.Role == MessageRole.User)?.Content ?? "",
                 RecentToolCalls: session.Messages.TakeLast(5).Count(m => m.Role == MessageRole.Tool),
                 ConversationDepth: session.Messages.Count,
-                ModelOverride: inbound.ModelOverride), ct).ConfigureAwait(false);
+                ModelOverride: inbound.ModelOverride,
+                SessionModelOverride: session.ModelOverride), ct).ConfigureAwait(false);
         var actualModel = routeResult.Model;
 
         // Budget check — reject before calling the provider if limits are exceeded.
@@ -345,10 +346,26 @@ public sealed partial class AgentLoop
         // Deliver any files queued by SendFileTool during the tool-call loop.
         await DeliverPendingFilesAsync(channel, outbound, ct).ConfigureAwait(false);
 
-        // Memory consolidation — awaited after send to prevent concurrent session access.
+        // Memory consolidation — fire-and-forget after session save + reply send.
+        // The session is already saved above, so this only writes a summary to memory.
+        // Must not block the response pipeline.
         if (_defaults.ConsolidateEvery > 0 && session.TotalMessageCount % _defaults.ConsolidateEvery == 0)
         {
-            await ConsolidateMemoryAsync(session, ct).ConfigureAwait(false);
+            // Snapshot the messages list before handing off to the background task.
+            // session.Messages is a mutable List<ChatMessage> that the next incoming
+            // message could modify while consolidation is still reading it.
+            var messagesSnapshot = session.Messages.ToList();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ConsolidateMemoryAsync(messagesSnapshot, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Background memory consolidation failed");
+                }
+            });
         }
 
         // Post-turn durable fact extraction — accumulate turns and periodically extract facts.
@@ -455,12 +472,12 @@ public sealed partial class AgentLoop
         }
     }
 
-    private async Task ConsolidateMemoryAsync(Session session, CancellationToken ct)
+    private async Task ConsolidateMemoryAsync(List<ChatMessage> messages, CancellationToken ct)
     {
         try
         {
             // Build a mini-summary from the last N messages
-            var recentMessages = session.Messages.TakeLast(20).ToList();
+            var recentMessages = messages.TakeLast(20).ToList();
             var sb = new StringBuilder("Summarize the key facts and decisions from this conversation in 3-5 bullet points:\n\n");
             foreach (var m in recentMessages)
             {

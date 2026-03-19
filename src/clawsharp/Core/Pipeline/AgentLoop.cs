@@ -285,7 +285,7 @@ public sealed partial class AgentLoop
             }
 
             // Slash command interception — handle before the LLM sees the message.
-            var slashResult = SlashCommandRouter.TryHandle(inbound.Text, out var slashError);
+            var slashResult = SlashCommandRouter.TryHandle(inbound.Text, out var slashError, out var slashArg);
             if (slashError is not null)
             {
                 if (channel is not null)
@@ -298,7 +298,7 @@ public sealed partial class AgentLoop
 
             if (slashResult.HasValue)
             {
-                var reply = await HandleSlashCommandAsync(slashResult.Value, session, ct).ConfigureAwait(false);
+                var reply = await HandleSlashCommandAsync(slashResult.Value, session, slashArg, ct).ConfigureAwait(false);
                 if (reply is not null && channel is not null)
                 {
                     await channel.SendAsync(outbound with { Text = reply }, ct).ConfigureAwait(false);

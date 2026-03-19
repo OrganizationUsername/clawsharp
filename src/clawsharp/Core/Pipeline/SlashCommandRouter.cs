@@ -12,7 +12,7 @@ public static class SlashCommandRouter
     /// </summary>
     public static SlashCommandResult? TryHandle(string? text)
     {
-        return TryHandle(text, out _);
+        return TryHandle(text, out _, out _);
     }
 
     /// <summary>
@@ -23,7 +23,19 @@ public static class SlashCommandRouter
     /// </summary>
     public static SlashCommandResult? TryHandle(string? text, out string? errorMessage)
     {
+        return TryHandle(text, out errorMessage, out _);
+    }
+
+    /// <summary>
+    ///     Attempts to parse a slash command. Returns a <see cref="SlashCommandResult" />,
+    ///     or <c>null</c> if the text is not a slash command and should be forwarded to the LLM.
+    ///     <paramref name="argument" /> contains the parsed argument for commands that carry data
+    ///     (e.g. <c>/model gpt-4o</c>).
+    /// </summary>
+    public static SlashCommandResult? TryHandle(string? text, out string? errorMessage, out string? argument)
+    {
         errorMessage = null;
+        argument = null;
 
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -50,7 +62,7 @@ public static class SlashCommandRouter
             return null;
         }
 
-        return cmd switch
+        var result = cmd switch
         {
             "/new" or "/clear" => SlashCommandResult.ClearSession,
             "/compact" => SlashCommandResult.TriggerCompaction,
@@ -67,8 +79,13 @@ public static class SlashCommandRouter
                 "clear" => SlashCommandResult.ClearGoals,
                 _ => SlashCommandResult.ShowGoals,
             },
-            _ => null, // unknown slash command -- let the LLM handle it
+            "/model" => SlashCommandResult.SetModel,
+            _ => (SlashCommandResult?)null, // unknown slash command -- let the LLM handle it
         };
+
+        argument = arg;
+
+        return result;
     }
 }
 
@@ -92,4 +109,6 @@ public enum SlashCommandResult
     ShowGoals,
 
     ClearGoals,
+
+    SetModel,
 }

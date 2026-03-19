@@ -103,4 +103,37 @@ public sealed class AgentDefaults
     /// (3 retries, exponential backoff 1s→30s, 120s timeout, no circuit breaker).
     /// </summary>
     public ResilienceConfig? Resilience { get; init; }
+
+    /// <summary>
+    /// Maximum time allowed for a sub-agent spawn to complete before it is cancelled.
+    /// Defaults to 60 seconds. Configurable to allow longer-running sub-agent tasks.
+    /// </summary>
+    [JsonConverter(typeof(TimeSpanSecondsConverter))]
+    public TimeSpan SpawnTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    ///     Maximum allowed spawn timeout. <see cref="CancellationTokenSource.CancelAfter"/>
+    ///     throws <see cref="ArgumentOutOfRangeException"/> for values exceeding ~49.7 days.
+    /// </summary>
+    internal static readonly TimeSpan MaxSpawnTimeout = TimeSpan.FromHours(24);
+
+    /// <summary>
+    ///     Clamps a configured spawn timeout to a safe range.
+    ///     Zero/negative values fall back to 60 seconds.
+    ///     Excessively large values are capped at <see cref="MaxSpawnTimeout"/>.
+    /// </summary>
+    internal static TimeSpan ClampSpawnTimeout(TimeSpan configured)
+    {
+        if (configured <= TimeSpan.Zero)
+        {
+            return TimeSpan.FromSeconds(60);
+        }
+
+        if (configured > MaxSpawnTimeout)
+        {
+            return MaxSpawnTimeout;
+        }
+
+        return configured;
+    }
 }

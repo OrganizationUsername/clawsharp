@@ -67,6 +67,7 @@ namespace Clawsharp.Config;
  // Limits
  JsonSerializable(typeof(LimitsConfig)),
  // Collections
+ JsonSerializable(typeof(Dictionary<string, string>)), JsonSerializable(typeof(List<string>)),
  JsonSerializable(typeof(List<CronEntry>)), JsonSerializable(typeof(Dictionary<string, ProviderConfig>)),
  JsonSerializable(typeof(Dictionary<string, McpServerConfig>)),
  JsonSerializable(typeof(Dictionary<string, ChannelConfig>)),

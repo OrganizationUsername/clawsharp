@@ -28,7 +28,9 @@ public static partial class RouteModel
         /// <summary>Total number of messages in the session (conversation depth).</summary>
         int ConversationDepth,
         /// <summary>Explicit model override (e.g. from cron job config). Null means use routing.</summary>
-        string? ModelOverride);
+        string? ModelOverride,
+        /// <summary>Session-persistent model override set via /model command. Lower priority than ModelOverride.</summary>
+        string? SessionModelOverride = null);
 
     public sealed record Result(
         /// <summary>The selected model identifier.</summary>
@@ -44,10 +46,16 @@ public static partial class RouteModel
     {
         var cfg = defaults.Value;
 
-        // Per-message model override takes highest priority — skip routing entirely.
+        // Per-message model override (e.g. cron job) takes highest priority — skip routing entirely.
         if (query.ModelOverride is not null)
         {
             return ValueTask.FromResult(new Result(query.ModelOverride, WasRouted: false));
+        }
+
+        // Session-persistent model override (via /model command) takes second priority.
+        if (query.SessionModelOverride is not null)
+        {
+            return ValueTask.FromResult(new Result(query.SessionModelOverride, WasRouted: false));
         }
 
         // Intelligent model routing: score complexity and dispatch to simple model if below threshold.

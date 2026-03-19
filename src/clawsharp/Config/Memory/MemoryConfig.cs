@@ -7,7 +7,7 @@ namespace Clawsharp.Config.Memory;
 public sealed class MemoryConfig
 {
     /// <summary>
-    /// Backend to use: "markdown" | "sqlite" | "postgres" | "mssql".
+    /// Backend to use: "markdown" | "sqlite" | "postgres" | "mssql" | "redis".
     /// </summary>
     [Required]
     public string Backend { get; init; } = "markdown";

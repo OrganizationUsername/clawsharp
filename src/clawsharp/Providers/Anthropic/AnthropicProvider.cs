@@ -5,9 +5,15 @@ using Clawsharp.Core.Utilities;
 
 namespace Clawsharp.Providers.Anthropic;
 
-public sealed class AnthropicProvider(IHttpClientFactory httpClientFactory, string apiKey, string name = "anthropic")
+public sealed class AnthropicProvider(
+    IHttpClientFactory httpClientFactory,
+    string apiKey,
+    string name = "anthropic",
+    Dictionary<string, string>? extraHeaders = null,
+    List<string>? apiKeys = null)
     : IProvider, IStreamingProvider
 {
+    private readonly ApiKeyRotator _keyRotator = new(apiKey, apiKeys);
     public string Name { get; } = name;
 
     /// <inheritdoc />
@@ -223,19 +229,34 @@ public sealed class AnthropicProvider(IHttpClientFactory httpClientFactory, stri
     /// Adds Anthropic-specific auth headers to an outgoing HTTP request.
     /// OAuth setup tokens (<c>sk-ant-oat01-</c> prefix) are sent as <c>Authorization: Bearer</c>;
     /// standard API keys use the <c>x-api-key</c> header.
+    /// When <see cref="apiKeys"/> is configured, rotates through keys using round-robin.
     /// </summary>
     private void ConfigureHeaders(HttpRequestMessage req)
     {
-        if (apiKey.StartsWith("sk-ant-oat01-", StringComparison.Ordinal))
+        var effectiveKey = _keyRotator.GetNext();
+
+        if (effectiveKey.StartsWith("sk-ant-oat01-", StringComparison.Ordinal))
         {
-            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", effectiveKey);
         }
         else
         {
-            req.Headers.Add("x-api-key", apiKey);
+            req.Headers.Add("x-api-key", effectiveKey);
         }
 
         req.Headers.Add(ClawsharpConstants.HttpHeaders.AnthropicApiVersion, ClawsharpConstants.AnthropicVersion);
+
+        if (extraHeaders is not null)
+        {
+            foreach (var (headerName, headerValue) in extraHeaders)
+            {
+                if (string.Equals(headerName, "Authorization", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(headerName, "x-api-key", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                req.Headers.TryAddWithoutValidation(headerName, headerValue);
+            }
+        }
     }
 
     /// <summary>

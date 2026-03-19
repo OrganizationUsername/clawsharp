@@ -39,8 +39,6 @@ public sealed partial class SpawnTool(
 {
     private const int MaxSpawnDepth = 2;
 
-    private static readonly TimeSpan SpawnTimeout = TimeSpan.FromSeconds(60);
-
     /// <summary>
     ///     Current spawn depth of the parent that owns this tool instance.
     ///     Reads from the per-async-flow AsyncLocal in ToolRegistry.
@@ -137,8 +135,10 @@ public sealed partial class SpawnTool(
         var displayName = agentName ?? spawnId;
         LogSpawning(logger, displayName, CurrentSpawnDepth + 1);
 
+        var spawnTimeout = AgentDefaults.ClampSpawnTimeout(defaults.SpawnTimeout);
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(SpawnTimeout);
+        cts.CancelAfter(spawnTimeout);
 
         try
         {
@@ -149,7 +149,7 @@ public sealed partial class SpawnTool(
         catch (OperationCanceledException)
         {
             LogSpawnTimedOut(logger, displayName);
-            return $"Error: sub-agent '{displayName}' timed out after {SpawnTimeout.TotalSeconds}s.";
+            return $"Error: sub-agent '{displayName}' timed out after {spawnTimeout.TotalSeconds}s.";
         }
         catch (Exception ex)
         {

@@ -127,7 +127,7 @@ public sealed class ConfigValidatorTests
     [Test]
     public void Validate_UnknownMemoryBackend_ReturnsError()
     {
-        var config = ValidConfig(memoryBackend: "redis");
+        var config = ValidConfig(memoryBackend: "cassandra");
 
         ConfigValidator.Validate(config).ShouldContain(e => e.Contains("memory.backend"));
     }

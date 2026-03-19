@@ -314,7 +314,7 @@ public sealed partial class WebChannel : IHostedLifecycleService, IStreamingChan
     }
 
     /// <summary>Normalize IPv4-mapped-IPv6 addresses to IPv4 so dual-stack clients get a single rate-limit bucket.</summary>
-    private static IPAddress? NormalizeIp(IPAddress? ip)
+    internal static IPAddress? NormalizeIp(IPAddress? ip)
     {
         if (ip is null)
         {

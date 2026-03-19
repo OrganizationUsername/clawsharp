@@ -34,7 +34,9 @@ using Clawsharp.Memory;
 using Clawsharp.Memory.Markdown;
 using Clawsharp.Memory.MsSql;
 using Clawsharp.Memory.Postgres;
+using Clawsharp.Memory.Redis;
 using Clawsharp.Memory.Sqlite;
+using StackExchange.Redis;
 using Clawsharp.Providers;
 using Clawsharp.Security;
 using Clawsharp.Tools;
@@ -561,6 +563,24 @@ public static partial class GatewayHost
                 new SqliteMemory(
                     sp.GetRequiredService<IDbContextFactory<SqliteMemoryContext>>(),
                     sp.GetRequiredService<ILogger<SqliteMemory>>(),
+                    sp.GetService<IEmbeddingProvider>(),
+                    sp.GetRequiredService<IOptions<MemoryConfig>>()));
+        }
+        else if (memBackend == MemoryBackend.Redis)
+        {
+            var cs = appConfig.Memory.ConnectionString ?? "localhost:6379";
+            if (appConfig.Memory.ConnectionString is null)
+            {
+                using var redisLogFactory = LoggerFactory.Create(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+                var redisLogger = redisLogFactory.CreateLogger("Redis");
+                redisLogger.LogWarning("No memory.connectionString configured for Redis backend — using default '{Default}'", cs);
+            }
+
+            services.AddSingleton<IConnectionMultiplexer>(sp => ConnectionMultiplexer.Connect(cs));
+            services.AddSingleton<IMemory>(sp =>
+                new RedisMemory(
+                    sp.GetRequiredService<IConnectionMultiplexer>(),
+                    sp.GetRequiredService<ILogger<RedisMemory>>(),
                     sp.GetService<IEmbeddingProvider>(),
                     sp.GetRequiredService<IOptions<MemoryConfig>>()));
         }

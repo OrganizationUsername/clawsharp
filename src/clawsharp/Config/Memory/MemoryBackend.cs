@@ -17,4 +17,7 @@ public partial class MemoryBackend
 
     /// <summary>Microsoft SQL Server with optional CONTAINS.</summary>
     public static readonly MemoryBackend MsSql = new("mssql");
+
+    /// <summary>Redis with RediSearch for full-text and vector search.</summary>
+    public static readonly MemoryBackend Redis = new("redis");
 }

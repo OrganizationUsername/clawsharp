@@ -113,6 +113,17 @@ public sealed class ToolRegistry : IToolRegistry
             StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>Test-only constructor for exercising ExecuteAsync error handling without full DI.</summary>
+    internal ToolRegistry(IEnumerable<Tool> tools, ILoggerFactory loggerFactory)
+    {
+        _logger = loggerFactory.CreateLogger<ToolRegistry>();
+        _maxToolOutputChars = 100_000;
+        _maxNonCliSensitivity = ToolSensitivity.Critical;
+        _tools = new ConcurrentDictionary<string, Tool>(
+            tools.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>Registers a tool dynamically (e.g. from an MCP server).</summary>
     public void Register(Tool tool) => _tools[tool.Name] = tool;
 

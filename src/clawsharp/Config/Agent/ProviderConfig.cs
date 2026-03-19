@@ -41,4 +41,17 @@ public sealed class ProviderConfig
     /// Useful for Azure OpenAI (<c>"api-key"</c>) and similar non-standard auth schemes.
     /// </summary>
     public string? AuthHeader { get; init; }
+
+    /// <summary>
+    /// Additional HTTP headers to include on every request to this provider.
+    /// Useful for custom routing headers, organization IDs, or proxy authentication.
+    /// </summary>
+    public Dictionary<string, string>? ExtraHeaders { get; init; }
+
+    /// <summary>
+    /// Multiple API keys for round-robin rotation. When set, <see cref="ApiKey"/> is used as
+    /// the first key and these are used as additional keys. Keys are rotated on each request
+    /// using a simple round-robin counter.
+    /// </summary>
+    public List<string>? ApiKeys { get; init; }
 }

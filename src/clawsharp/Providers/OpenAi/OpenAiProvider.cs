@@ -11,9 +11,12 @@ public sealed class OpenAiProvider(
     string baseUrl,
     string apiKey,
     string name = "openai",
-    string? authHeader = null)
+    string? authHeader = null,
+    Dictionary<string, string>? extraHeaders = null,
+    List<string>? apiKeys = null)
     : IProvider, IStreamingProvider, IHealthCheckableProvider
 {
+    private readonly ApiKeyRotator _keyRotator = new(apiKey, apiKeys);
     private readonly string _baseUrl = baseUrl.TrimEnd('/');
 
     public string Name { get; } = name;
@@ -226,21 +229,34 @@ public sealed class OpenAiProvider(
     /// the API key is sent as a custom header (e.g. <c>api-key</c> for Azure OpenAI);
     /// otherwise falls back to standard <c>Authorization: Bearer</c>.
     /// Skipped entirely when the API key is empty (local providers like Ollama / LM Studio).
+    /// When <see cref="apiKeys"/> is configured, rotates through keys using round-robin.
     /// </summary>
     private void ConfigureHeaders(HttpRequestMessage req)
     {
-        if (string.IsNullOrEmpty(apiKey))
+        var effectiveKey = _keyRotator.GetNext();
+
+        if (!string.IsNullOrEmpty(effectiveKey))
         {
-            return;
+            if (authHeader is not null)
+            {
+                req.Headers.TryAddWithoutValidation(authHeader, effectiveKey);
+            }
+            else
+            {
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", effectiveKey);
+            }
         }
 
-        if (authHeader is not null)
+        if (extraHeaders is not null)
         {
-            req.Headers.TryAddWithoutValidation(authHeader, apiKey);
-        }
-        else
-        {
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            foreach (var (headerName, headerValue) in extraHeaders)
+            {
+                if (string.Equals(headerName, "Authorization", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(headerName, "x-api-key", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                req.Headers.TryAddWithoutValidation(headerName, headerValue);
+            }
         }
     }
 

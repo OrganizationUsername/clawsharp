@@ -1,5 +1,6 @@
 using Clawsharp.Memory.MsSql;
 using Clawsharp.Memory.Postgres;
+using Clawsharp.Memory.Redis;
 using Clawsharp.Memory.Sqlite;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -7,8 +8,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Pgvector.EntityFrameworkCore;
 using Respawn;
+using StackExchange.Redis;
 using Testcontainers.MsSql;
 using Testcontainers.PostgreSql;
+using Testcontainers.Redis;
 
 namespace Clawsharp.Tests.Integration.Memory;
 
@@ -350,6 +353,18 @@ public static class HybridSearchTests
         }
 
         [Test]
+        public async Task SearchHybridAsync_CaseInsensitive_FindsResults()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("User Prefers DARK Mode");
+
+            var results = await memory.SearchHybridAsync("dark");
+
+            results.ShouldNotBeEmpty();
+            results.ShouldContain(f => f.Content.Contains("DARK"));
+        }
+
+        [Test]
         public async Task TsQuerySearch_MatchingQuery_FindsResults()
         {
             var memory = CreateMemory();
@@ -492,6 +507,18 @@ public static class HybridSearchTests
         }
 
         [Test]
+        public async Task SearchHybridAsync_CaseInsensitive_FindsResults()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("User Prefers DARK Mode");
+
+            var results = await memory.SearchHybridAsync("dark");
+
+            results.ShouldNotBeEmpty();
+            results.ShouldContain(f => f.Content.Contains("DARK"));
+        }
+
+        [Test]
         public async Task ClearAsync_RemovesFacts_PreservesHistory()
         {
             var memory = CreateMemory();
@@ -514,6 +541,197 @@ public static class HybridSearchTests
             cmd.CommandText = "SELECT COUNT(*) FROM History";
             var historyCount = (int)(await cmd.ExecuteScalarAsync())!;
             historyCount.ShouldBeGreaterThanOrEqualTo(1);
+        }
+    }
+
+    [TestFixture]
+    [Category("Integration")]
+    public sealed class RedisHybridSearchTests
+    {
+        private RedisContainer _container = null!;
+
+        private IConnectionMultiplexer _redis = null!;
+
+        [OneTimeSetUp]
+        public async Task OneTimeSetUp()
+        {
+            _container = new RedisBuilder("redis/redis-stack:latest").Build();
+            await _container.StartAsync();
+            _redis = await ConnectionMultiplexer.ConnectAsync(
+                $"{_container.GetConnectionString()},allowAdmin=true");
+
+            // Init schema — trigger lazy index creation
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("schema init fact");
+            await memory.ClearAsync();
+        }
+
+        [OneTimeTearDown]
+        public async Task OneTimeTearDown()
+        {
+            _redis.Dispose();
+            await _container.DisposeAsync();
+        }
+
+        [SetUp]
+        public async Task SetUp()
+        {
+            // Flush all keys except the RediSearch index (which is recreated on init)
+            var db = _redis.GetDatabase();
+            var server = _redis.GetServers()[0];
+            await server.FlushDatabaseAsync();
+
+            // Re-initialize schema after flush
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("setup fact");
+            await memory.ClearAsync();
+        }
+
+        private RedisMemory CreateMemory()
+        {
+            return new RedisMemory(_redis, NullLogger<RedisMemory>.Instance);
+        }
+
+        [Test]
+        public async Task SearchHybridAsync_MatchingQuery_FindsResults()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("user prefers dark mode");
+            await memory.AppendFactAsync("user enjoys hiking on weekends");
+            await memory.AppendFactAsync("user likes pizza with extra cheese");
+
+            var results = await memory.SearchHybridAsync("pizza");
+
+            results.ShouldNotBeEmpty();
+            results.ShouldContain(f => f.Content.Contains("pizza"));
+        }
+
+        [Test]
+        public async Task SearchHybridAsync_NonMatchingQuery_ReturnsEmpty()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("user prefers dark mode");
+            await memory.AppendFactAsync("user likes pizza");
+
+            var results = await memory.SearchHybridAsync("xyzzyplugh");
+
+            results.ShouldBeEmpty();
+        }
+
+        [Test]
+        public async Task SearchHybridAsync_NullEmbedding_FallsBackToText()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("user prefers dark mode");
+
+            var results = await memory.SearchHybridAsync("dark", queryEmbedding: null);
+
+            results.ShouldNotBeEmpty();
+            results.ShouldContain(f => f.Content.Contains("dark"));
+        }
+
+        [Test]
+        public async Task SearchHybridAsync_EmptyEmbedding_FallsBackToText()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("user prefers dark mode");
+
+            var results = await memory.SearchHybridAsync("dark", queryEmbedding: []);
+
+            results.ShouldNotBeEmpty();
+            results.ShouldContain(f => f.Content.Contains("dark"));
+        }
+
+        [Test]
+        public async Task SearchHybridAsync_RespectsTopKLimit()
+        {
+            var memory = CreateMemory();
+            for (var i = 0; i < 10; i++)
+            {
+                await memory.AppendFactAsync($"fact about cats number {i}");
+            }
+
+            var results = await memory.SearchHybridAsync("cats", topK: 3);
+
+            results.Count.ShouldBeLessThanOrEqualTo(3);
+        }
+
+        [Test]
+        public async Task SearchHybridAsync_IncrementsAccessCount()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("user prefers dark mode");
+
+            var firstResults = await memory.SearchHybridAsync("dark");
+            firstResults.ShouldNotBeEmpty();
+
+            // Search again to verify access count was incremented
+            var allFacts = await memory.ListFactsAsync();
+            var fact = allFacts.First(f => f.Content.Contains("dark"));
+            fact.AccessCount.ShouldBeGreaterThanOrEqualTo(1);
+            fact.LastAccessedAt.ShouldNotBeNull();
+        }
+
+        [Test]
+        public async Task SearchHybridAsync_CaseInsensitive_FindsResults()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("User Prefers DARK Mode");
+
+            var results = await memory.SearchHybridAsync("dark");
+
+            results.ShouldNotBeEmpty();
+            results.ShouldContain(f => f.Content.Contains("DARK"));
+        }
+
+        [Test]
+        public async Task ClearAsync_RemovesFacts_PreservesHistory()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("user likes cats");
+            await memory.AppendFactAsync("user likes dogs");
+            await memory.AppendHistoryAsync("conversation about pets");
+
+            var factsBefore = await memory.ListFactsAsync();
+            factsBefore.Count.ShouldBe(2);
+
+            await memory.ClearAsync();
+
+            var factsAfter = await memory.ListFactsAsync();
+            factsAfter.ShouldBeEmpty();
+
+            // History preserved — verify via Redis directly (WORM)
+            var db = _redis.GetDatabase();
+            var historyKeys = _redis.GetServers()[0]
+                .Keys(pattern: "clawsharp:history:*")
+                .Where(k => !k.ToString().EndsWith(":seq"))
+                .ToList();
+            historyKeys.Count.ShouldBeGreaterThanOrEqualTo(1);
+        }
+
+        [Test]
+        public async Task RediSearchFtSearch_MatchingQuery_FindsResults()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("user likes pizza");
+            await memory.AppendFactAsync("user dislikes broccoli");
+
+            // SearchAsync uses RediSearch FT.SEARCH on Redis
+            var results = await memory.SearchAsync("pizza");
+
+            results.ShouldNotBeEmpty();
+            results[0].ShouldContain("pizza");
+        }
+
+        [Test]
+        public async Task RediSearchFtSearch_NonMatchingQuery_ReturnsEmpty()
+        {
+            var memory = CreateMemory();
+            await memory.AppendFactAsync("user likes pizza");
+
+            var results = await memory.SearchAsync("xyzzyplugh");
+
+            results.ShouldBeEmpty();
         }
     }
 }

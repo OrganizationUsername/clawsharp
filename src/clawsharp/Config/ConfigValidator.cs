@@ -73,7 +73,7 @@ public static class ConfigValidator
 
         if (!MemoryBackend.TryFromValue(mem.Backend, out _))
         {
-            errors.Add($"memory.backend must be one of: markdown, sqlite, postgres, mssql (got '{mem.Backend}').");
+            errors.Add($"memory.backend must be one of: markdown, sqlite, postgres, mssql, redis (got '{mem.Backend}').");
         }
 
         if ((mem.Backend == MemoryBackend.Postgres.Value || mem.Backend == MemoryBackend.MsSql.Value)

@@ -29,6 +29,9 @@ public sealed class Session
     /// <summary>When true, reasoning/thinking blocks are shown in replies.</summary>
     public bool ShowThinking { get; set; }
 
+    /// <summary>Session-persistent model override set via /model command. Null means use config default.</summary>
+    public string? ModelOverride { get; set; }
+
     /// <summary>
     ///     Removes stale or excess non-system messages from the session history.
     ///     System messages are never pruned. Messages without a <see cref="ChatMessage.Timestamp" />

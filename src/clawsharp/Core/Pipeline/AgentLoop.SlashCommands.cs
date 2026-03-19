@@ -12,6 +12,7 @@ public sealed partial class AgentLoop
     private async Task<string?> HandleSlashCommandAsync(
         SlashCommandResult cmd,
         Session session,
+        string? argument,
         CancellationToken ct)
     {
         switch (cmd)
@@ -32,7 +33,9 @@ public sealed partial class AgentLoop
                     /* best-effort */
                 }
 
-                return $"Model: {_defaults.Model}\n" +
+                var activeModel = session.ModelOverride ?? _defaults.Model;
+                var modelSource = session.ModelOverride is not null ? " (session override)" : "";
+                return $"Model: {activeModel}{modelSource}\n" +
                        $"Messages: {session.Messages.Count}\n" +
                        $"Total turns: {session.TotalMessageCount / 2}\n" +
                        $"Input tokens: {session.TotalInputTokens:N0}\n" +
@@ -114,9 +117,37 @@ public sealed partial class AgentLoop
             case SlashCommandResult.ClearGoals:
                 return await HandleGoalsCommandAsync("clear", ct);
 
+            case SlashCommandResult.SetModel:
+                return await HandleModelCommandAsync(session, argument, ct);
+
             default:
                 return null;
         }
+    }
+
+    private async Task<string> HandleModelCommandAsync(Session session, string? argument, CancellationToken ct)
+    {
+        // /model (no args) → show current model
+        if (string.IsNullOrWhiteSpace(argument))
+        {
+            var current = session.ModelOverride ?? _defaults.Model;
+            var source = session.ModelOverride is not null ? "session override" : "config default";
+            return $"Current model: {current} ({source})";
+        }
+
+        // /model reset → clear session override
+        if (string.Equals(argument, "reset", StringComparison.OrdinalIgnoreCase))
+        {
+            session.ModelOverride = null;
+            await _handlers.SaveSession.HandleAsync(new SaveSession.Command(session), ct);
+            return $"Model reset to config default: {_defaults.Model}";
+        }
+
+        // /model <name> → set session model override
+        var trimmedArg = argument.Trim();
+        session.ModelOverride = trimmedArg;
+        await _handlers.SaveSession.HandleAsync(new SaveSession.Command(session), ct);
+        return $"Model set to: {session.ModelOverride} (for this session)";
     }
 
     // (BuildGoalsContextAsync -> now in BuildChatRequest handler)

@@ -71,9 +71,12 @@ public static class ProviderFactory
         var providerName = options.ProviderName;
         var httpClientFactory = options.HttpClientFactory;
 
+        var extraHeaders = config.ExtraHeaders;
+        var apiKeysList = BuildApiKeysList(apiKey, config.ApiKeys);
+
         if (providerType == LlmProviderType.Anthropic)
         {
-            return new AnthropicProvider(httpClientFactory, apiKey, providerName);
+            return new AnthropicProvider(httpClientFactory, apiKey, providerName, extraHeaders, apiKeysList);
         }
 
         if (providerType == LlmProviderType.Gemini)
@@ -112,7 +115,7 @@ public static class ProviderFactory
         // All remaining types are OpenAI-compatible with provider-specific default base URLs
         if (ClawsharpConstants.DefaultProviderBaseUrls.TryGetValue(providerType, out var defaultBaseUrl))
         {
-            return new OpenAiProvider(httpClientFactory, baseUrl ?? defaultBaseUrl, apiKey, providerName, authHeader);
+            return new OpenAiProvider(httpClientFactory, baseUrl ?? defaultBaseUrl, apiKey, providerName, authHeader, extraHeaders, apiKeysList);
         }
 
         if (providerType == LlmProviderType.VertexAi)
@@ -125,5 +128,27 @@ public static class ProviderFactory
 
         throw new InvalidOperationException($"No default base URL for provider type '{providerType.Value}'.");
 
+    }
+
+    /// <summary>
+    ///     Builds a consolidated API keys list for round-robin rotation.
+    ///     If <paramref name="additionalKeys"/> is null or empty, returns null (single-key mode).
+    ///     Otherwise, prepends the primary <paramref name="primaryKey"/> and returns the full list.
+    /// </summary>
+    private static List<string>? BuildApiKeysList(string primaryKey, List<string>? additionalKeys)
+    {
+        if (additionalKeys is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var allKeys = new List<string>(additionalKeys.Count + 1);
+        if (!string.IsNullOrEmpty(primaryKey))
+        {
+            allKeys.Add(primaryKey);
+        }
+
+        allKeys.AddRange(additionalKeys);
+        return allKeys;
     }
 }
