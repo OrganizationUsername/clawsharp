@@ -3,21 +3,26 @@
 | Feature | **clawsharp** | openclaw | picoclaw | zeroclaw | nullclaw | nanobot |
 |---------|--------------|----------|----------|----------|----------|---------|
 | **Channels** | **18** | 24+ | 12 | 20+ | 19 | 8 |
-| **LLM providers** | **33** (7 native + 26 OpenAI-compat) | 30+ | 15+ | 20+ | 50+ | 12+ (incl. 6 CN) |
+| **LLM providers** | **34** (8 native + 26 OpenAI-compat) | 30+ | 15+ | 20+ | 50+ | 12+ (incl. 6 CN) |
 | **Streaming** | ✅ (B1 fixed) | ✅ | Partial | ✅ | ✅ | ✅ |
 | **Tool calling** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Vision** | ✅ (all providers incl. Bedrock) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Image generation** | ✅ (OpenRouter; delivered via IFileChannel) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **PDF/file input** | ✅ (OpenRouter; 8 MIME types; Telegram document upload) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Audio input (native)** | ✅ (OpenRouter/OpenAI; raw audio sent to model alongside transcription) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Audio output** | ✅ (OpenRouter; streamed base64 chunks → file delivery) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Video input** | ✅ (OpenRouter; base64 data URLs + HTTPS URLs) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Memory: vector** | ✅ | ✅ | ❌ | ✅ | ✅ | Partial |
 | **Memory: decay/TTL** | ✅ (age-decay + usage-weighted) | ❌ | ❌ | ✅ Lucid | ✅ | ❌ |
 | **Context window guard** | ✅ (90+ models; pattern inference) | Partial | ❌ | ❌ | ✅ 58 models | ❌ |
 | **Context compaction** | ✅ | ✅ | ❌ | Partial | ✅ | ❌ |
 | **Pre-compaction memory flush** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Model fallback chain** | ✅ (streaming + non-streaming) | ✅ | ✅ | ✅ | Partial | ❌ |
-| **Cost tracking** | ✅ | ✅ | ❌ | ✅ full | Partial | ❌ |
+| **Cost tracking** | ✅ (provider-reported cost for OpenRouter) | ✅ | ❌ | ✅ full | Partial | ❌ |
 | **Budget enforcement** | ✅ (pre-request estimated cost) | ✅ | ❌ | ✅ W/E states | ❌ | ❌ |
 | **Prompt caching** | ✅ Full (Anthropic `cache_control` + tool caching; OpenAI `cached_tokens` tracking; explicit `BuildSplit()` static/dynamic; ~89% input cost reduction) | ⚠️ Partial (no datetime in system prompt ✅; `cache_control` for OpenRouter/Anthropic ✅; reads `cached_tokens` ✅; no explicit static/dynamic split; delegates direct Anthropic to pi-ai) | ⚠️ Partial (explicit static/dynamic split ✅; Anthropic `cache_control` ✅; missing OpenAI `cached_tokens` read-back) | ❌ Broken (has `cache_control` infrastructure but datetime mid-prompt position 6/8 causes 100% cache miss every turn) | ❌ Not implemented (no `cache_control`, no split; datetime mid-prompt) | ⚠️ Partial (datetime as separate user message ✅; LiteLLM `cache_control` ✅; CustomProvider has no caching; `cached_tokens` not read back; Codex cache key includes volatile runtime context) |
 | **Error classification** | ✅ (41 patterns) | Partial | ✅ 40 patterns | ✅ | ✅ | Partial |
-| **In-channel slash cmds** | ✅ (/clear /compact /status /think /usage) | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **In-channel slash cmds** | ✅ (/clear /compact /status /think /usage /model /models) | ✅ | ❌ | ❌ | ✅ | ❌ |
 | **DM pairing flow** | ✅ (all channels; default "pairing") | ✅ | ❌ | ❌ | ✅ | ❌ |
 | **Secrets encryption** | ✅ ChaCha20-Poly1305 | ❌ | ❌ | ✅ | ✅ | ❌ |
 | **Sandbox execution** | ✅ (Bubblewrap/Firejail/Docker auto) | ✅ Docker | ❌ | ✅ multi | ✅ multi | ❌ |
@@ -49,3 +54,5 @@
 | **Atomic session writes** | ✅ | ✅ | ❌ | N/A | ✅ | ❌ |
 | **Heartbeat / health probes** | ✅ (startup + periodic; per-provider + fallback chain) | ❌ | ✅ | ❌ | ❌ | ✅ |
 | **Goals / SOP subsystem** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **OpenRouter native** | ✅ Full (dedicated provider; cost passthrough; /models /usage; credits display; model routing; ZDR; provider preferences; key rotation) | ✅ Plugin (dynamic model catalog; cache wrappers; routing params) | ❌ (OpenAI-compat gateway) | ✅ Dedicated (native HTTP; tool calling; reasoning; HTTP-Referer/X-Title) | ✅ Dedicated (native HTTP; tool calling; reasoning; HTTP-Referer/X-Title) | ⚠️ Gateway (LiteLLM; auto-detect via sk-or- prefix; prompt caching) |
+| **Zero Data Retention** | ✅ (OpenRouter ZDR + data_collection policy) | ❌ | ❌ | ❌ | ❌ | ❌ |

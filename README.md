@@ -1,6 +1,6 @@
 # clawsharp
 
-A self-hosted, channel-agnostic AI assistant gateway built on .NET 10. Connect any LLM provider to 18 messaging platforms through a single binary or container — with 22 built-in tools, 4 memory backends, and defense-in-depth security.
+A self-hosted, channel-agnostic AI assistant gateway built on .NET 10. Connect any LLM provider to 18 messaging platforms through a single binary or container — with 22 built-in tools, 5 memory backends, and defense-in-depth security.
 
 ## What is clawsharp?
 
@@ -11,10 +11,10 @@ The assistant can read and write files, browse the web, run shell commands, mana
 ### Key capabilities
 
 - **18 messaging channels** — Telegram, Discord, Slack, Matrix, IRC, email, web UI, WhatsApp, Signal, iMessage, Nostr, Mattermost, Line, Lark, WeChat, WeCom, QQ, and a local CLI
-- **33 LLM providers** — OpenAI, Anthropic, Gemini, AWS Bedrock, Ollama, LM Studio, GitHub Copilot, and 26 more via OpenAI-compatible routing (Groq, DeepSeek, Mistral, xAI, Fireworks, Cerebras, Together, Cohere, and others)
+- **34 LLM providers** — OpenAI, Anthropic, Gemini, AWS Bedrock, Ollama, LM Studio, GitHub Copilot, OpenRouter (dedicated), and 25 more via OpenAI-compatible routing (Groq, DeepSeek, Mistral, xAI, Fireworks, Cerebras, Together, Cohere, and others)
 - **22 built-in tools** — file operations, shell, git, web fetch/search, browser automation, memory, goals, cron scheduling, document parsing, and file sending
 - **9 web search backends** — Brave, SearXNG, Exa, Tavily, Jina, Firecrawl, Perplexity, GLM, plus any MCP search tool
-- **4 memory backends** — Markdown files, SQLite, PostgreSQL, SQL Server — all with hybrid FTS + cosine vector search
+- **5 memory backends** — Markdown files, SQLite, PostgreSQL, SQL Server, Redis — all with hybrid FTS + cosine vector search
 - **MCP server hosting** — stdio, SSE, and StreamableHTTP transports for extending the tool set
 
 ---
@@ -203,10 +203,72 @@ Supported references:
 | Google Gemini | `gemini` | `apiKey` |
 | AWS Bedrock | `bedrock` | `awsAccessKeyId`, `awsSecretAccessKey`, `awsRegion` |
 | GitHub Copilot | `copilot` | OAuth device flow (`clawsharp auth login-copilot`) |
+| OpenRouter | `openrouter` | `apiKey` (dedicated provider with cost passthrough, model listing, credits display, image generation, PDF input) |
 | Ollama | `ollama` | `baseUrl` (default: `http://localhost:11434`) |
 | LM Studio | `lmstudio` | `baseUrl` (default: `http://localhost:1234`) |
 
-Plus 26 providers that route through OpenAI-compatible API: OpenRouter, Groq, DeepSeek, Mistral, Perplexity, xAI, Fireworks, Cerebras, Together AI, Cohere, SambaNova, HuggingFace, AI21, Replicate, Vertex AI, Novita, DashScope, Zhipu, Moonshot, Volcengine, Minimax, SiliconFlow, vLLM, llama.cpp, and any custom OpenAI-compatible endpoint.
+Plus 25 providers that route through OpenAI-compatible API: Groq, DeepSeek, Mistral, Perplexity, xAI, Fireworks, Cerebras, Together AI, Cohere, SambaNova, HuggingFace, AI21, Replicate, Vertex AI, Novita, DashScope, Zhipu, Moonshot, Volcengine, Minimax, SiliconFlow, vLLM, llama.cpp, and any custom OpenAI-compatible endpoint.
+
+### OpenRouter setup
+
+[OpenRouter](https://openrouter.ai) gives you access to hundreds of models from different providers through a single API key. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys), then configure clawsharp:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-4"
+    }
+  },
+  "providers": {
+    "openrouter": {
+      "type": "openrouter",
+      "apiKey": "sk-or-v1-..."
+    }
+  }
+}
+```
+
+Model IDs use the `provider/model` format — e.g. `openai/gpt-4o`, `anthropic/claude-sonnet-4`, `google/gemini-2.5-flash`, `meta-llama/llama-4-maverick`. Browse available models at [openrouter.ai/models](https://openrouter.ai/models) or use the `/models` slash command.
+
+**Optional settings:**
+
+```json
+{
+  "providers": {
+    "openrouter": {
+      "type": "openrouter",
+      "apiKey": "sk-or-v1-...",
+      "extraHeaders": {
+        "HTTP-Referer": "https://your-app.example.com",
+        "X-Title": "My Assistant"
+      },
+      "apiKeys": ["sk-or-v1-key2...", "sk-or-v1-key3..."]
+    }
+  }
+}
+```
+
+| Setting | Description |
+|---------|-------------|
+| `apiKey` | Your OpenRouter API key (required) |
+| `extraHeaders.HTTP-Referer` | Your app URL — shown on the OpenRouter leaderboard |
+| `extraHeaders.X-Title` | Your app name — shown on the OpenRouter leaderboard |
+| `apiKeys` | Additional keys for round-robin rotation |
+
+**OpenRouter-specific features:**
+
+| Feature | How to use |
+|---------|-----------|
+| `/usage` | Shows OpenRouter credits remaining, daily/monthly spend |
+| `/models` | Lists available models with pricing. Filter: `/models claude` |
+| `/model <id>` | Switch models mid-session: `/model openai/gpt-4o` |
+| Cost tracking | Actual cost per request from OpenRouter (not estimated) |
+| Image generation | Use image-capable models like `google/gemini-2.5-flash-image-preview` |
+| PDF/file input | Send documents via Telegram — OpenRouter parses them server-side |
+| Audio input | Voice messages sent natively to audio-capable models |
+| Model fallback | Set `models` + `route: "fallback"` in provider preferences |
 
 ### Extended thinking
 
@@ -282,6 +344,7 @@ clawsharp can verify that your LLM provider is reachable on startup and continuo
 | Provider | Health endpoint | Notes |
 |----------|----------------|-------|
 | OpenAI and all compatible (Groq, DeepSeek, Mistral, etc.) | `GET /v1/models` | Includes Ollama, LM Studio, vLLM, llama.cpp |
+| OpenRouter | `GET /api/v1/key` | Shows credits remaining; validates API key |
 | Google Gemini | `GET /v1beta/models` | Uses API key as query parameter |
 | Anthropic | — | No lightweight endpoint available; skipped |
 | AWS Bedrock | — | No lightweight endpoint available; skipped |
@@ -637,6 +700,25 @@ Shell Completions
   clawsharp completion fish           Generate fish completions
 ```
 
+### In-channel slash commands
+
+These commands can be sent as messages in any channel (CLI, Telegram, Discord, etc.):
+
+| Command | Description |
+|---------|-------------|
+| `/new` or `/clear` | Clear the current session history |
+| `/compact` | Trigger context window compaction (summarize old messages) |
+| `/status` | Show provider, model, session stats, and memory facts |
+| `/usage` or `/cost` | Show cost tracking (daily/monthly/session). With OpenRouter: credits remaining, account usage |
+| `/think on` / `/think off` | Toggle display of model reasoning/thinking content |
+| `/model` | Show current model |
+| `/model <id>` | Switch model mid-session (e.g. `/model openai/gpt-4o`) |
+| `/model reset` | Reset to config default model |
+| `/models` | List available models with context length and pricing (OpenRouter only) |
+| `/models <search>` | Filter models by name (e.g. `/models claude`) |
+| `/goals` | Show active goals |
+| `/goals clear` | Clear all goals |
+
 ---
 
 ## Custom System Instructions
@@ -662,10 +744,10 @@ clawsharp is the .NET implementation in a family of AI assistant gateways, each 
 | Capability | clawsharp (.NET) | openclaw (TS) | nanobot (Py) | picoclaw (Go) | zeroclaw (Rust) | nullclaw (Zig) |
 |------------|:---:|:---:|:---:|:---:|:---:|:---:|
 | Channels | **18** | 24+ | 8 | 12 | 20+ | 19 |
-| LLM Providers | **33** | 30+ | 12+ | 15+ | 20+ | 50+ |
+| LLM Providers | **34** | 30+ | 12+ | 15+ | 20+ | 50+ |
 | Tools | **22** | 7+ | ~8 | ~10 | 12+ | 10+ |
 | Search Backends | **9** | 6+ | 6+ | 6+ | 6+ | 6+ |
-| Memory Backends | **4** | 3 | 4 | 4 | 5 | 4 |
+| Memory Backends | **5** | 3 | 4 | 4 | 5 | 4 |
 | MCP Support | **stdio, SSE, StreamableHTTP** | stdio | stdio | stdio | stdio | stdio |
 
 ### Cross-project feature matrix
@@ -673,21 +755,26 @@ clawsharp is the .NET implementation in a family of AI assistant gateways, each 
 | Feature | **clawsharp** | openclaw | picoclaw | zeroclaw | nullclaw | nanobot |
 |---------|--------------|----------|----------|----------|----------|---------|
 | **Channels** | **18** | 24+ | 12 | 20+ | 19 | 8 |
-| **LLM providers** | **33** (7 native + 26 OpenAI-compat) | 30+ | 15+ | 20+ | 50+ | 12+ (incl. 6 CN) |
+| **LLM providers** | **34** (8 native + 26 OpenAI-compat) | 30+ | 15+ | 20+ | 50+ | 12+ (incl. 6 CN) |
 | **Streaming** | ✅ (B1 fixed) | ✅ | Partial | ✅ | ✅ | ✅ |
 | **Tool calling** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Vision** | ✅ (all providers incl. Bedrock) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Image generation** | ✅ (OpenRouter; delivered via IFileChannel) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **PDF/file input** | ✅ (OpenRouter; 8 MIME types; Telegram document upload) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Audio input (native)** | ✅ (OpenRouter/OpenAI; raw audio sent to model alongside transcription) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Audio output** | ✅ (OpenRouter; streamed base64 chunks → file delivery) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Video input** | ✅ (OpenRouter; base64 data URLs + HTTPS URLs) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Memory: vector** | ✅ | ✅ | ❌ | ✅ | ✅ | Partial |
 | **Memory: decay/TTL** | ✅ (age-decay + usage-weighted) | ❌ | ❌ | ✅ Lucid | ✅ | ❌ |
 | **Context window guard** | ✅ (90+ models; pattern inference) | Partial | ❌ | ❌ | ✅ 58 models | ❌ |
 | **Context compaction** | ✅ | ✅ | ❌ | Partial | ✅ | ❌ |
 | **Pre-compaction memory flush** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Model fallback chain** | ✅ (streaming + non-streaming) | ✅ | ✅ | ✅ | Partial | ❌ |
-| **Cost tracking** | ✅ | ✅ | ❌ | ✅ full | Partial | ❌ |
+| **Cost tracking** | ✅ (provider-reported cost for OpenRouter) | ✅ | ❌ | ✅ full | Partial | ❌ |
 | **Budget enforcement** | ✅ (pre-request estimated cost) | ✅ | ❌ | ✅ W/E states | ❌ | ❌ |
 | **Prompt caching** | ✅ Full (Anthropic `cache_control` + tool caching; OpenAI `cached_tokens` tracking; explicit `BuildSplit()` static/dynamic; ~89% input cost reduction) | ⚠️ Partial | ⚠️ Partial | ❌ Broken | ❌ | ⚠️ Partial |
 | **Error classification** | ✅ (41 patterns) | Partial | ✅ 40 patterns | ✅ | ✅ | Partial |
-| **In-channel slash cmds** | ✅ (/clear /compact /status /think /usage) | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **In-channel slash cmds** | ✅ (/clear /compact /status /think /usage /model /models) | ✅ | ❌ | ❌ | ✅ | ❌ |
 | **DM pairing flow** | ✅ (all channels; default "pairing") | ✅ | ❌ | ❌ | ✅ | ❌ |
 | **Secrets encryption** | ✅ ChaCha20-Poly1305 | ❌ | ❌ | ✅ | ✅ | ❌ |
 | **Sandbox execution** | ✅ (Bubblewrap/Firejail/Docker auto) | ✅ Docker | ❌ | ✅ multi | ✅ multi | ❌ |
@@ -719,6 +806,8 @@ clawsharp is the .NET implementation in a family of AI assistant gateways, each 
 | **Atomic session writes** | ✅ | ✅ | ❌ | N/A | ✅ | ❌ |
 | **Heartbeat / health probes** | ✅ (startup + periodic; per-provider + fallback chain) | ❌ | ✅ | ❌ | ❌ | ✅ |
 | **Goals / SOP subsystem** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **OpenRouter native** | ✅ Full (dedicated provider; cost passthrough; /models /usage; credits display; model routing; ZDR; provider preferences; key rotation) | ✅ Plugin (dynamic model catalog; cache wrappers; routing params) | ❌ (OpenAI-compat gateway) | ✅ Dedicated (native HTTP; tool calling; reasoning; HTTP-Referer/X-Title) | ✅ Dedicated (native HTTP; tool calling; reasoning; HTTP-Referer/X-Title) | ⚠️ Gateway (LiteLLM; auto-detect via sk-or- prefix; prompt caching) |
+| **Zero Data Retention** | ✅ (OpenRouter ZDR + data_collection policy) | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 ### Runtime characteristics
 
@@ -737,13 +826,14 @@ These features are unique to clawsharp or significantly more developed than in s
 - **Landlock LSM** — Linux kernel-level filesystem restrictions applied before DI container boots
 - **Built-in skill vetter** — Security-first vetting protocol always installed; checks third-party skills for red flags, permission scope, and suspicious patterns before installation
 - **1Password and Bitwarden integration** — Reference secrets as `op://vault/item/field` or `bws:<uuid>` instead of storing them in config
+- **Dedicated OpenRouter provider** — Native API support with provider-reported cost passthrough, credits display, model listing, image generation, PDF/file input, native audio I/O, video input, Zero Data Retention, and provider routing preferences
 - **Embedded web UI** — Svelte SPA compiled into the binary with SSE streaming and TOTP pairing authentication
 - **GitHub Copilot provider** — OAuth device flow authentication for Copilot API access
 - **AWS Bedrock provider** — Full Converse API with SigV4 request signing
 - **Voice transcription** — Three backends (Groq/OpenAI Whisper, Azure Fast Transcription, GCP Speech-to-Text) with speaker diarization
 - **Goal tracking** — State machine for managing multi-step goals with resume and progress tracking
 - **Browser automation** — Full Playwright-backed browser tool plus PinchTab for tab lifecycle management
-- **Cost tracking with cache savings** — Per-model USD pricing, cache-read discounts (Anthropic/OpenAI), daily/monthly/session breakdowns
+- **Cost tracking with cache savings** — Per-model USD pricing, cache-read discounts (Anthropic/OpenAI), provider-reported cost passthrough (OpenRouter), daily/monthly/session breakdowns
 - **CQRS architecture** — Vertical slice architecture with source-generated mediator (Immediate.Handlers), zero reflection overhead
 - **Landlock sandboxing** — Optional Linux Landlock filesystem restriction for defense in depth
 - **Canary guard** — Per-turn cryptographic tokens detect prompt exfiltration attacks in real time
@@ -805,7 +895,7 @@ The codebase uses vertical slice architecture with CQRS handlers in `Features/` 
 ```
 src/clawsharp/          Main .NET 10 project
 src/clawsharp-web/      Svelte web UI (embedded via MSBuild)
-tests/clawsharp.Tests/  NUnit tests (1,900+ non-integration)
+tests/clawsharp.Tests/  NUnit tests (2,200+ non-integration)
 benchmarks/             BenchmarkDotNet projects
 clawsharp.slnx          Solution file
 compose.yaml            Docker Compose

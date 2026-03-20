@@ -7,6 +7,7 @@ using Clawsharp.Providers.Gemini;
 using Clawsharp.Providers.LmStudio;
 using Clawsharp.Providers.Ollama;
 using Clawsharp.Providers.OpenAi;
+using Clawsharp.Providers.OpenRouter;
 using Clawsharp.Config.Agent;
 
 namespace Clawsharp.Providers;
@@ -110,6 +111,37 @@ public static class ProviderFactory
                 config.AwsSecretAccessKey ?? "",
                 config.AwsRegion ?? "us-east-1",
                 providerName);
+        }
+
+        if (providerType == LlmProviderType.OpenRouter)
+        {
+            // Extract OpenRouter-specific headers from extraHeaders so the provider
+            // sends them as first-class headers without duplication.
+            string? httpReferer = null;
+            string? appTitle = null;
+            Dictionary<string, string>? remainingHeaders = extraHeaders;
+
+            if (extraHeaders is { Count: > 0 })
+            {
+                remainingHeaders = new Dictionary<string, string>(extraHeaders, StringComparer.OrdinalIgnoreCase);
+
+                if (remainingHeaders.Remove("HTTP-Referer", out var referer))
+                {
+                    httpReferer = referer;
+                }
+
+                if (remainingHeaders.Remove("X-Title", out var title))
+                {
+                    appTitle = title;
+                }
+
+                if (remainingHeaders.Count == 0)
+                {
+                    remainingHeaders = null;
+                }
+            }
+
+            return new OpenRouterProvider(httpClientFactory, apiKey, providerName, httpReferer, appTitle, remainingHeaders, apiKeysList);
         }
 
         // All remaining types are OpenAI-compatible with provider-specific default base URLs

@@ -95,7 +95,12 @@ public sealed partial class AgentLoop
         long CacheWrite,
         string? Thinking = null,
         IReadOnlyList<ToolCallSummary>? ToolCallSummaries = null,
-        int ToolIterations = 0);
+        int ToolIterations = 0,
+        decimal? ProviderReportedCost = null,
+        IReadOnlyList<ImageAttachment>? GeneratedImages = null,
+        List<string>? AudioChunks = null,
+        string? AudioTranscript = null,
+        string? AudioFormat = null);
 
 
     public AgentLoop(
@@ -368,7 +373,7 @@ public sealed partial class AgentLoop
                 return;
             }
 
-            messages.Add(new ChatMessage(MessageRole.User, secHandlerResult.UserText, Images: secHandlerResult.Images));
+            messages.Add(new ChatMessage(MessageRole.User, secHandlerResult.UserText, Images: secHandlerResult.Images, Files: secHandlerResult.Files, Videos: secHandlerResult.Videos, Audio: secHandlerResult.Audio));
 
             // --- Stage 4: Dispatch to provider (budget check, LLM call, cost recording) ---
             var dispatchResult = await DispatchToProviderAsync(
@@ -440,6 +445,7 @@ public sealed partial class AgentLoop
         }
         long totalCacheRead = 0;
         long totalCacheWrite = 0;
+        decimal? totalProviderCost = null;
         string? lastThinking = null;
         List<ToolCallSummary>? toolCallSummaries = null;
         var completedIterations = 0;
@@ -458,19 +464,23 @@ public sealed partial class AgentLoop
             {
                 LogAllProvidersExhausted(ex.Message);
                 return new LoopResult("Sorry, all configured providers are currently unavailable. Please try again later.", totalCacheRead,
-                    totalCacheWrite, lastThinking, toolCallSummaries, completedIterations);
+                    totalCacheWrite, lastThinking, toolCallSummaries, completedIterations, totalProviderCost);
             }
             catch (Exception ex)
             {
                 LogProviderError(_logger, ex);
                 return new LoopResult("Sorry, I encountered an error processing your request.", totalCacheRead, totalCacheWrite,
-                    lastThinking, toolCallSummaries, completedIterations);
+                    lastThinking, toolCallSummaries, completedIterations, totalProviderCost);
             }
 
             session.TotalInputTokens += response.InputTokens ?? 0;
             session.TotalOutputTokens += response.OutputTokens ?? 0;
             totalCacheRead += response.CacheReadTokens ?? 0;
             totalCacheWrite += response.CacheWriteTokens ?? 0;
+            if (response.ProviderReportedCost is { } provCost)
+            {
+                totalProviderCost = (totalProviderCost ?? 0) + provCost;
+            }
             lastThinking = response.ReasoningContent ?? lastThinking;
 
             if (response.ToolCalls?.Count > 0)
@@ -496,10 +506,10 @@ public sealed partial class AgentLoop
             }
 
             messages.Add(new ChatMessage(MessageRole.Assistant, finalReply));
-            return new LoopResult(finalReply, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations);
+            return new LoopResult(finalReply, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations, totalProviderCost, response.GeneratedImages);
         }
 
-        return new LoopResult(null, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations); // iteration cap hit
+        return new LoopResult(null, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations, totalProviderCost); // iteration cap hit
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -739,7 +749,15 @@ public sealed partial class AgentLoop
         Message = "Failed to deliver pending file {Filename}: {Error}")]
     private static partial void LogPendingFileDeliveryFailed(ILogger logger, string filename, string error);
 
-    [LoggerMessage(EventId = 27, Level = LogLevel.Warning,
+    [LoggerMessage(EventId = 28, Level = LogLevel.Warning,
         Message = "Scrubbed {Count} secret pattern(s) from memory consolidation summary")]
     private partial void LogConsolidationSecretsScrubbed(int count);
+
+    [LoggerMessage(EventId = 29, Level = LogLevel.Warning,
+        Message = "Skipped generated image {ImageIndex}: malformed base64 data")]
+    private static partial void LogMalformedBase64Image(ILogger logger, int imageIndex);
+
+    [LoggerMessage(EventId = 30, Level = LogLevel.Warning,
+        Message = "Skipped generated audio: malformed base64 data in audio chunks")]
+    private static partial void LogMalformedBase64Audio(ILogger logger);
 }

@@ -258,13 +258,15 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
         var text = msg.Text;
 
-        // Transcribe voice/audio messages if transcription is configured
+        // Transcribe voice/audio messages if transcription is configured.
+        // Also retain raw audio bytes as an AudioAttachment for native model processing.
+        AudioAttachment? audioAttachment = null;
         if (text is null && (msg.Voice is not null || msg.Audio is not null))
         {
-            text = await TranscribeVoiceAsync(msg, ct);
+            (text, audioAttachment) = await TranscribeVoiceAsync(msg, ct);
         }
 
-        if (text is null && msg.Photo is null)
+        if (text is null && msg.Photo is null && msg.Document is null)
         {
             return;
         }
@@ -305,6 +307,19 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
             images = await DownloadImageAttachmentsAsync(photos, ct);
         }
 
+        // Download document attachments (best-effort, max 20 MB)
+        IReadOnlyList<FileAttachment>? files = null;
+        if (msg.Document is { } doc && FileAttachment.IsAllowedMimeType(doc.MimeType))
+        {
+            files = await DownloadFileAttachmentAsync(doc, ct);
+
+            // Use document caption as text if no text was provided
+            if (text is null && msg.Caption is { Length: > 0 } caption)
+            {
+                text = caption;
+            }
+        }
+
         // Add sender context for group chats so the LLM can distinguish users
         if (isGroup && text is not null)
         {
@@ -338,7 +353,9 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
             SenderName: msg.From.FirstName,
             Text: text ?? "",
             ThreadId: threadIdStr,
-            Images: images
+            Images: images,
+            Files: files,
+            Audio: audioAttachment
         ), ct);
     }
 
@@ -389,6 +406,54 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         catch (Exception ex)
         {
             LogImageDownloadFailed(_logger, ex);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Downloads a document attachment from a Telegram message.
+    /// Returns null if the download fails, the file exceeds the size limit, or the MIME type is unsupported.
+    /// </summary>
+    private async Task<IReadOnlyList<FileAttachment>?> DownloadFileAttachmentAsync(
+        TelegramDocument doc, CancellationToken ct)
+    {
+        try
+        {
+            var file = await GetFileAsync(doc.FileId, ct);
+            if (file?.FilePath is not { Length: > 0 } filePath)
+            {
+                return null;
+            }
+
+            // MED-26: Guard against path traversal in FilePath from Telegram API
+            if (filePath.Contains("..", StringComparison.Ordinal))
+            {
+                LogDocumentDownloadFailed(_logger, new InvalidOperationException(
+                    $"Telegram FilePath contains traversal sequence: {filePath}"));
+                return null;
+            }
+
+            // MED-25: URL-encode the file path component
+            var fileUrl = $"file/bot{_token}/{Uri.EscapeDataString(filePath)}";
+            var bytes = await _http.GetByteArrayAsync(fileUrl, ct);
+            if (bytes.Length == 0)
+            {
+                return null;
+            }
+
+            var base64 = Convert.ToBase64String(bytes);
+            var filename = doc.FileName ?? "document";
+            var mime = doc.MimeType ?? "application/pdf";
+
+            return [FileAttachment.Create(base64, mime, filename)];
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogDocumentDownloadFailed(_logger, ex);
             return null;
         }
     }
@@ -854,21 +919,21 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         }
     }
 
-    private async Task<string?> TranscribeVoiceAsync(TelegramMessage msg, CancellationToken ct)
+    private async Task<(string? Text, AudioAttachment? Audio)> TranscribeVoiceAsync(TelegramMessage msg, CancellationToken ct)
     {
         var fileId = msg.Voice?.FileId ?? msg.Audio?.FileId;
         var mimeType = msg.Voice?.MimeType ?? msg.Audio?.MimeType ?? "audio/ogg";
 
         if (fileId is null)
         {
-            return null;
+            return (null, null);
         }
 
         if (!_voiceService.IsEnabled)
         {
             // MED-30: Send error through channel, not into LLM context
             await SendTranscriptionErrorAsync(msg.Chat.Id, msg.MessageThreadId, "Voice message — transcription is not configured.", ct);
-            return null;
+            return (null, null);
         }
 
         // CRIT-05: Check file size before downloading to prevent OOM
@@ -877,7 +942,7 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         {
             LogVoiceFileTooLarge(_logger, fileSize.Value);
             await SendTranscriptionErrorAsync(msg.Chat.Id, msg.MessageThreadId, $"Voice file too large to transcribe (max {_maxVoiceFileBytes / (1024 * 1024)} MB).", ct);
-            return null;
+            return (null, null);
         }
 
         if (fileSize is null)
@@ -895,7 +960,7 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
                 LogTranscriptionFileFailed(_logger);
                 await SendTranscriptionErrorAsync(msg.Chat.Id, msg.MessageThreadId,
                     "Voice message — could not resolve file for transcription.", ct);
-                return null;
+                return (null, null);
             }
 
             // MED-26: Guard against path traversal in FilePath from Telegram API
@@ -904,28 +969,41 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
                 LogTranscriptionError(_logger, new InvalidOperationException(
                     $"Telegram FilePath contains traversal sequence: {file.FilePath}"));
                 await SendTranscriptionErrorAsync(msg.Chat.Id, msg.MessageThreadId, "Voice message — transcription unavailable.", ct);
-                return null;
+                return (null, null);
             }
 
             // MED-25: URL-encode the file path component
             var fileUrl = $"file/bot{_token}/{Uri.EscapeDataString(file.FilePath)}";
             var audioBytes = await _http.GetByteArrayAsync(fileUrl, ct);
+
+            // Retain raw audio as an attachment for native model processing.
+            AudioAttachment? audioAttachment = null;
+            if (audioBytes is { Length: > 0 })
+            {
+                audioAttachment = AudioAttachment.Create(audioBytes, mimeType);
+            }
+
             var transcription = await _voiceService.TranscribeAsync(audioBytes, mimeType, ct);
 
             if (transcription is null)
             {
                 await SendTranscriptionErrorAsync(msg.Chat.Id, msg.MessageThreadId, "Voice message — transcription failed.", ct);
-                return null;
+                return (null, audioAttachment);
             }
 
             LogTranscriptionComplete(_logger, transcription.Length);
 
+            string text;
             if (msg.Caption is { Length: > 0 } caption)
             {
-                return $"[Voice] {transcription}\n[Caption] {caption}";
+                text = $"[Voice] {transcription}\n[Caption] {caption}";
+            }
+            else
+            {
+                text = $"[Voice] {transcription}";
             }
 
-            return $"[Voice] {transcription}";
+            return (text, audioAttachment);
         }
         catch (OperationCanceledException)
         {
@@ -935,7 +1013,7 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
         {
             LogTranscriptionError(_logger, ex);
             await SendTranscriptionErrorAsync(msg.Chat.Id, msg.MessageThreadId, "Voice message — transcription unavailable.", ct);
-            return null;
+            return (null, null);
         }
     }
 
@@ -966,6 +1044,9 @@ public sealed partial class TelegramChannel : LifecycleBackgroundService, IChann
 
     [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "Image download failed")]
     private static partial void LogImageDownloadFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 26, Level = LogLevel.Warning, Message = "Document download failed")]
+    private static partial void LogDocumentDownloadFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "Send failed: {ResponseBody}")]
     private static partial void LogSendFailed(ILogger logger, string responseBody);

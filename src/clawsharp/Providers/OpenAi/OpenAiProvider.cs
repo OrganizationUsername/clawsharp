@@ -268,31 +268,6 @@ public sealed class OpenAiProvider(
     /// </summary>
     internal static string Sanitize(string raw) => ProviderRequestHandler.SanitizeErrorBody(raw);
 
-    private static MessageContent BuildContent(string? text, IReadOnlyList<ImageAttachment>? images)
-    {
-        if (images is null || images.Count == 0)
-        {
-            return new MessageContent { Text = text };
-        }
-
-        var parts = new List<ContentPart>(images.Count + 1);
-        foreach (var img in images)
-        {
-            parts.Add(new ContentPart
-            {
-                Type = "image_url",
-                ImageUrl = new ImageUrl { Url = $"data:{img.MimeType};base64,{img.Base64Data}" }
-            });
-        }
-
-        if (text is { Length: > 0 })
-        {
-            parts.Add(new ContentPart { Type = "text", Text = text });
-        }
-
-        return new MessageContent { Parts = parts };
-    }
-
     /// <summary>
     /// Builds an OpenAI chat completion request from the internal <see cref="ChatRequest"/>.
     /// System prompt is provided via Messages[0] (role=system) by AgentLoop --
@@ -320,9 +295,9 @@ public sealed class OpenAiProvider(
             }
 
             MessageContent? content = null;
-            if (m.Content is not null || m.Images is not null)
+            if (m.Content is not null || m.Images is not null || m.Files is not null || m.Audio is not null || m.Videos is not null)
             {
-                content = BuildContent(m.Content, m.Images);
+                content = MessageContentBuilder.From(m).Build();
             }
 
             oaiMessages.Add(new CompletionMessage

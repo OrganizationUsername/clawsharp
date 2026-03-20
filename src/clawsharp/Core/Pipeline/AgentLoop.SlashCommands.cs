@@ -4,6 +4,7 @@ using Clawsharp.Features.Session.Commands;
 using Clawsharp.Goals;
 using Clawsharp.Config.Features;
 using Clawsharp.Core.Sessions;
+using Clawsharp.Providers.OpenRouter;
 
 namespace Clawsharp.Core.Pipeline;
 
@@ -94,6 +95,38 @@ public sealed partial class AgentLoop
                         $"Monthly limit:${costCfg.MonthlyLimitUsd:F2} ({summary.Monthly / costCfg.MonthlyLimitUsd * 100:F0}% used)");
                 }
 
+                if (_provider is OpenRouterProvider orProvider)
+                {
+                    var keyInfo = await orProvider.GetKeyInfoAsync(ct);
+                    if (keyInfo is not null)
+                    {
+                        usageSb.AppendLine();
+                        usageSb.AppendLine("── OpenRouter ──");
+                        if (keyInfo.Label is { Length: > 0 })
+                        {
+                            usageSb.AppendLine($"Key:              {keyInfo.Label}");
+                        }
+
+                        if (keyInfo.LimitRemaining is { } remaining)
+                        {
+                            usageSb.AppendLine($"Credits remaining: ${remaining:F4}");
+                        }
+
+                        if (keyInfo.Limit is { } limit)
+                        {
+                            usageSb.AppendLine($"Credit limit:      ${limit:F2}");
+                        }
+
+                        usageSb.AppendLine($"OpenRouter today:   ${keyInfo.UsageDaily:F4}");
+                        usageSb.AppendLine($"OpenRouter month:   ${keyInfo.UsageMonthly:F4}");
+                        usageSb.AppendLine($"OpenRouter total:   ${keyInfo.Usage:F4}");
+                        if (keyInfo.IsFreeTier)
+                        {
+                            usageSb.AppendLine("Tier:              Free");
+                        }
+                    }
+                }
+
                 return usageSb.ToString().TrimEnd();
 
             case SlashCommandResult.ThinkOn:
@@ -119,6 +152,9 @@ public sealed partial class AgentLoop
 
             case SlashCommandResult.SetModel:
                 return await HandleModelCommandAsync(session, argument, ct);
+
+            case SlashCommandResult.ListModels:
+                return await HandleListModelsCommandAsync(argument, ct);
 
             default:
                 return null;
@@ -201,5 +237,71 @@ public sealed partial class AgentLoop
         {
             return "Error: failed to load goals.";
         }
+    }
+
+    private async Task<string> HandleListModelsCommandAsync(string? argument, CancellationToken ct)
+    {
+        if (_provider is not OpenRouterProvider modelsProvider)
+        {
+            return "Model listing is currently only available for the OpenRouter provider.";
+        }
+
+        var allModels = await modelsProvider.ListModelsAsync(ct);
+        if (allModels.Count == 0)
+        {
+            return "Unable to fetch models from OpenRouter.";
+        }
+
+        // Filter by argument (substring match on id or name)
+        IReadOnlyList<OpenRouterModel> filtered = allModels;
+        if (argument is { Length: > 0 })
+        {
+            filtered = allModels
+                .Where(m => m.Id.Contains(argument, StringComparison.OrdinalIgnoreCase) ||
+                            m.Name.Contains(argument, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (filtered.Count == 0)
+            {
+                return $"No models matching '{argument}'. Use /models without an argument to see all.";
+            }
+        }
+
+        var modelsSb = new StringBuilder();
+        modelsSb.AppendLine($"OpenRouter models ({filtered.Count} total):");
+        modelsSb.AppendLine();
+
+        var shown = 0;
+        foreach (var m in filtered.Take(30))
+        {
+            var ctx = m.ContextLength is > 0 ? $"{m.ContextLength:N0}" : "?";
+            var inputPrice = "?";
+            var outputPrice = "?";
+
+            if (m.Pricing?.Prompt is { } promptStr &&
+                decimal.TryParse(promptStr, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var promptDec))
+            {
+                inputPrice = $"${promptDec * 1_000_000:F2}";
+            }
+
+            if (m.Pricing?.Completion is { } compStr &&
+                decimal.TryParse(compStr, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var compDec))
+            {
+                outputPrice = $"${compDec * 1_000_000:F2}";
+            }
+
+            modelsSb.AppendLine($"  {m.Id}");
+            modelsSb.AppendLine($"    Context: {ctx} | Input: {inputPrice}/1M | Output: {outputPrice}/1M");
+            shown++;
+        }
+
+        if (filtered.Count > 30)
+        {
+            modelsSb.AppendLine($"\n  ... and {filtered.Count - 30} more. Use /models <search> to filter.");
+        }
+
+        return modelsSb.ToString().TrimEnd();
     }
 }

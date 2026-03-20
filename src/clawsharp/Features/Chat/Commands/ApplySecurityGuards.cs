@@ -34,6 +34,12 @@ public static partial class ApplySecurityGuards
         string UserText,
         /// <summary>Image attachments to include, or null if dropped.</summary>
         IReadOnlyList<ImageAttachment>? Images,
+        /// <summary>File attachments to include, or null if none.</summary>
+        IReadOnlyList<FileAttachment>? Files,
+        /// <summary>Video attachments to include, or null if none.</summary>
+        IReadOnlyList<VideoAttachment>? Videos,
+        /// <summary>Audio attachment to include, or null if none.</summary>
+        AudioAttachment? Audio,
         /// <summary>True if the message was blocked by the injection guard.</summary>
         bool Blocked);
 
@@ -59,7 +65,7 @@ public static partial class ApplySecurityGuards
 
             if (injAction == InjectionAction.Block)
             {
-                return ValueTask.FromResult(new Result(userText, null, Blocked: true));
+                return ValueTask.FromResult(new Result(userText, null, null, null, null, Blocked: true));
             }
 
             if (injAction != InjectionAction.None)
@@ -84,6 +90,6 @@ public static partial class ApplySecurityGuards
                 "\n\n[System note: The user attached image(s) but the current provider does not support vision. Inform the user that their images could not be processed and suggest switching to a vision-capable provider like gpt-4o, claude-3, or gemini.]";
         }
 
-        return ValueTask.FromResult(new Result(userText, imagesToInclude, Blocked: false));
+        return ValueTask.FromResult(new Result(userText, imagesToInclude, inbound.Files, inbound.Videos, inbound.Audio, Blocked: false));
     }
 }

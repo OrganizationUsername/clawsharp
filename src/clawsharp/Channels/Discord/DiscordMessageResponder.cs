@@ -87,7 +87,7 @@ public sealed partial class DiscordMessageResponder(
         }
 
         var images = await DownloadImageAttachmentsAsync(ev.Attachments, ct);
-        var transcript = await TranscribeVoiceAttachmentAsync(ev.Attachments, ct);
+        var (transcript, audioAttachment) = await TranscribeVoiceAttachmentAsync(ev.Attachments, ct);
         if (transcript is not null)
         {
             if (string.IsNullOrWhiteSpace(text))
@@ -111,7 +111,8 @@ public sealed partial class DiscordMessageResponder(
             SenderId: ev.ChannelID.ToString(),
             SenderName: ev.Author.Username,
             Text: text,
-            Images: images is { Count: > 0 } ? images : null
+            Images: images is { Count: > 0 } ? images : null,
+            Audio: audioAttachment
         ), ct);
 
         return Result.FromSuccess();
@@ -293,14 +294,15 @@ public sealed partial class DiscordMessageResponder(
     /// <summary>
     ///     Transcribes the first audio/voice attachment from Discord CDN (best-effort).
     ///     Filters by audio MIME types and CDN origin. Applies SSRF guard as defense-in-depth.
+    ///     Also returns raw audio bytes as an <see cref="AudioAttachment"/> for native model processing.
     /// </summary>
-    /// <returns>The transcript text, or null if no voice attachment was transcribed.</returns>
-    private async Task<string?> TranscribeVoiceAttachmentAsync(
+    /// <returns>A tuple of (transcript text, audio attachment). Either may be null.</returns>
+    private async Task<(string? Transcript, AudioAttachment? Audio)> TranscribeVoiceAttachmentAsync(
         IReadOnlyList<IAttachment> attachments, CancellationToken ct)
     {
         if (!voiceService.IsEnabled)
         {
-            return null;
+            return (null, null);
         }
 
         foreach (var attachment in attachments)
@@ -345,11 +347,21 @@ public sealed partial class DiscordMessageResponder(
 
                 var bytes = await _http.GetByteArrayAsync(url, ct);
                 var mime = mimeType.Split(';')[0].Trim();
+
+                // Retain raw audio as an attachment for native model processing.
+                AudioAttachment? audioAtt = null;
+                if (bytes is { Length: > 0 })
+                {
+                    audioAtt = AudioAttachment.Create(bytes, mime);
+                }
+
                 var transcript = await voiceService.TranscribeAsync(bytes, mime, ct);
                 if (transcript is not null)
                 {
-                    return transcript; // one voice message per event
+                    return (transcript, audioAtt); // one voice message per event
                 }
+
+                return (null, audioAtt);
             }
             catch
             {
@@ -357,7 +369,7 @@ public sealed partial class DiscordMessageResponder(
             }
         }
 
-        return null;
+        return (null, null);
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Information,

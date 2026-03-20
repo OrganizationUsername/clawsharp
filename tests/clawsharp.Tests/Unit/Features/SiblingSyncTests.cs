@@ -170,6 +170,41 @@ public sealed class SiblingSyncTests
     }
 
     // ──────────────────────────────────────────────────────────────────────
+    //  Feature 1b: /models slash command parsing
+    // ──────────────────────────────────────────────────────────────────────
+
+    [Test]
+    public void SlashCommand_Models_NoArgs_ReturnsListModels()
+    {
+        var result = SlashCommandRouter.TryHandle("/models", out _, out var arg);
+        result.ShouldBe(SlashCommandResult.ListModels);
+        arg.ShouldBeNull();
+    }
+
+    [Test]
+    public void SlashCommand_Models_WithFilter_ReturnsListModelsWithArg()
+    {
+        var result = SlashCommandRouter.TryHandle("/models claude", out _, out var arg);
+        result.ShouldBe(SlashCommandResult.ListModels);
+        arg.ShouldBe("claude");
+    }
+
+    [Test]
+    public void SlashCommand_Models_CaseInsensitive()
+    {
+        var result = SlashCommandRouter.TryHandle("/MODELS gpt", out _, out var arg);
+        result.ShouldBe(SlashCommandResult.ListModels);
+        arg.ShouldBe("gpt");
+    }
+
+    [Test]
+    public void SlashCommand_Model_And_Models_AreDistinct()
+    {
+        SlashCommandRouter.TryHandle("/model").ShouldBe(SlashCommandResult.SetModel);
+        SlashCommandRouter.TryHandle("/models").ShouldBe(SlashCommandResult.ListModels);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
     //  Feature 2: ExtraHeaders
     // ──────────────────────────────────────────────────────────────────────
 

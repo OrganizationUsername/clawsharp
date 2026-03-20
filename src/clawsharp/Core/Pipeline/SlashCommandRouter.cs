@@ -80,6 +80,7 @@ public static class SlashCommandRouter
                 _ => SlashCommandResult.ShowGoals,
             },
             "/model" => SlashCommandResult.SetModel,
+            "/models" => SlashCommandResult.ListModels,
             _ => (SlashCommandResult?)null, // unknown slash command -- let the LLM handle it
         };
 
@@ -111,4 +112,6 @@ public enum SlashCommandResult
     ClearGoals,
 
     SetModel,
+
+    ListModels,
 }

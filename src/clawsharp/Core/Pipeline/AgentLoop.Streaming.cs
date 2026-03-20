@@ -39,8 +39,12 @@ public sealed partial class AgentLoop
         }
         long totalCacheRead = 0;
         long totalCacheWrite = 0;
+        decimal? totalProviderCost = null;
         string? lastThinking = null;
         List<ToolCallSummary>? toolCallSummaries = null;
+        List<ImageAttachment>? allGeneratedImages = null;
+        List<string>? allAudioChunks = null;
+        string? audioTranscript = null;
         var completedIterations = 0;
 
         for (var iteration = 0; iteration < _defaults.MaxToolIterations; iteration++)
@@ -73,12 +77,31 @@ public sealed partial class AgentLoop
             session.TotalOutputTokens += result.OutputTokens;
             totalCacheRead += result.CacheReadTokens;
             totalCacheWrite += result.CacheWriteTokens;
+            if (result.ProviderReportedCost is { } provCost)
+            {
+                totalProviderCost = (totalProviderCost ?? 0) + provCost;
+            }
 
             // Capture thinking content from this iteration.
             if (result.Thinking.Length > 0)
             {
                 lastThinking = result.Thinking.ToString();
             }
+
+            // Accumulate generated images across iterations.
+            if (result.GeneratedImages is { Count: > 0 })
+            {
+                allGeneratedImages ??= [];
+                allGeneratedImages.AddRange(result.GeneratedImages);
+            }
+
+            // Accumulate audio chunks across iterations.
+            if (result.AudioChunks is { Count: > 0 })
+            {
+                allAudioChunks ??= [];
+                allAudioChunks.AddRange(result.AudioChunks);
+            }
+            audioTranscript = result.AudioTranscript ?? audioTranscript;
 
             // If all streaming providers were exhausted, return an error reply.
             // When text has already been streamed to the user, append the notice inline
@@ -90,11 +113,11 @@ public sealed partial class AgentLoop
                 if (result.Text.Length > 0)
                 {
                     return new LoopResult(result.Text + errorNotice, totalCacheRead, totalCacheWrite,
-                        lastThinking, toolCallSummaries, completedIterations);
+                        lastThinking, toolCallSummaries, completedIterations, totalProviderCost, allGeneratedImages, allAudioChunks, audioTranscript);
                 }
 
                 return new LoopResult("Sorry, all configured providers are currently unavailable. Please try again later.", totalCacheRead,
-                    totalCacheWrite, lastThinking, toolCallSummaries, completedIterations);
+                    totalCacheWrite, lastThinking, toolCallSummaries, completedIterations, totalProviderCost, allGeneratedImages, allAudioChunks, audioTranscript);
             }
 
             // Reconstruct tool calls from the builders.
@@ -125,10 +148,10 @@ public sealed partial class AgentLoop
             // No tool calls — the streamed text IS the final reply.
             var finalReply = BuildStreamingFinalReply(assistantText, result.Thinking, session.ShowThinking);
             messages.Add(new ChatMessage(MessageRole.Assistant, finalReply));
-            return new LoopResult(finalReply, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations);
+            return new LoopResult(finalReply, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations, totalProviderCost, allGeneratedImages, allAudioChunks, audioTranscript);
         }
 
-        return new LoopResult(null, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations); // iteration cap hit
+        return new LoopResult(null, totalCacheRead, totalCacheWrite, lastThinking, toolCallSummaries, completedIterations, totalProviderCost, allGeneratedImages, allAudioChunks, audioTranscript); // iteration cap hit
     }
 
     /// <summary>Accumulated state from consuming a single streaming iteration.</summary>
@@ -140,6 +163,10 @@ public sealed partial class AgentLoop
         int OutputTokens,
         int CacheReadTokens,
         int CacheWriteTokens,
+        decimal? ProviderReportedCost,
+        List<ImageAttachment>? GeneratedImages,
+        List<string>? AudioChunks,
+        string? AudioTranscript,
         FallbackExhaustedException? ExhaustedException);
 
     /// <summary>
@@ -162,6 +189,10 @@ public sealed partial class AgentLoop
         var outputTokens = 0;
         var cacheReadTokens = 0;
         var cacheWriteTokens = 0;
+        decimal? providerReportedCost = null;
+        List<ImageAttachment>? generatedImages = null;
+        List<string>? audioChunks = null;
+        StringBuilder? audioTranscript = null;
         FallbackExhaustedException? exhaustedException = null;
 
         try
@@ -223,6 +254,28 @@ public sealed partial class AgentLoop
                         outputTokens += usage.OutputTokens;
                         cacheReadTokens += usage.CacheReadTokens;
                         cacheWriteTokens += usage.CacheWriteTokens;
+                        if (usage.ProviderReportedCost is { } usageCost)
+                        {
+                            providerReportedCost = (providerReportedCost ?? 0) + usageCost;
+                        }
+                        break;
+
+                    case AudioDeltaChunk audioDelta:
+                        if (audioDelta.AudioData is { Length: > 0 })
+                        {
+                            audioChunks ??= [];
+                            audioChunks.Add(audioDelta.AudioData);
+                        }
+                        if (audioDelta.Transcript is { Length: > 0 })
+                        {
+                            audioTranscript ??= new StringBuilder();
+                            audioTranscript.Append(audioDelta.Transcript);
+                        }
+                        break;
+
+                    case ImageGenerationChunk imgChunk:
+                        generatedImages ??= [];
+                        generatedImages.Add(imgChunk.Image);
                         break;
 
                     case StreamDoneChunk:
@@ -256,7 +309,8 @@ public sealed partial class AgentLoop
         return new StreamConsumeResult(
             textSb, thinkingSb, toolBuilders,
             inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens,
-            exhaustedException);
+            providerReportedCost, generatedImages,
+            audioChunks, audioTranscript?.ToString(), exhaustedException);
     }
 
     /// <summary>

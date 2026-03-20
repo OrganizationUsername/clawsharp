@@ -10,6 +10,7 @@ using Clawsharp.Features.Memory.Commands;
 using Clawsharp.Features.Session.Commands;
 using Clawsharp.Providers;
 using Clawsharp.Security;
+using Clawsharp.Tools;
 using Microsoft.Extensions.Logging;
 using Clawsharp.Config.Agent;
 using Clawsharp.Config.Features;
@@ -178,7 +179,8 @@ public sealed partial class AgentLoop
         var outputDelta = session.TotalOutputTokens - outputTokensBefore;
         await _handlers.RecordUsage.HandleAsync(new RecordUsage.Command(
             sessionId, actualModel, inputDelta, outputDelta,
-            loopResult.CacheRead, loopResult.CacheWrite), ct).ConfigureAwait(false);
+            loopResult.CacheRead, loopResult.CacheWrite,
+            loopResult.ProviderReportedCost), ct).ConfigureAwait(false);
 
         // Record interaction analytics (fire-and-forget — must not block the response pipeline).
         if (_analyticsEnabled && loopResult.Reply is not null)
@@ -302,11 +304,27 @@ public sealed partial class AgentLoop
             new SanitizeReply.Command(finalReply, canaryGuard, inbound.Channel.Value, inbound.SenderId), ct).ConfigureAwait(false);
         finalReply = sanitizeResult.SanitizedReply;
 
-        // Update session — images are not persisted to keep session files small.
+        // Update session — images, files, and audio are not persisted to keep session files small.
         string userTextForHistory;
-        if (inbound.Images is { Count: > 0 })
+        if (inbound.Images is { Count: > 0 } || inbound.Files is { Count: > 0 } || inbound.Audio is not null)
         {
-            userTextForHistory = $"{inbound.Text} [+{inbound.Images.Count} image(s)]".TrimStart();
+            var attachmentNotes = new List<string>(3);
+            if (inbound.Images is { Count: > 0 })
+            {
+                attachmentNotes.Add($"{inbound.Images.Count} image(s)");
+            }
+
+            if (inbound.Files is { Count: > 0 })
+            {
+                attachmentNotes.Add($"{inbound.Files.Count} file(s)");
+            }
+
+            if (inbound.Audio is not null)
+            {
+                attachmentNotes.Add("1 audio");
+            }
+
+            userTextForHistory = $"{inbound.Text} [+{string.Join(", ", attachmentNotes)}]".TrimStart();
         }
         else
         {
@@ -343,7 +361,57 @@ public sealed partial class AgentLoop
             await channel.SendAsync(outbound with { Text = finalReply }, ct).ConfigureAwait(false);
         }
 
-        // Deliver any files queued by SendFileTool during the tool-call loop.
+        // Queue any model-generated images for delivery via the file channel pipeline.
+        if (loopResult.GeneratedImages is { Count: > 0 } genImages)
+        {
+            for (var i = 0; i < genImages.Count; i++)
+            {
+                var img = genImages[i];
+                try
+                {
+                    var bytes = Convert.FromBase64String(img.Base64Data);
+                    var extension = img.MimeType switch
+                    {
+                        "image/jpeg" => ".jpg",
+                        "image/webp" => ".webp",
+                        "image/gif" => ".gif",
+                        _ => ".png"
+                    };
+                    PendingFileStore.Enqueue(new PendingFile(
+                        $"generated-image-{i + 1}{extension}",
+                        bytes,
+                        null));
+                }
+                catch (FormatException)
+                {
+                    LogMalformedBase64Image(_logger, i + 1);
+                }
+            }
+        }
+
+        // Queue any model-generated audio for delivery.
+        if (loopResult.AudioChunks is { Count: > 0 } audioChunks)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                for (var i = 0; i < audioChunks.Count; i++)
+                {
+                    sb.Append(i < audioChunks.Count - 1
+                        ? audioChunks[i].TrimEnd('=')
+                        : audioChunks[i]);
+                }
+                var audioBytes = Convert.FromBase64String(sb.ToString());
+                var audioExt = AudioAttachment.FormatToExtension(loopResult.AudioFormat ?? "wav");
+                PendingFileStore.Enqueue(new PendingFile($"generated-audio{audioExt}", audioBytes, loopResult.AudioTranscript));
+            }
+            catch (FormatException)
+            {
+                LogMalformedBase64Audio(_logger);
+            }
+        }
+
+        // Deliver any files queued by SendFileTool or generated images during the tool-call loop.
         await DeliverPendingFilesAsync(channel, outbound, ct).ConfigureAwait(false);
 
         // Memory consolidation — fire-and-forget after session save + reply send.

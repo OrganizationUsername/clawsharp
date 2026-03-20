@@ -114,6 +114,7 @@ public sealed partial class CostTracker(
         long outputTokens,
         long cacheReadTokens = 0,
         long cacheWriteTokens = 0,
+        decimal? providerReportedCost = null,
         CancellationToken ct = default)
     {
         if (!_config.Enabled)
@@ -123,6 +124,13 @@ public sealed partial class CostTracker(
 
         var (cost, savings) = DefaultPricing.CalculateCostWithCaching(
             model, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, _config.Prices);
+
+        // Prefer provider-reported cost (e.g. OpenRouter) over our token-based pricing calculation.
+        // This gives more accurate cost tracking for providers that report actual charges.
+        if (providerReportedCost is { } reportedCost && reportedCost > 0)
+        {
+            cost = reportedCost;
+        }
 
         var cacheSavings = 0.0m;
         if (savings > 0)

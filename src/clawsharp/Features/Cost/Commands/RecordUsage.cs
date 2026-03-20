@@ -16,7 +16,8 @@ public static partial class RecordUsage
         long InputTokens,
         long OutputTokens,
         long CacheReadTokens = 0,
-        long CacheWriteTokens = 0);
+        long CacheWriteTokens = 0,
+        decimal? ProviderReportedCost = null);
 
     private static async ValueTask HandleAsync(
         Command command,
@@ -30,6 +31,7 @@ public static partial class RecordUsage
             command.OutputTokens,
             command.CacheReadTokens,
             command.CacheWriteTokens,
+            command.ProviderReportedCost,
             ct);
     }
 }

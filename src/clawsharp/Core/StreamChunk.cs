@@ -25,8 +25,21 @@ public sealed record StreamUsageChunk(
     int InputTokens,
     int OutputTokens,
     int CacheReadTokens = 0,
-    int CacheWriteTokens = 0
+    int CacheWriteTokens = 0,
+    decimal? ProviderReportedCost = null
 ) : StreamChunk;
+
+/// <summary>
+/// An audio output delta from the model. Audio data arrives as incremental base64 chunks
+/// that must be accumulated and decoded. Transcript provides the text version of the audio.
+/// </summary>
+public sealed record AudioDeltaChunk(string? AudioData, string? Transcript) : StreamChunk;
+
+/// <summary>
+/// A generated image from the model, delivered as a complete base64-encoded image.
+/// Unlike text deltas, images arrive as complete units, not incremental.
+/// </summary>
+public sealed record ImageGenerationChunk(ImageAttachment Image) : StreamChunk;
 
 /// <summary>Sentinel that signals the stream is complete.</summary>
 public sealed record StreamDoneChunk : StreamChunk;
